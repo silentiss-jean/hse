@@ -1,6 +1,6 @@
 {
   "domain": "hse",
-  "name": "Home Suivi Elec",
+  "name": "Home Suivi Elec v2",
   "version": "2.0.0",
   "config_flow": true,
   "single_config_entry": true,
