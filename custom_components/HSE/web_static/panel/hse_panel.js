@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-10_1729_noflicker_user_interacting_flag";
+const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listeners";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -123,6 +123,16 @@ const build_signature = "2026-03-10_1729_noflicker_user_interacting_flag";
       // -----------------------------------------------------------------------
       this._user_interacting = false;
       this._user_interacting_timer = null;
+
+      // Bound handlers for document-level listeners (needed for removeEventListener)
+      this._doc_mousedown_handler = () => this._mark_user_interacting();
+      this._doc_focusin_handler = (e) => {
+        // Only react to focusin events that originate from within our shadow root
+        // (composed path crosses the shadow boundary).
+        if (this._root && e.composedPath && e.composedPath().some((n) => n === this._root)) {
+          this._mark_user_interacting();
+        }
+      };
     }
 
     // -------------------------------------------------------------------------
@@ -158,6 +168,9 @@ const build_signature = "2026-03-10_1729_noflicker_user_interacting_flag";
         clearTimeout(this._user_interacting_timer);
         this._user_interacting_timer = null;
       }
+      // Cleanup document-level listeners
+      document.removeEventListener("mousedown", this._doc_mousedown_handler, true);
+      document.removeEventListener("focusin", this._doc_focusin_handler, true);
     }
 
     set hass(hass) {
@@ -208,11 +221,18 @@ const build_signature = "2026-03-10_1729_noflicker_user_interacting_flag";
 
       this._root = this.attachShadow({ mode: "open" });
 
-      // Écoute les événements d'interaction sur le shadow root pour activer le flag
+      // Shadow root listeners (keyboard, touch, focusin inside shadow)
       this._root.addEventListener("mousedown", () => this._mark_user_interacting(), true);
       this._root.addEventListener("focusin", () => this._mark_user_interacting(), true);
       this._root.addEventListener("keydown", () => this._mark_user_interacting(), true);
       this._root.addEventListener("touchstart", () => this._mark_user_interacting(), { passive: true, capture: true });
+
+      // Document-level listeners to catch native <select> popup interactions.
+      // Native select dropdowns render outside the shadow DOM, so mousedown/focusin
+      // on their options never reach the shadow root. Listening at document level
+      // ensures _mark_user_interacting() fires before the polling re-render kills the open list.
+      document.addEventListener("mousedown", this._doc_mousedown_handler, true);
+      document.addEventListener("focusin", this._doc_focusin_handler, true);
 
       this._boot();
     }
