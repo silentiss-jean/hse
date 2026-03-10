@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-10_0711_costs_noflicker_badges_synthesis";
+const build_signature = "2026-03-10_1729_noflicker_user_interacting_flag";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -112,11 +112,52 @@ const build_signature = "2026-03-10_0711_costs_noflicker_badges_synthesis";
       this._reference_status_timer = null;
       this._reference_status_polling = false;
       this._reference_status_target_entity_id = undefined;
+
+      // -----------------------------------------------------------------------
+      // FLAG ANTI-RERENDER
+      // Mis à true pendant qu'une interaction utilisateur est en cours
+      // (ouverture d'un <select>, saisie dans un <input>, etc.).
+      // Les re-renders automatiques (polling statut référence, autorefresh
+      // overview) sont supprimés tant que ce flag est actif.
+      // Remis à false 800ms après le dernier événement d'interaction.
+      // -----------------------------------------------------------------------
+      this._user_interacting = false;
+      this._user_interacting_timer = null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Gestion du flag _user_interacting
+    // -------------------------------------------------------------------------
+
+    _mark_user_interacting() {
+      this._user_interacting = true;
+      if (this._user_interacting_timer) {
+        clearTimeout(this._user_interacting_timer);
+      }
+      this._user_interacting_timer = setTimeout(() => {
+        this._user_interacting = false;
+        this._user_interacting_timer = null;
+        // Re-render différé pour appliquer les données arrivées pendant l'interaction
+        this._render();
+      }, 800);
+    }
+
+    // Appeler ce wrapper à la place de this._render() dans les callbacks
+    // automatiques (polling, autorefresh). Si l'utilisateur est en train
+    // d'interagir, le render est ignoré — il sera déclenché automatiquement
+    // 800ms après la fin de l'interaction par _mark_user_interacting().
+    _render_if_not_interacting() {
+      if (this._user_interacting) return;
+      this._render();
     }
 
     disconnectedCallback() {
       this._clear_overview_autorefresh();
       this._clear_reference_status_polling();
+      if (this._user_interacting_timer) {
+        clearTimeout(this._user_interacting_timer);
+        this._user_interacting_timer = null;
+      }
     }
 
     set hass(hass) {
@@ -166,6 +207,13 @@ const build_signature = "2026-03-10_0711_costs_noflicker_badges_synthesis";
       this._config_state.cost_filter_q = this._storage_get("hse_config_cost_filter_q") || "";
 
       this._root = this.attachShadow({ mode: "open" });
+
+      // Écoute les événements d'interaction sur le shadow root pour activer le flag
+      this._root.addEventListener("mousedown", () => this._mark_user_interacting(), true);
+      this._root.addEventListener("focusin", () => this._mark_user_interacting(), true);
+      this._root.addEventListener("keydown", () => this._mark_user_interacting(), true);
+      this._root.addEventListener("touchstart", () => this._mark_user_interacting(), { passive: true, capture: true });
+
       this._boot();
     }
 
@@ -320,7 +368,11 @@ const build_signature = "2026-03-10_0711_costs_noflicker_badges_synthesis";
         return null;
       } finally {
         this._reference_status_polling = false;
-        if (this._active_tab === "config") this._render();
+        // AUDIT-RERENDER-001: render automatique du badge statut référence.
+        // Utilise _render_if_not_interacting() pour ne pas interrompre
+        // une sélection de capteur en cours dans le <select>.
+        // Cible future: rendu partiel du badge uniquement (TODO: audit_rerender.py).
+        if (this._active_tab === "config") this._render_if_not_interacting();
       }
     }
 
@@ -339,7 +391,11 @@ const build_signature = "2026-03-10_0711_costs_noflicker_badges_synthesis";
           this._overview_data = { error: this._err_msg(err) };
         } finally {
           this._overview_refreshing = false;
-          this._render();
+          // AUDIT-RERENDER-002: render automatique après autorefresh overview/costs (30s).
+          // Sur overview: ok, pas d'interaction. Sur costs: peut interrompre un filtre.
+          // Utilise _render_if_not_interacting() pour les deux cas.
+          // Cible future: rendu partiel du corps seulement (TODO: audit_rerender.py).
+          this._render_if_not_interacting();
         }
       };
 
