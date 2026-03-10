@@ -4,7 +4,7 @@ API_PREFIX = "/api/hse/unified"
 STATIC_URL = "/api/hse/static"
 
 PANEL_URL_PATH = "hse"
-PANEL_TITLE = "Home Suivi Elec"
+PANEL_TITLE = "Home Suivi Elec v2"
 PANEL_ICON = "mdi:flash"
 
 PANEL_JS_URL = f"{STATIC_URL}/panel/hse_panel.js?v=0.1.27"
