@@ -1,0 +1,150 @@
+/*
+HSE_DOC: custom_components/hse/docs/panel_style.md
+HSE_MAINTENANCE: If you change panel CSS selectors/variables consumed by JS/views, update the doc above.
+*/
+
+:host {
+  --hse_gap: 12px;
+  --hse_radius: 12px;
+
+  --hse_bg: var(--primary-background-color);
+  --hse_fg: var(--primary-text-color);
+  --hse_muted: var(--secondary-text-color);
+  --hse_border: var(--divider-color);
+
+  --hse_card_bg: var(--card-background-color);
+  --hse_code_bg: color-mix(in srgb, var(--hse_card_bg) 70%, #000 30%);
+
+  --hse_accent: var(--primary-color);
+  --hse_danger: var(--error-color);
+}
+
+.hse_page {
+  padding: 16px;
+  color: var(--hse_fg);
+  box-sizing: border-box;
+}
+
+.hse_shell {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hse_header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--hse_gap);
+  margin-bottom: 12px;
+}
+
+.hse_title {
+  font-size: 20px;
+  margin: 0;
+}
+
+.hse_subtitle {
+  font-size: 13px;
+  color: var(--hse_muted);
+}
+
+.hse_tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.hse_tab {
+  border: 1px solid var(--hse_border);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hse_tab[data_active="true"] {
+  border-color: var(--hse_accent);
+}
+
+.hse_card {
+  background: var(--hse_card_bg);
+  border: 1px solid var(--hse_border);
+  border-radius: var(--hse_radius);
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.hse_toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.hse_button {
+  border: 1px solid var(--hse_border);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hse_button_primary {
+  border-color: var(--hse_accent);
+}
+
+.hse_input {
+  border: 1px solid var(--hse_border);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 260px;
+}
+
+.hse_badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hse_badge {
+  border: 1px solid var(--hse_border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--hse_muted);
+}
+
+.hse_table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.hse_table th,
+.hse_table td {
+  border-top: 1px solid var(--hse_border);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.hse_code {
+  background: var(--hse_code_bg);
+  border: 1px solid var(--hse_border);
+  border-radius: 10px;
+  padding: 10px;
+  overflow: auto;
+  max-height: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
