@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-11_1038_fix_config_blank_page_clear_guard";
+const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -764,6 +764,15 @@ const build_signature = "2026-03-11_1038_fix_config_blank_page_clear_guard";
 
       this._ensure_valid_tab();
       this._render_nav_tabs();
+
+      // FIX-4: si on n'est PAS sur l'onglet config, on retire l'attribut
+      // data-hse-config-built du container pour qu'au prochain retour sur config
+      // le guard ne bloque pas le clear() et force un rebuild propre.
+      // Sans ce nettoyage, naviguer vers un autre onglet puis revenir sur config
+      // laissait l'ancien contenu visible (le guard empêchait le clear).
+      if (this._active_tab !== "config" && this._ui.content.hasAttribute("data-hse-config-built")) {
+        this._ui.content.removeAttribute("data-hse-config-built");
+      }
 
       // FIX: si l'onglet actif est "config" et que la page est déjà construite
       // (data-hse-config-built présent), on ne vide PAS le container ici.
