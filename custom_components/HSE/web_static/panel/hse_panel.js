@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-11_1012_fix_panel_blank_select_destroyed";
+const build_signature = "2026-03-11_1038_fix_config_blank_page_clear_guard";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -765,9 +765,22 @@ const build_signature = "2026-03-11_1012_fix_panel_blank_select_destroyed";
       this._ensure_valid_tab();
       this._render_nav_tabs();
 
-      window.hse_dom.clear(this._ui.content);
+      // FIX: si l'onglet actif est "config" et que la page est déjà construite
+      // (data-hse-config-built présent), on ne vide PAS le container ici.
+      // config.view.js gère lui-même son DOM via render_config() (patch partiel
+      // ou rebuild). Vider le container ici causerait une page blanche car
+      // _render_config() est async et ne peuple pas le container de façon synchrone.
+      const config_already_built =
+        this._active_tab === "config" &&
+        this._ui.content.hasAttribute("data-hse-config-built");
+
+      if (!config_already_built) {
+        window.hse_dom.clear(this._ui.content);
+      }
 
       if (!this._hass) {
+        // Si on a gardé le container config, on le vide quand même (pas de hass)
+        if (config_already_built) window.hse_dom.clear(this._ui.content);
         this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass\u2026"));
         return;
       }
