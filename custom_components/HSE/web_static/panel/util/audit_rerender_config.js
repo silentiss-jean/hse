@@ -4,11 +4,15 @@
  * Script d'audit à coller dans la console du navigateur (DevTools) quand
  * la page HSE / onglet Configuration est active.
  *
+ * ⚠️  Home Assistant utilise des shadow DOM imbriqués : hse-panel n'est pas
+ *     accessible via document.querySelector(). Ce script traverse automatiquement
+ *     tous les shadow roots pour le retrouver.
+ *
  * Ce qu'il détecte :
  *   1. Chaque appel à _render() sur le panel → origine (stack) + timestamp
  *   2. Chaque appel à render_config() dans config.view.js → is_first / patch
  *   3. Chaque clear() du container → DANGER si la cost-card est ouverte
- *   4. Chaque rebuild complet de la cost-card (_build_cost_card) → cause du collapse
+ *   4. Chaque rebuild complet de la cost-card → cause du collapse
  *   5. Polling référence (setInterval 4s) → si render est appelé depuis le finally
  *   6. Détection du cas "clear() pendant qu'un <details> est open"
  *   7. Résumé final après N secondes
@@ -46,19 +50,77 @@
   }
 
   // -----------------------------------------------------------------------
-  // 1. Trouver le panel element
+  // 0. Traversée des shadow DOM imbriqués (HA wraps everything in shadow roots)
   // -----------------------------------------------------------------------
-  const panel = document.querySelector('hse-panel');
+  function _find_in_shadow(root, selector) {
+    // BFS sur tous les shadow roots accessibles depuis `root`
+    const queue = [root];
+    while (queue.length) {
+      const node = queue.shift();
+      // Chercher dans ce nœud
+      const found = (node.querySelectorAll ? node.querySelectorAll(selector) : []);
+      for (const el of found) {
+        return el; // premier trouvé
+      }
+      // Parcourir les enfants et leurs shadow roots
+      const children = node.querySelectorAll ? Array.from(node.querySelectorAll('*')) : [];
+      for (const child of children) {
+        if (child.shadowRoot) queue.push(child.shadowRoot);
+      }
+    }
+    return null;
+  }
+
+  // -----------------------------------------------------------------------
+  // 1. Trouver le panel element (traverse shadow DOM HA)
+  // -----------------------------------------------------------------------
+  let panel = document.querySelector('hse-panel');
   if (!panel) {
-    log('ERR', 'SETUP', 'hse-panel introuvable dans le DOM. Es-tu sur la page HSE ?');
+    // HA monte hse-panel dans un shadow root profond
+    log('INFO', 'SETUP', 'hse-panel non trouvé au niveau document — traverse les shadow roots HA...');
+    panel = _find_in_shadow(document, 'hse-panel');
+  }
+
+  // Tentative via window.__hse_panel_loaded (marqueur posé par hse_panel.js)
+  if (!panel && window.__hse_panel_loaded) {
+    // Le panel est chargé mais pas trouvé dans le DOM standard → chercher différemment
+    log('INFO', 'SETUP', '__hse_panel_loaded détecté — recherche élargie...');
+    // Chercher dans tous les custom elements enregistrés
+    const all = document.querySelectorAll('*');
+    for (const el of all) {
+      if (el.shadowRoot) {
+        const found = el.shadowRoot.querySelector('hse-panel');
+        if (found) { panel = found; break; }
+        // Un niveau de plus
+        const deep = el.shadowRoot.querySelectorAll('*');
+        for (const d of deep) {
+          if (d.shadowRoot) {
+            const f2 = d.shadowRoot.querySelector('hse-panel');
+            if (f2) { panel = f2; break; }
+          }
+        }
+        if (panel) break;
+      }
+    }
+  }
+
+  if (!panel) {
+    log('ERR', 'SETUP',
+      'hse-panel introuvable après traversée complète des shadow roots.\n' +
+      'Vérifications:\n' +
+      '  1. Es-tu bien sur la page HSE (URL contient /hse) ?\n' +
+      '  2. L\'onglet Configuration est-il visible à l\'écran ?\n' +
+      '  3. Recharge la page HSE complètement puis relance ce script.\n' +
+      'Debug: window.__hse_panel_loaded = ' + JSON.stringify(window.__hse_panel_loaded)
+    );
     window.__hse_audit_running = false;
     return;
   }
-  log('INFO', 'SETUP', 'hse-panel trouvé', { tag: panel.tagName });
+  log('INFO', 'SETUP', 'hse-panel trouvé ✅', { tag: panel.tagName, active_tab: panel._active_tab });
 
   const shadow = panel.shadowRoot;
   if (!shadow) {
-    log('ERR', 'SETUP', 'shadowRoot introuvable.');
+    log('ERR', 'SETUP', 'shadowRoot introuvable sur hse-panel.');
     window.__hse_audit_running = false;
     return;
   }
@@ -71,12 +133,9 @@
     log('ERR', 'SETUP', '_render() introuvable sur le panel.');
   } else {
     panel._render = function audited_render() {
-      // Capturer la stack pour identifier l'appelant
       const stack = (new Error()).stack || '';
-      // Extraire les 3 premières lignes utiles (skip Error + cette fonction)
       const lines = stack.split('\n').slice(2, 6).map(l => l.trim()).join(' | ');
 
-      // Détecter si un <details> ouvert dans config-content va être détruit
       const content = shadow.querySelector('#root');
       const costCard = content?.querySelector('[data-hse-section="cost"]');
       const openDetails = costCard ? Array.from(costCard.querySelectorAll('details[open]')) : [];
@@ -125,7 +184,6 @@
       const kind = is_first ? 'BUILD (premier rendu)' : 'PATCH (patch partiel)';
 
       if (!is_first && openDetails.length > 0) {
-        // Vérifier si la cost-card va être clearée (elle l'est toujours dans _patch_config)
         log('WARN', 'RENDER_CONFIG',
           `⚠️  render_config() PATCH avec ${openDetails.length} <details> ouverts → la cost-card sera reconstruite → COLLAPSE`,
           { openDetails: openDetails.map(d => d.className || d.tagName) }
@@ -142,14 +200,12 @@
   }
 
   // -----------------------------------------------------------------------
-  // 5. Surveiller les setInterval actifs (polling référence 4s)
-  //    On wrap window.setInterval pour logger les nouveaux timers créés.
+  // 5. Surveiller les setInterval actifs
   // -----------------------------------------------------------------------
   const INTERVALS = new Map();
   const orig_setInterval = window.setInterval;
   window.setInterval = function audited_setInterval(fn, delay, ...args) {
     const id = orig_setInterval.call(window, function () {
-      // Logger chaque tick de polling si on est sur config
       if (panel._active_tab === 'config' && delay <= 5000) {
         log('DEBUG', `INTERVAL(${delay}ms)`, `tick id=${id}`);
       }
@@ -184,7 +240,6 @@
         if (m.type !== 'childList') continue;
         for (const removed of m.removedNodes) {
           if (!(removed instanceof Element)) continue;
-          // La cost-card a été retirée → c'est un clear() total ou un rebuild
           if (removed.dataset?.hseSection === 'cost') {
             const openInRemoved = Array.from(removed.querySelectorAll('details[open]'));
             if (openInRemoved.length > 0) {
@@ -204,7 +259,7 @@
   }
 
   // -----------------------------------------------------------------------
-  // 7. Rapport automatique après 30s
+  // 7. Rapport
   // -----------------------------------------------------------------------
   const report = () => {
     const warns = LOG.filter(l => l.level === 'WARN');
@@ -257,9 +312,6 @@
     window.clearInterval = orig_clearInterval;
     if (orig_render) panel._render = orig_render;
     if (orig_rini)   panel._render_if_not_interacting = orig_rini;
-    if (window.hse_config_view?.render_config && window.hse_config_view.render_config.name === 'audited_render_config') {
-      // On ne peut pas restaurer proprement sans avoir gardé la ref, c'est ok pour un audit
-    }
     window.__hse_audit_running = false;
     log('INFO', 'SETUP', 'Audit arrêté.');
     report();
@@ -269,7 +321,6 @@
 
   log('INFO', 'SETUP', '✅ Audit HSE config actif. Interagis avec la page pendant ~15-30s puis appelle hse_audit.report() ou attends 30s.');
 
-  // Rapport auto après 30s
   orig_setInterval.call(window, () => {
     if (window.__hse_audit_running) {
       log('INFO', 'SETUP', 'Rapport automatique (30s)');
