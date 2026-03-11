@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
+const build_signature = "2026-03-11_1012_fix_panel_blank_select_destroyed";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -119,7 +119,8 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
       // (ouverture d'un <select>, saisie dans un <input>, etc.).
       // Les re-renders automatiques (polling statut référence, autorefresh
       // overview) sont supprimés tant que ce flag est actif.
-      // Remis à false 800ms après le dernier événement d'interaction.
+      // Remis à false après la fin de l'interaction (timer 2000ms, repoussé
+      // tant qu'un <select> natif reste actif).
       // -----------------------------------------------------------------------
       this._user_interacting = false;
       this._user_interacting_timer = null;
@@ -144,18 +145,37 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
       if (this._user_interacting_timer) {
         clearTimeout(this._user_interacting_timer);
       }
-      this._user_interacting_timer = setTimeout(() => {
-        this._user_interacting = false;
-        this._user_interacting_timer = null;
-        // Re-render différé pour appliquer les données arrivées pendant l'interaction
-        this._render();
-      }, 800);
+
+      // FIX-2: timer 2000ms au lieu de 800ms pour laisser le temps aux
+      // <select> natifs d'être utilisés. Si un <select> est encore focusé
+      // (dropdown ouvert), on repousse le timer jusqu'à ce qu'il se ferme.
+      const schedule = () => {
+        this._user_interacting_timer = setTimeout(() => {
+          // Vérifier si un <select> natif est encore actif dans le document
+          const active = document.activeElement;
+          if (active && active.tagName === "SELECT") {
+            schedule();
+            return;
+          }
+          // Vérifier aussi dans le shadow root
+          const shadow_active = this._root?.activeElement;
+          if (shadow_active && shadow_active.tagName === "SELECT") {
+            schedule();
+            return;
+          }
+          this._user_interacting = false;
+          this._user_interacting_timer = null;
+          // Re-render différé pour appliquer les données arrivées pendant l'interaction
+          this._render();
+        }, 2000);
+      };
+      schedule();
     }
 
     // Appeler ce wrapper à la place de this._render() dans les callbacks
     // automatiques (polling, autorefresh). Si l'utilisateur est en train
     // d'interagir, le render est ignoré — il sera déclenché automatiquement
-    // 800ms après la fin de l'interaction par _mark_user_interacting().
+    // après la fin de l'interaction par _mark_user_interacting().
     _render_if_not_interacting() {
       if (this._user_interacting) return;
       this._render();
@@ -389,20 +409,25 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
       } finally {
         this._reference_status_polling = false;
 
-        // FIX: ne pas appeler _render() complet ici — cela détruirait le DOM
+        // FIX-1: ne pas appeler _render() complet ici — cela détruirait le DOM
         // du container via clear(this._ui.content) et viderait la page Config.
-        // On utilise render_config() en mode patch (data-hse-config-built déjà
-        // positionné) qui met à jour uniquement les nœuds data-hse-live sans
-        // reconstruire ni vider le container.
+        // Stratégie :
+        //   - Si data-hse-config-built est présent → patch partiel via render_config()
+        //   - Si absent (container vidé entre-temps par un autre _render()) → rebuild
+        //     complet via _render() pour reconstruire la page, sauf si l'utilisateur
+        //     est en cours d'interaction (dans ce cas on laisse _mark_user_interacting
+        //     déclencher le _render() final).
         if (this._active_tab === "config" && !this._user_interacting) {
           try {
             const container = this._ui?.content;
-            if (
-              container &&
-              container.hasAttribute("data-hse-config-built") &&
-              window.hse_config_view?.render_config
-            ) {
-              window.hse_config_view.render_config(container, this._config_state, () => {});
+            if (container && window.hse_config_view?.render_config) {
+              if (container.hasAttribute("data-hse-config-built")) {
+                // Patch partiel : ne vide pas le container
+                window.hse_config_view.render_config(container, this._config_state, () => {});
+              } else {
+                // Fallback : le container a été vidé, rebuild complet nécessaire
+                this._render();
+              }
             }
           } catch (_) {}
         }
@@ -500,7 +525,9 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.loading = false;
-        this._render();
+        // FIX-3: utiliser _render_if_not_interacting() pour ne pas détruire
+        // le DOM pendant qu'un <select> ou un <input> est en cours d'utilisation.
+        this._render_if_not_interacting();
       }
     }
 
@@ -536,7 +563,8 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
         this._org_state.message = "\u00c9chec de sauvegarde.";
       } finally {
         this._org_state.saving = false;
-        this._render();
+        // FIX-3: utiliser _render_if_not_interacting() dans le finally
+        this._render_if_not_interacting();
       }
     }
 
@@ -564,7 +592,8 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.preview_running = false;
-        this._render();
+        // FIX-3: utiliser _render_if_not_interacting() dans le finally
+        this._render_if_not_interacting();
       }
     }
 
@@ -602,7 +631,8 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.apply_running = false;
-        this._render();
+        // FIX-3: utiliser _render_if_not_interacting() dans le finally
+        this._render_if_not_interacting();
       }
     }
 
@@ -657,7 +687,7 @@ const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
         const css_alias = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_alias.v2.css?v=${ASSET_V}`);
         const css_panel = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/tokens.css?v=${ASSET_V}`);
 
-        this._root.innerHTML = `<style>\n${css_tokens}\n\n${css_themes}\n\n${css_alias}\n\n${css_panel}\n</style><div id=\"root\"></div>`;
+        this._root.innerHTML = `<style>\n${css_tokens}\n\n${css_themes}\n\n${css_alias}\n\n${css_panel}\n</style><div id="root"></div>`;
 
         this._boot_done = true;
         this._boot_error = null;
