@@ -15,6 +15,15 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
   //   nœuds portant data-hse-live="<key>" sont mis à jour en place.
   //   Le <select> référence et les <input> restent dans le DOM → leur état
   //   natif (dropdown ouvert, focus, valeur en cours de saisie) est préservé.
+  //
+  // FIX-5: cost-card en patch partiel.
+  //   _patch_cost_card() ne fait plus de clear() global. Elle met à jour
+  //   uniquement les nœuds live (compteurs, boutons disabled) et préserve
+  //   l'état open/fermé de tous les <details> de la cost-card.
+  //   Un rebuild complet reste déclenché uniquement si la liste des
+  //   candidats sélectionnés a réellement changé (ajout/retrait/auto-select)
+  //   ou si le filtre texte a changé — dans ce cas on restaure l'état open
+  //   avant de reconstruire.
   // ---------------------------------------------------------------------------
 
   function _current_reference_entity_id(catalogue) {
@@ -312,7 +321,9 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     for (const g of groups) {
       const details = document.createElement("details");
       details.className = "hse_fold";
-      details.open = opts?.open_by_default === true;
+      // Restaurer l'état open depuis opts.open_state si disponible, sinon open_by_default
+      const restored_open = opts?.open_state?.get(g.integration_domain);
+      details.open = restored_open != null ? restored_open : (opts?.open_by_default === true);
 
       const summary_el = document.createElement("summary");
       summary_el.className = "hse_fold_summary";
@@ -386,19 +397,28 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
   }
 
   // ---------------------------------------------------------------------------
+  // _snapshot_open_state(container)
+  // Retourne une Map<clé, bool> de l'état open de tous les <details> dans
+  // container. La clé est le texte du .hse_fold_title ou le className en
+  // fallback. Utilisé pour restaurer l'état après un rebuild.
+  // ---------------------------------------------------------------------------
+  function _snapshot_open_state(container) {
+    const map = new Map();
+    for (const d of container.querySelectorAll("details")) {
+      const title = d.querySelector(".hse_fold_title")?.textContent ||
+                    d.querySelector("summary")?.textContent ||
+                    d.className;
+      map.set(title, d.open);
+    }
+    return map;
+  }
+
+  // ---------------------------------------------------------------------------
   // _patch_live(container, key, render_fn)
-  // Met à jour le nœud marqué data-hse-live="key" à l'intérieur de container.
-  // Si le nœud n'existe pas encore (première construction), render_fn() est
-  // appelée pour créer le nœud, qui est alors inséré et marqué.
-  // Si le nœud existe déjà, il est remplacé par le nouveau nœud retourné par
-  // render_fn() — SAUF s'il s'agit d'un <select> ou <input> qui a actuellement
-  // le focus (dropdown natif ouvert ou saisie en cours), auquel cas on ne
-  // touche pas au nœud.
   // ---------------------------------------------------------------------------
   function _patch_live(container, key, render_fn) {
     const existing = container.querySelector(`[data-hse-live="${key}"]`);
     if (!existing) {
-      // Première construction: créer et marquer.
       const node = render_fn();
       if (node) {
         node.dataset.hseLive = key;
@@ -407,14 +427,10 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
       return;
     }
 
-    // Ne pas détruire un <select> ou <input> qui a le focus (dropdown ouvert,
-    // saisie en cours). On se contente de mettre à jour ses attributs non-interactifs
-    // via _patch_select_options / _patch_disabled selon le cas.
     const tag = existing.tagName.toLowerCase();
     if ((tag === "select" || tag === "input") && document.activeElement === existing) {
       return;
     }
-    // Même protection pour un conteneur dont un enfant a le focus.
     if (existing.contains(document.activeElement)) {
       return;
     }
@@ -428,12 +444,7 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     existing.replaceWith(next);
   }
 
-  // Met à jour uniquement la liste des <option> d'un <select> existant et sa
-  // valeur courante sans le détruire. Utilisé pour le select référence quand
-  // la liste des candidats change entre deux renders mais que le select n'a
-  // pas le focus.
   function _patch_select_options(sel, options, value) {
-    // Reconstruire les options seulement si la liste a changé.
     const current_values = Array.from(sel.options).map((o) => o.value);
     const next_values = options.map((o) => o.value);
     const same = current_values.length === next_values.length && current_values.every((v, i) => v === next_values[i]);
@@ -446,7 +457,6 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
         sel.appendChild(o);
       }
     }
-    // Mettre à jour la valeur sélectionnée seulement si le select n'est pas ouvert.
     if (document.activeElement !== sel) {
       sel.value = value || "";
     }
@@ -473,11 +483,8 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     clear(container);
 
     const candidates = _power_candidates(model.scan_result);
-    const draft = model.pricing_draft || model.pricing || model.pricing_defaults || {};
-    const contractType = _get(draft, "contract_type", "fixed");
     const effectiveRef = model.selected_reference_entity_id || model.current_reference_entity_id || null;
 
-    // ---- header ----
     const headerCard = el("div", "hse_card");
     const header = el("div", null);
     header.appendChild(el("div", null, "Configuration"));
@@ -491,22 +498,19 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     headerCard.appendChild(header);
     container.appendChild(headerCard);
 
-    // ---- pricing card ----
     const pricingCard = el("div", "hse_card");
     pricingCard.dataset.hseSection = "pricing";
     _build_pricing_card(pricingCard, model, on_action);
     container.appendChild(pricingCard);
 
-    // ---- reference card ----
     const refCard = el("div", "hse_card");
     refCard.dataset.hseSection = "reference";
     _build_ref_card(refCard, model, candidates, effectiveRef, on_action);
     container.appendChild(refCard);
 
-    // ---- cost card ----
     const costCard = el("div", "hse_card");
     costCard.dataset.hseSection = "cost";
-    _build_cost_card(costCard, model, candidates, effectiveRef, on_action);
+    _build_cost_card(costCard, model, candidates, effectiveRef, on_action, null);
     container.appendChild(costCard);
   }
 
@@ -522,29 +526,24 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     const contractType = _get(draft, "contract_type", "fixed");
     const busy = !!model.loading || !!model.saving || !!model.pricing_saving;
 
-    // -- pricing card: reconstruire si le contractType a changé (structure différente)
-    //    sinon patch ciblé des nœuds live
+    // -- pricing card --
     const pricingCard = container.querySelector('[data-hse-section="pricing"]');
     if (pricingCard) {
       const prevContract = pricingCard.dataset.hseContractType || "";
       if (prevContract !== contractType) {
-        // Structure tarifaire change (fixed <-> hphc) → rebuild complet de cette card
         clear(pricingCard);
         pricingCard.dataset.hseContractType = contractType;
         _build_pricing_card(pricingCard, model, on_action);
       } else {
-        // Patch uniquement les nœuds dynamiques
         const savedLine = pricingCard.querySelector('[data-hse-live="pricing-saved-line"]');
         if (savedLine) {
           savedLine.textContent = savedPricing?.updated_at
             ? `Tarifs enregistrés (updated_at): ${savedPricing.updated_at}`
             : "Tarifs enregistrés: (aucun)";
         }
-        // Boutons disabled
         for (const btn of pricingCard.querySelectorAll("button")) {
           btn.disabled = busy;
         }
-        // Messages
         _patch_live(pricingCard, "pricing-message", () =>
           model.pricing_message ? el("div", "hse_subtitle", model.pricing_message) : null
         );
@@ -554,26 +553,19 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
       }
     }
 
-    // -- reference card: patch ciblé
+    // -- reference card --
     const refCard = container.querySelector('[data-hse-section="reference"]');
     if (refCard) {
-      // Référence actuelle (ligne texte)
       const refLine = refCard.querySelector('[data-hse-live="ref-current-line"]');
       if (refLine) {
         refLine.textContent = `Référence actuelle: ${model.current_reference_entity_id || "(Aucune référence sélectionnée)"}`;
       }
-
-      // Status badge box: reconstruire en place si changed, mais protéger focus
       _patch_live(refCard, "ref-status-box", () => _build_ref_status_box(refStatus));
-
-      // Select référence: mettre à jour les options + valeur sans détruire le nœud
       const selectRef = refCard.querySelector('[data-hse-live="ref-select"]');
       if (selectRef) {
         const opts = _ref_select_options(candidates);
         _patch_select_options(selectRef, opts, model.selected_reference_entity_id || "");
       }
-
-      // Messages
       _patch_live(refCard, "ref-message", () =>
         model.message ? el("div", "hse_subtitle", model.message) : null
       );
@@ -583,21 +575,59 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
       _patch_live(refCard, "ref-error", () =>
         model.error ? el("pre", "hse_code", String(model.error)) : null
       );
-
-      // Boutons disabled
       for (const btn of refCard.querySelectorAll("button")) {
         btn.disabled = busy;
       }
     }
 
-    // -- cost card: reconstruction complète (liste de capteurs change sur
-    //    add/remove, filter, auto-select). Le filtre <input> est protégé
-    //    par _patch_live grâce à la vérification document.activeElement.
+    // -- cost card : patch partiel (FIX-5) --
     const costCard = container.querySelector('[data-hse-section="cost"]');
     if (costCard) {
-      clear(costCard);
-      _build_cost_card(costCard, model, candidates, effectiveRef, on_action);
+      _patch_cost_card(costCard, model, candidates, effectiveRef, on_action);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // _patch_cost_card — mise à jour partielle de la cost-card
+  //
+  // Détermine si un rebuild est nécessaire en comparant une signature
+  // (selectedIds + filter_q + effectiveRef) avec celle du rendu précédent.
+  // - Pas de changement → patch uniquement les boutons busy + compteurs.
+  // - Changement → snapshot open state → rebuild → restaure open state.
+  // ---------------------------------------------------------------------------
+  function _patch_cost_card(card, model, candidates, effectiveRef, on_action) {
+    const draft = model.pricing_draft || model.pricing || model.pricing_defaults || {};
+    const busy = !!model.loading || !!model.saving || !!model.pricing_saving;
+    const filter_q = model.cost_filter_q || "";
+
+    const selectedIdsRaw = Array.isArray(_get(draft, "cost_entity_ids", []))
+      ? _get(draft, "cost_entity_ids", []) : [];
+    const selectedIds = effectiveRef
+      ? selectedIdsRaw.filter((x) => x !== effectiveRef)
+      : selectedIdsRaw.slice();
+
+    // Signature de l'état courant
+    const sig = JSON.stringify(selectedIds.slice().sort()) +
+      "|" + (effectiveRef || "") +
+      "|" + filter_q;
+
+    const prev_sig = card.dataset.hseCostSig || null;
+
+    if (prev_sig === sig) {
+      // Rien de structurel n'a changé → juste mettre à jour busy + compteurs
+      for (const btn of card.querySelectorAll("button")) {
+        btn.disabled = busy;
+      }
+      // Mettre à jour le compteur "Disponibles" et "Sélectionnés" si présents
+      _patch_live(card, "cost-avail-count", () => null); // pas de nœud dédié pour l'instant
+      return;
+    }
+
+    // Changement structurel → snapshot état open → rebuild → restaurer
+    const open_state = _snapshot_open_state(card);
+    clear(card);
+    _build_cost_card(card, model, candidates, effectiveRef, on_action, open_state);
+    card.dataset.hseCostSig = sig;
   }
 
   // ---------------------------------------------------------------------------
@@ -794,7 +824,6 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     refLine.textContent = `Référence actuelle: ${model.current_reference_entity_id || "(Aucune référence sélectionnée)"}`;
     card.appendChild(refLine);
 
-    // Status box (dynamique, patchée lors des polls)
     if (refStatus) {
       const statusBox = _build_ref_status_box(refStatus);
       if (statusBox) {
@@ -802,14 +831,12 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
         card.appendChild(statusBox);
       }
     } else {
-      // Placeholder pour que _patch_live le retrouve la prochaine fois
       const placeholder = document.createElement("span");
       placeholder.dataset.hseLive = "ref-status-box";
       placeholder.style.display = "none";
       card.appendChild(placeholder);
     }
 
-    // Select référence — nœud persistant, jamais détruit par le polling
     const rowRef = el("div", "hse_toolbar");
     const selectRef = document.createElement("select");
     selectRef.className = "hse_input";
@@ -842,7 +869,8 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     }
   }
 
-  function _build_cost_card(card, model, candidates, effectiveRef, on_action) {
+  // open_state: Map<titre, bool> optionnelle pour restaurer l'état des <details>
+  function _build_cost_card(card, model, candidates, effectiveRef, on_action, open_state) {
     const draft = model.pricing_draft || model.pricing || model.pricing_defaults || {};
     const busy = !!model.loading || !!model.saving || !!model.pricing_saving;
     const filter_q = model.cost_filter_q || "";
@@ -943,6 +971,7 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
       clear: true,
       prepend: [el("div", null, `Disponibles (${avail.length})`)],
       open_by_default: false,
+      open_state,
       get_dup_badge: _dup_badge,
       make_action_button: (c) => {
         const gk = _group_key(c);
@@ -962,6 +991,7 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
       clear: true,
       prepend: [el("div", null, `Sélectionnés (${selectedIds.length})`)],
       open_by_default: false,
+      open_state,
       get_dup_badge: _dup_badge,
       make_action_button: (c) => _mk_button("Retirer", () => on_action("pricing_list_remove", { entity_id: c.entity_id })),
     });
@@ -974,6 +1004,7 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
           el("div", "hse_subtitle", "Ces capteurs sont bien enregistrés dans ta sélection, mais ils sont indisponibles/invalides selon le scan (status/state)."),
         ],
         open_by_default: false,
+        open_state,
         get_dup_badge: _dup_badge,
         make_action_button: (c) => _mk_button("Retirer", () => on_action("pricing_list_remove", { entity_id: c.entity_id })),
       });
@@ -995,6 +1026,8 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     const dupCard = el("div", "hse_card hse_card_inner");
     const dupDetails = document.createElement("details");
     dupDetails.className = "hse_fold";
+    // Restaurer l'état open du bloc doublons
+    dupDetails.open = open_state?.get("Doublons détectés") ?? false;
     const dupSum = document.createElement("summary");
     dupSum.className = "hse_fold_summary";
     const dupLeft = el("div", "hse_fold_left");
@@ -1046,7 +1079,6 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     dupCard.appendChild(dupDetails);
     card.appendChild(dupCard);
 
-    // Bouton save bas
     const costToolbar = el("div", "hse_toolbar");
     const btnSave2 = el("button", "hse_button hse_button_primary",
       model.pricing_saving ? "Sauvegarde…" : "Sauvegarder (tarifs + capteurs)"
