@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listeners";
+const build_signature = "2026-03-11_0924_fix_config_loading_placeholder";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -502,7 +502,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
       this._org_state.saving = true;
       this._org_state.error = null;
-      this._org_state.message = "Sauvegarde…";
+      this._org_state.message = "Sauvegarde\u2026";
       this._render();
 
       try {
@@ -511,7 +511,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         });
 
         this._org_state.meta_store = resp?.meta_store || this._org_state.meta_store;
-        this._org_state.message = "Organisation sauvegardée.";
+        this._org_state.message = "Organisation sauvegard\u00e9e.";
         this._org_state.error = null;
         this._org_state.dirty = false;
 
@@ -520,7 +520,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
       } catch (err) {
         this._org_state.error = this._err_msg(err);
-        this._org_state.message = "Échec de sauvegarde.";
+        this._org_state.message = "\u00c9chec de sauvegarde.";
       } finally {
         this._org_state.saving = false;
         this._render();
@@ -540,7 +540,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         const resp = await this._hass.callApi("post", "hse/unified/meta/sync/preview", { persist: true });
         this._org_state.meta_store = resp?.meta_store || this._org_state.meta_store;
         this._org_state.error = null;
-        this._org_state.message = "Propositions mises à jour.";
+        this._org_state.message = "Propositions mises \u00e0 jour.";
 
         if (!this._org_state.dirty) {
           this._org_reset_draft_from_store();
@@ -563,8 +563,8 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
       const msg =
         mode === "all"
-          ? "Appliquer les changements proposés (mode ALL) ?\nCe mode peut écraser des choix manuels."
-          : "Appliquer les changements proposés (mode auto) ?\nAucun champ manuel ne sera écrasé.";
+          ? "Appliquer les changements propos\u00e9s (mode ALL) ?\nCe mode peut \u00e9craser des choix manuels."
+          : "Appliquer les changements propos\u00e9s (mode auto) ?\nAucun champ manuel ne sera \u00e9cras\u00e9.";
 
       const ok = window.confirm(msg);
       if (!ok) return;
@@ -578,7 +578,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         const resp = await this._hass.callApi("post", "hse/unified/meta/sync/apply", { apply_mode: mode });
         this._org_state.meta_store = resp?.meta_store || this._org_state.meta_store;
         this._org_state.error = null;
-        this._org_state.message = "Changements appliqués.";
+        this._org_state.message = "Changements appliqu\u00e9s.";
 
         if (!this._org_state.dirty) {
           this._org_reset_draft_from_store();
@@ -711,7 +711,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
       if (!window.hse_shell || !window.hse_dom) return;
 
-      const user_name = this._hass?.user?.name || "—";
+      const user_name = this._hass?.user?.name || "\u2014";
 
       if (!this._ui) {
         this._ui = window.hse_shell.create_shell(root, { user_name });
@@ -725,7 +725,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       window.hse_dom.clear(this._ui.content);
 
       if (!this._hass) {
-        this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass…"));
+        this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass\u2026"));
         return;
       }
 
@@ -742,7 +742,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             this._render_overview().catch((err) => this._render_ui_error("Accueil", err));
             return;
           case "costs":
-            this._render_costs().catch((err) => this._render_ui_error("Analyse de coûts", err));
+            this._render_costs().catch((err) => this._render_ui_error("Analyse de co\u00fbts", err));
             return;
           case "diagnostic":
             this._render_diagnostic().catch((err) => this._render_ui_error("Diagnostic", err));
@@ -760,7 +760,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             this._render_custom().catch((err) => this._render_ui_error("Customisation", err));
             return;
           default:
-            this._render_placeholder("Page", "À venir.");
+            this._render_placeholder("Page", "\u00c0 venir.");
         }
       } catch (err) {
         this._render_ui_error("render", err);
@@ -784,7 +784,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
       const card = el("div", "hse_card");
       card.appendChild(el("div", null, title));
-      card.appendChild(el("div", "hse_subtitle", subtitle || "À venir."));
+      card.appendChild(el("div", "hse_subtitle", subtitle || "\u00c0 venir."));
       this._ui.content.appendChild(card);
     }
 
@@ -792,7 +792,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const container = this._ui.content;
 
       if (!window.hse_migration_view || !window.hse_migration_api) {
-        this._render_placeholder("Migration", "migration.view.js non chargé.");
+        this._render_placeholder("Migration", "migration.view.js non charg\u00e9.");
         return;
       }
 
@@ -826,7 +826,19 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const container = this._ui.content;
 
       if (!window.hse_config_view || !window.hse_config_api || !window.hse_scan_api) {
-        this._render_placeholder("Configuration", "config.view.js non chargé.");
+        this._render_placeholder("Configuration", "config.view.js non charg\u00e9.");
+        return;
+      }
+
+      // FIX: afficher un placeholder pendant le chargement initial
+      // (le container est vide sinon car _render_config est async et retourne
+      // immédiatement après avoir lancé le fetch)
+      if (this._config_state.loading) {
+        const { el } = window.hse_dom;
+        const card = el("div", "hse_card");
+        card.appendChild(el("div", null, "Configuration"));
+        card.appendChild(el("div", "hse_subtitle", "Chargement\u2026"));
+        container.appendChild(card);
         return;
       }
 
@@ -879,7 +891,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
 
         if (this._config_state.pricing_draft && _remove_ref_from_cost()) {
-          this._config_state.pricing_message = "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.";
+          this._config_state.pricing_message = "Garde-fou: le capteur de r\u00e9f\u00e9rence a \u00e9t\u00e9 retir\u00e9 des capteurs de calcul.";
         }
       };
 
@@ -899,7 +911,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
 
         if (_remove_ref_from_cost()) {
-          this._config_state.pricing_message = "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.";
+          this._config_state.pricing_message = "Garde-fou: le capteur de r\u00e9f\u00e9rence a \u00e9t\u00e9 retir\u00e9 des capteurs de calcul.";
         }
       };
 
@@ -1005,9 +1017,9 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           _ensure_pricing_draft();
           this._config_state.pricing_draft.cost_entity_ids = entity_ids;
           if (_remove_ref_from_cost()) {
-            this._config_state.pricing_message = "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.";
+            this._config_state.pricing_message = "Garde-fou: le capteur de r\u00e9f\u00e9rence a \u00e9t\u00e9 retir\u00e9 des capteurs de calcul.";
           } else {
-            this._config_state.pricing_message = `Sélection automatique appliquée (${entity_ids.length} capteurs).`;
+            this._config_state.pricing_message = `S\u00e9lection automatique appliqu\u00e9e (${entity_ids.length} capteurs).`;
           }
           this._config_state.pricing_error = null;
           this._render();
@@ -1023,7 +1035,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           if (!ids.includes(to)) ids.push(to);
           this._config_state.pricing_draft.cost_entity_ids = ids;
 
-          this._config_state.pricing_message = `Remplacement: ${from} → ${to}`;
+          this._config_state.pricing_message = `Remplacement: ${from} \u2192 ${to}`;
           this._config_state.pricing_error = null;
           this._render();
           return;
@@ -1069,7 +1081,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
           const ref = _effective_ref();
           if (ref && eid === ref) {
-            this._config_state.pricing_message = "Impossible: le capteur de référence ne peut pas être inclus dans les capteurs de calcul.";
+            this._config_state.pricing_message = "Impossible: le capteur de r\u00e9f\u00e9rence ne peut pas \u00eatre inclus dans les capteurs de calcul.";
             this._config_state.pricing_error = null;
             this._render();
             return;
@@ -1086,7 +1098,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
               if (!cc) continue;
               const gg = _group_key_for_candidate(cc);
               if (gg && gg === gk && existing !== eid) {
-                this._config_state.pricing_message = `Doublon interdit: ${eid} est équivalent à ${existing} (même appareil). Utilise Remplacer.`;
+                this._config_state.pricing_message = `Doublon interdit: ${eid} est \u00e9quivalent \u00e0 ${existing} (m\u00eame appareil). Utilise Remplacer.`;
                 this._config_state.pricing_error = null;
                 this._render();
                 return;
@@ -1114,12 +1126,12 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
 
         if (action === "pricing_clear") {
-          const ok = window.confirm("Effacer les tarifs enregistrés ?");
+          const ok = window.confirm("Effacer les tarifs enregistr\u00e9s ?");
           if (!ok) return;
 
           this._config_state.pricing_saving = true;
           this._config_state.pricing_error = null;
-          this._config_state.pricing_message = "Suppression…";
+          this._config_state.pricing_message = "Suppression\u2026";
           this._render();
 
           try {
@@ -1127,7 +1139,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             const pricingResp = await window.hse_config_api.fetch_pricing(this._hass);
             this._config_state.pricing_draft = null;
             _update_from_pricing(pricingResp);
-            this._config_state.pricing_message = "Tarifs effacés.";
+            this._config_state.pricing_message = "Tarifs effac\u00e9s.";
           } catch (err) {
             this._config_state.pricing_error = this._err_msg(err);
           } finally {
@@ -1142,20 +1154,20 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           this._deep_fill_missing(this._config_state.pricing_draft, this._config_state.pricing_defaults || {});
 
           if (_remove_ref_from_cost()) {
-            this._config_state.pricing_message = "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.";
+            this._config_state.pricing_message = "Garde-fou: le capteur de r\u00e9f\u00e9rence a \u00e9t\u00e9 retir\u00e9 des capteurs de calcul.";
           }
 
           const errDup = _validate_no_duplicate_groups(_cost_ids());
           if (errDup) {
             this._config_state.pricing_error = errDup;
-            this._config_state.pricing_message = "Impossible de sauvegarder: doublons détectés dans la sélection.";
+            this._config_state.pricing_message = "Impossible de sauvegarder: doublons d\u00e9tect\u00e9s dans la s\u00e9lection.";
             this._render();
             return;
           }
 
           this._config_state.pricing_saving = true;
           this._config_state.pricing_error = null;
-          this._config_state.pricing_message = "Sauvegarde en préparation…";
+          this._config_state.pricing_message = "Sauvegarde en pr\u00e9paration\u2026";
           this._render();
 
           await new Promise((resolve) => {
@@ -1166,7 +1178,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             }
           });
 
-          const ok = window.confirm("Sauvegarder ces tarifs (et la sélection de capteurs) ?\nEnsuite HSE va créer automatiquement les helpers nécessaires.");
+          const ok = window.confirm("Sauvegarder ces tarifs (et la s\u00e9lection de capteurs) ?\nEnsuite HSE va cr\u00e9er automatiquement les helpers n\u00e9cessaires.");
           if (!ok) {
             this._config_state.pricing_saving = false;
             this._config_state.pricing_message = null;
@@ -1177,7 +1189,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           const ids_for_enrich = _cost_ids().slice();
 
           this._config_state.pricing_error = null;
-          this._config_state.pricing_message = "Sauvegarde…";
+          this._config_state.pricing_message = "Sauvegarde\u2026";
           this._render();
 
           try {
@@ -1186,7 +1198,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             this._config_state.pricing_draft = null;
             _update_from_pricing(pricingResp);
 
-            this._config_state.pricing_message = "Tarifs sauvegardés. Création des capteurs (helpers) en cours… (attends ~30s, ou redémarre HA si certains restent indisponibles).";
+            this._config_state.pricing_message = "Tarifs sauvegard\u00e9s. Cr\u00e9ation des capteurs (helpers) en cours\u2026 (attends ~30s, ou red\u00e9marre HA si certains restent indisponibles).";
             this._render();
 
             if (window.hse_enrich_api?.apply) {
@@ -1198,15 +1210,15 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
                 const errs = sc.errors_count ?? (Array.isArray(applied?.errors) ? applied.errors.length : 0);
 
                 if (errs > 0) {
-                  this._config_state.pricing_message = `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}, erreurs ${errs}. Si besoin, utilise l'onglet Migration pour un export YAML.`;
+                  this._config_state.pricing_message = `Tarifs sauvegard\u00e9s. Helpers: cr\u00e9\u00e9s ${created}, ignor\u00e9s ${skipped}, erreurs ${errs}. Si besoin, utilise l'onglet Migration pour un export YAML.`;
                 } else {
-                  this._config_state.pricing_message = `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}. (attends ~30s)`;
+                  this._config_state.pricing_message = `Tarifs sauvegard\u00e9s. Helpers: cr\u00e9\u00e9s ${created}, ignor\u00e9s ${skipped}. (attends ~30s)`;
                 }
               } catch (err) {
-                this._config_state.pricing_message = `Tarifs sauvegardés. Création auto des helpers en échec: ${this._err_msg(err)}. Utilise Migration pour exporter le YAML.`;
+                this._config_state.pricing_message = `Tarifs sauvegard\u00e9s. Cr\u00e9ation auto des helpers en \u00e9chec: ${this._err_msg(err)}. Utilise Migration pour exporter le YAML.`;
               }
             } else {
-              this._config_state.pricing_message = "Tarifs sauvegardés. Enrich API non disponible pour créer automatiquement les helpers (utilise Migration pour exporter le YAML).";
+              this._config_state.pricing_message = "Tarifs sauvegard\u00e9s. Enrich API non disponible pour cr\u00e9er automatiquement les helpers (utilise Migration pour exporter le YAML).";
             }
           } catch (err) {
             this._config_state.pricing_error = this._err_msg(err);
@@ -1251,7 +1263,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
 
         if (action === "clear_reference") {
-          const ok = window.confirm("Supprimer la référence compteur ?");
+          const ok = window.confirm("Supprimer la r\u00e9f\u00e9rence compteur ?");
           if (!ok) return;
 
           this._config_state.saving = true;
@@ -1267,7 +1279,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             this._config_state.selected_reference_entity_id = null;
             this._config_state.reference_status = null;
             await this._fetch_reference_status(null);
-            this._config_state.message = "Référence supprimée.";
+            this._config_state.message = "R\u00e9f\u00e9rence supprim\u00e9e.";
           } catch (err) {
             this._config_state.error = this._err_msg(err);
           } finally {
@@ -1280,7 +1292,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         if (action === "save_reference") {
           const entity_id = this._config_state.selected_reference_entity_id;
           if (!entity_id) {
-            this._config_state.message = "Aucune référence sélectionnée (rien à sauvegarder).";
+            this._config_state.message = "Aucune r\u00e9f\u00e9rence s\u00e9lectionn\u00e9e (rien \u00e0 sauvegarder).";
             this._render();
             return;
           }
@@ -1289,10 +1301,10 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           const ids = _cost_ids();
           if (ids.includes(entity_id)) {
             this._config_state.pricing_draft.cost_entity_ids = ids.filter((x) => x !== entity_id);
-            this._config_state.pricing_message = "Garde-fou: la référence a été retirée des capteurs de calcul.";
+            this._config_state.pricing_message = "Garde-fou: la r\u00e9f\u00e9rence a \u00e9t\u00e9 retir\u00e9e des capteurs de calcul.";
           }
 
-          const ok = window.confirm(`Définir la référence compteur sur ${entity_id} ?\n(Elle sera exclue des totaux mesurés)`);
+          const ok = window.confirm(`D\u00e9finir la r\u00e9f\u00e9rence compteur sur ${entity_id} ?\n(Elle sera exclue des totaux mesur\u00e9s)`);
           if (!ok) return;
 
           this._config_state.saving = true;
@@ -1312,7 +1324,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
             const cat = await window.hse_config_api.fetch_catalogue(this._hass);
             _update_from_catalogue(cat);
             await this._fetch_reference_status(entity_id);
-            this._config_state.message = "Référence sauvegardée.";
+            this._config_state.message = "R\u00e9f\u00e9rence sauvegard\u00e9e.";
           } catch (err) {
             this._config_state.error = this._err_msg(err);
           } finally {
@@ -1329,7 +1341,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const container = this._ui.content;
 
       if (!window.hse_diag_view || !window.hse_diag_api) {
-        this._render_placeholder("Diagnostic", "diagnostic.view.js non chargé.");
+        this._render_placeholder("Diagnostic", "diagnostic.view.js non charg\u00e9.");
         return;
       }
 
@@ -1382,7 +1394,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       }
 
       if (!this._diag_state.data) {
-        container.appendChild(el("div", "hse_card", "Chargement…"));
+        container.appendChild(el("div", "hse_card", "Chargement\u2026"));
         return;
       }
 
@@ -1635,7 +1647,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const container = this._ui.content;
 
       if (!window.hse_custom_view?.render_customisation) {
-        this._render_placeholder("Customisation", "custom.view.js non chargé.");
+        this._render_placeholder("Customisation", "custom.view.js non charg\u00e9.");
         return;
       }
 
@@ -1686,7 +1698,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
         }
 
         if (action === "org_draft_reset") {
-          const ok = window.confirm("Réinitialiser le brouillon (perdre les modifications locales non sauvegardées) ?");
+          const ok = window.confirm("R\u00e9initialiser le brouillon (perdre les modifications locales non sauvegard\u00e9es) ?");
           if (!ok) return;
           this._org_reset_draft_from_store();
           this._render();
@@ -1714,7 +1726,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           this._org_ensure_draft();
           const rooms = this._org_state.meta_draft.rooms;
           if (rooms[room_id]) {
-            this._org_state.message = `Room existe déjà: ${room_id}`;
+            this._org_state.message = `Room existe d\u00e9j\u00e0: ${room_id}`;
             this._render();
             return;
           }
@@ -1727,7 +1739,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Room ajoutée: ${room_id}`;
+          this._org_state.message = `Room ajout\u00e9e: ${room_id}`;
           this._render();
           return;
         }
@@ -1739,7 +1751,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           this._org_ensure_draft();
           delete this._org_state.meta_draft.rooms[room_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Room supprimée: ${room_id}`;
+          this._org_state.message = `Room supprim\u00e9e: ${room_id}`;
           this._render();
           return;
         }
@@ -1751,7 +1763,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           this._org_ensure_draft();
           const asg = this._org_state.meta_draft.assignments;
           if (asg[entity_id]) {
-            this._org_state.message = `Assignment existe déjà: ${entity_id}`;
+            this._org_state.message = `Assignment existe d\u00e9j\u00e0: ${entity_id}`;
             this._render();
             return;
           }
@@ -1764,7 +1776,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment ajoutée: ${entity_id}`;
+          this._org_state.message = `Assignment ajout\u00e9e: ${entity_id}`;
           this._render();
           return;
         }
@@ -1776,7 +1788,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
           this._org_ensure_draft();
           delete this._org_state.meta_draft.assignments[entity_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment supprimée: ${entity_id}`;
+          this._org_state.message = `Assignment supprim\u00e9e: ${entity_id}`;
           this._render();
           return;
         }
@@ -1810,7 +1822,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const card = el("div", "hse_card");
       const toolbar = el("div", "hse_toolbar");
 
-      const btn = el("button", "hse_button hse_button_primary", "Rafraîchir");
+      const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
       btn.addEventListener("click", async () => {
         this._overview_data = null;
         this._render();
@@ -1834,7 +1846,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       container.appendChild(body);
 
       if (!this._overview_data) {
-        body.appendChild(el("div", "hse_subtitle", "Chargement…"));
+        body.appendChild(el("div", "hse_subtitle", "Chargement\u2026"));
         return;
       }
 
@@ -1848,7 +1860,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
 
       clear(body);
       if (!window.hse_costs_view?.render_costs) {
-        this._render_placeholder("Analyse de coûts", "costs.view.js non chargé.");
+        this._render_placeholder("Analyse de co\u00fbts", "costs.view.js non charg\u00e9.");
         return;
       }
       window.hse_costs_view.render_costs(body, this._overview_data, this._hass);
@@ -1863,7 +1875,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       const card = el("div", "hse_card");
       const toolbar = el("div", "hse_toolbar");
 
-      const btn = el("button", "hse_button hse_button_primary", "Rafraîchir");
+      const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
       btn.addEventListener("click", async () => {
         this._overview_data = null;
         this._render();
@@ -1887,7 +1899,7 @@ const build_signature = "2026-03-10_1757_fix_select_native_popup_document_listen
       container.appendChild(body);
 
       if (!this._overview_data) {
-        body.appendChild(el("div", "hse_subtitle", "Chargement…"));
+        body.appendChild(el("div", "hse_subtitle", "Chargement\u2026"));
         return;
       }
 
