@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-11_0924_fix_config_loading_placeholder";
+const build_signature = "2026-03-11_0956_fix_config_blank_no_full_rerender";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -388,11 +388,24 @@ const build_signature = "2026-03-11_0924_fix_config_loading_placeholder";
         return null;
       } finally {
         this._reference_status_polling = false;
-        // AUDIT-RERENDER-001: render automatique du badge statut référence.
-        // Utilise _render_if_not_interacting() pour ne pas interrompre
-        // une sélection de capteur en cours dans le <select>.
-        // Cible future: rendu partiel du badge uniquement (TODO: audit_rerender.py).
-        if (this._active_tab === "config") this._render_if_not_interacting();
+
+        // FIX: ne pas appeler _render() complet ici — cela détruirait le DOM
+        // du container via clear(this._ui.content) et viderait la page Config.
+        // On utilise render_config() en mode patch (data-hse-config-built déjà
+        // positionné) qui met à jour uniquement les nœuds data-hse-live sans
+        // reconstruire ni vider le container.
+        if (this._active_tab === "config" && !this._user_interacting) {
+          try {
+            const container = this._ui?.content;
+            if (
+              container &&
+              container.hasAttribute("data-hse-config-built") &&
+              window.hse_config_view?.render_config
+            ) {
+              window.hse_config_view.render_config(container, this._config_state, () => {});
+            }
+          } catch (_) {}
+        }
       }
     }
 
@@ -652,7 +665,7 @@ const build_signature = "2026-03-11_0924_fix_config_loading_placeholder";
         this._boot_error = err?.message || String(err);
         console.error("[HSE] boot error", err);
 
-        this._root.innerHTML = `<style>\n:host{display:block;padding:16px;font-family:system-ui;color:var(--primary-text-color);}\npre{white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.2);padding:12px;border-radius:10px;}\n</style>\n<div>\n  <div style=\"font-size:18px\">Home Suivi Elec</div>\n  <div style=\"opacity:.8\">Boot error</div>\n  <pre>${this._escape_html(this._boot_error)}</pre>\n</div>`;
+        this._root.innerHTML = `<style>\n:host{display:block;padding:16px;font-family:system-ui;color:var(--primary-text-color);}\npre{white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.2);padding:12px;border-radius:10px;}\n</style>\n<div>\n  <div style="font-size:18px">Home Suivi Elec</div>\n  <div style="opacity:.8">Boot error</div>\n  <pre>${this._escape_html(this._boot_error)}</pre>\n</div>`;
       } finally {
         this._render();
       }
