@@ -14,7 +14,12 @@ from ...const import API_PREFIX, DOMAIN
 from ...time_utils import utc_now_iso
 
 
-_ENTITY_ID_RE = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
+# Accepte les entity_ids HA valides : domaine alphanumérique + underscore, point, puis nom avec tirets/chiffres
+# Ex: sensor.my_sensor_01, sensor.freebox-power, input_boolean.test
+_ENTITY_ID_RE = re.compile(r"^[a-z][a-z0-9_]*\.[a-z0-9][a-z0-9_\-]*$")
+
+# Clés internes UI à ignorer silencieusement (jamais persistées)
+_INTERNAL_KEYS = {"__none__", "__all__", "__unassigned__"}
 
 
 def _as_list(value: Any) -> list:
@@ -111,8 +116,14 @@ def _validate_assignments(assignments_in: Any) -> dict[str, Any]:
     a = _as_dict(assignments_in)
     out: dict[str, Any] = {}
     for eid, v in a.items():
-        if not isinstance(eid, str) or not _ENTITY_ID_RE.match(eid):
-            raise ValueError("assignments.entity_id:invalid")
+        if not isinstance(eid, str):
+            continue
+        # Ignorer silencieusement les clés internes UI (__none__, etc.)
+        if eid in _INTERNAL_KEYS:
+            continue
+        # Ignorer les entity_ids invalides sans crasher (robustesse)
+        if not _ENTITY_ID_RE.match(eid):
+            continue
         if v is None:
             continue
         if not isinstance(v, dict):
@@ -120,6 +131,10 @@ def _validate_assignments(assignments_in: Any) -> dict[str, Any]:
 
         room_id = v.get("room_id")
         type_id = v.get("type_id")
+
+        # Nettoyer les room_id internes UI qui auraient fuité dans le draft
+        if isinstance(room_id, str) and (room_id in _INTERNAL_KEYS or room_id.startswith("__")):
+            room_id = None
 
         out[eid] = {
             "room_id": room_id if isinstance(room_id, str) and room_id else None,
