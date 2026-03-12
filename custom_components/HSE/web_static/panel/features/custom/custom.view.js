@@ -6,115 +6,109 @@
   // ---------------------------------------------------------------------------
 
   const THEMES = [
-    { key: "ha", label: "Home Assistant (thème HA)" },
-    { key: "dark", label: "Dark (sobre)" },
-    { key: "light", label: "Light" },
-    { key: "ocean", label: "Ocean" },
-    { key: "forest", label: "Forest" },
-    { key: "sunset", label: "Sunset" },
+    { key: "ha",      label: "Home Assistant (thème HA)" },
+    { key: "dark",    label: "Dark (sobre)" },
+    { key: "light",   label: "Light" },
+    { key: "ocean",   label: "Ocean" },
+    { key: "forest",  label: "Forest" },
+    { key: "sunset",  label: "Sunset" },
     { key: "minimal", label: "Minimal" },
-    { key: "neon", label: "Neon" },
-    { key: "aurora", label: "Aurora (glass)" },
-    { key: "neuro", label: "Neuro (soft light)" },
+    { key: "neon",    label: "Neon" },
+    { key: "aurora",  label: "Aurora (glass)" },
+    { key: "neuro",   label: "Neuro (soft light)" },
   ];
 
   // Mots-clés room : entity_id contient la clé → room_id cible
   const DEFAULT_ROOM_KEYWORDS = {
-    salon: "ha_living_room",
-    living: "ha_living_room",
-    cuisine: "ha_kitchen",
-    kitchen: "ha_kitchen",
-    chambre: "ha_bedroom",
-    bedroom: "ha_bedroom",
-    bureau: "ha_bureau",
-    office: "ha_bureau",
-    buanderie: "ha_buanderie",
-    laundry: "ha_buanderie",
-    datac: "ha_datac",
-    serveur: "ha_datac",
-    server: "ha_datac",
-    emma: "ha_chambre_d_emma",
-    alex: "ha_chambre_d_alex",
-    sonos_beam: "ha_sonos_beam",
-    sonos_arc: "ha_sonos_arc",
-    appart2: "ha_appartement_2",
-    appartement_2: "ha_appartement_2",
-    appart1: "ha_appartement_1",
-    appartement_1: "ha_appartement_1",
+    salon:          "ha_living_room",
+    living:         "ha_living_room",
+    cuisine:        "ha_kitchen",
+    kitchen:        "ha_kitchen",
+    chambre:        "ha_bedroom",
+    bedroom:        "ha_bedroom",
+    bureau:         "ha_bureau",
+    office:         "ha_bureau",
+    buanderie:      "ha_buanderie",
+    laundry:        "ha_buanderie",
+    datac:          "ha_datac",
+    serveur:        "ha_datac",
+    server:         "ha_datac",
+    emma:           "ha_chambre_d_emma",
+    alex:           "ha_chambre_d_alex",
+    sonos_beam:     "ha_sonos_beam",
+    sonos_arc:      "ha_sonos_arc",
+    appart2:        "ha_appartement_2",
+    appartement_2:  "ha_appartement_2",
+    appart1:        "ha_appartement_1",
+    appartement_1:  "ha_appartement_1",
   };
 
   const DEFAULT_TYPE_KEYWORDS = {
-    tv: "TV",
-    tele: "TV",
-    television: "TV",
-    chromecast: "TV",
-    apple_tv: "TV",
-    shield: "TV",
-    internet: "Internet",
-    box: "Internet",
-    routeur: "Internet",
-    router: "Internet",
-    freebox: "Internet",
-    livebox: "Internet",
-    nas: "Informatique",
-    pc: "Informatique",
-    ordi: "Informatique",
-    computer: "Informatique",
-    server: "Informatique",
-    serveur: "Informatique",
-    laptop: "Informatique",
-    chauffage: "Chauffage",
-    radiateur: "Chauffage",
-    clim: "Chauffage",
-    pac: "Chauffage",
-    thermor: "Chauffage",
-    atlantic: "Chauffage",
-    ecs: "Eau chaude",
-    ballon: "Eau chaude",
-    chauffe_eau: "Eau chaude",
-    cumulus: "Eau chaude",
+    tv:             "TV",
+    tele:           "TV",
+    television:     "TV",
+    chromecast:     "TV",
+    apple_tv:       "TV",
+    shield:         "TV",
+    internet:       "Internet",
+    box:            "Internet",
+    routeur:        "Internet",
+    router:         "Internet",
+    freebox:        "Internet",
+    livebox:        "Internet",
+    nas:            "Informatique",
+    pc:             "Informatique",
+    ordi:           "Informatique",
+    computer:       "Informatique",
+    laptop:         "Informatique",
+    chauffage:      "Chauffage",
+    radiateur:      "Chauffage",
+    clim:           "Chauffage",
+    pac:            "Chauffage",
+    thermor:        "Chauffage",
+    atlantic:       "Chauffage",
+    ecs:            "Eau chaude",
+    ballon:         "Eau chaude",
+    chauffe_eau:    "Eau chaude",
+    cumulus:        "Eau chaude",
     lave_vaisselle: "Électroménager",
-    lave_linge: "Électroménager",
-    seche_linge: "Électroménager",
-    refrigerateur: "Électroménager",
-    frigo: "Électroménager",
-    four: "Électroménager",
-    micro_onde: "Électroménager",
-    aspirateur: "Électroménager",
-    lampe: "Éclairage",
-    lumiere: "Éclairage",
-    light: "Éclairage",
-    eclairage: "Éclairage",
-    led: "Éclairage",
-    voiture: "Véhicule",
-    volet: "Volets",
-    shutter: "Volets",
-    prise: "Prises",
-    plug: "Prises",
+    lave_linge:     "Électroménager",
+    seche_linge:    "Électroménager",
+    refrigerateur:  "Électroménager",
+    frigo:          "Électroménager",
+    four:           "Électroménager",
+    micro_onde:     "Électroménager",
+    aspirateur:     "Électroménager",
+    lampe:          "Éclairage",
+    lumiere:        "Éclairage",
+    light:          "Éclairage",
+    eclairage:      "Éclairage",
+    led:            "Éclairage",
+    voiture:        "Véhicule",
+    volet:          "Volets",
+    shutter:        "Volets",
+    prise:          "Prises",
+    plug:           "Prises",
   };
 
   // ---------------------------------------------------------------------------
-  // UI state (collapse, filtres)
+  // UI state (collapse, filtres) — persistant entre renders
   // ---------------------------------------------------------------------------
 
-  const _collapsed_rooms = new Map();
-  const _collapsed_types = new Map();
-  const _collapsed_room_families = new Map();
-  const _collapsed_type_families = new Map();
-  let _rooms_filter = "";
-  let _types_filter = "";
+  const _collapsed_rooms   = new Map(); // room_id → bool (true = collapsed)
+  const _collapsed_types   = new Map();
+  const _collapsed_rfam    = new Map(); // room family collapse
+  const _collapsed_tfam    = new Map();
+  let _rooms_filter   = "";
+  let _types_filter   = "";
   let _rooms_sort_asc = true;
   let _types_sort_asc = true;
-  let _show_types_energy = false;
+  let _show_energy_col = false;
 
   // ---------------------------------------------------------------------------
-  // Normalisation données backend
+  // Normalisation backend
   // ---------------------------------------------------------------------------
 
-  /**
-   * Le backend peut retourner rooms sous forme de liste [{id, name, ...}]
-   * ou d'objet {room_id: {name, ...}}. On normalise en objet.
-   */
   function _normalize_rooms(raw) {
     if (!raw) return {};
     if (Array.isArray(raw)) {
@@ -125,69 +119,33 @@
     return raw;
   }
 
-  /**
-   * Pré-peuple assignments depuis le snapshot HA (entities avec area_id)
-   * et depuis le catalogue HSE si disponible.
-   * Ne surcharge jamais un assignment existant.
-   */
-  function _hydrate_assignments(assignments, rooms, snapshot_entities, catalogue_entities) {
+  function _hydrate_assignments(assignments_raw, rooms, snapshot_entities) {
     const out = {};
-    // Copier les existants
-    Object.entries(assignments || {}).forEach(([eid, a]) => { out[eid] = Object.assign({}, a); });
+    Object.entries(assignments_raw || {}).forEach(([eid, a]) => {
+      out[eid] = Object.assign({}, a);
+    });
 
-    // Index area_id → room_id depuis les rooms normalisées
+    // Index area_id → room_id
     const area_to_room = {};
     Object.entries(rooms).forEach(([rid, r]) => {
       if (r && r.ha_area_id) area_to_room[r.ha_area_id] = rid;
     });
 
-    // Filtre : uniquement capteurs energy/power pertinents
-    const _is_relevant = (eid) => /_(power|energy|watt|kwh|consumption)/i.test(eid);
-
-    // Depuis snapshot HA
     Object.values(snapshot_entities || {}).forEach((entity) => {
       const eid = entity && entity.entity_id;
-      if (!eid) return;
-      if (!_is_relevant(eid)) return;
-      if (out[eid]) return; // déjà présent
+      if (!eid || out[eid]) return;
       const room_id = entity.area_id ? (area_to_room[entity.area_id] || null) : null;
       out[eid] = { room_id, room_mode: "auto", type_id: null, type_mode: "mixed" };
-    });
-
-    // Depuis catalogue HSE (candidates)
-    (catalogue_entities || []).forEach((c) => {
-      const eid = c && c.entity_id;
-      if (!eid) return;
-      if (!_is_relevant(eid)) return;
-      if (out[eid]) return;
-      out[eid] = { room_id: null, room_mode: "mixed", type_id: null, type_mode: "mixed" };
     });
 
     return out;
   }
 
   // ---------------------------------------------------------------------------
-  // Utilitaires
+  // Helpers DOM
   // ---------------------------------------------------------------------------
 
-  function _as_list(v) {
-    return Array.isArray(v) ? v : [];
-  }
-
-  function _keys_sorted(obj) {
-    try { return Object.keys(obj || {}).sort(); } catch (_) { return []; }
-  }
-
-  function _fmt_ts(ts) {
-    if (!ts) return null;
-    try {
-      const d = new Date(ts);
-      if (Number.isNaN(d.getTime())) return String(ts);
-      return d.toLocaleString();
-    } catch (_) { return String(ts); }
-  }
-
-  function _mk_btn(label, cls, cb) {
+  function _btn(label, cls, cb) {
     const b = document.createElement("button");
     b.className = cls || "hse_button";
     b.textContent = label;
@@ -195,7 +153,7 @@
     return b;
   }
 
-  function _mk_input(placeholder, value, cls) {
+  function _inp(placeholder, value, cls) {
     const i = document.createElement("input");
     i.className = cls || "hse_input";
     i.placeholder = placeholder || "";
@@ -203,7 +161,7 @@
     return i;
   }
 
-  function _mk_select(options, value, cls) {
+  function _sel(options, value, cls) {
     const s = document.createElement("select");
     s.className = cls || "hse_input";
     for (const o of options) {
@@ -216,71 +174,232 @@
     return s;
   }
 
+  function _keys_sorted(obj) {
+    try { return Object.keys(obj || {}).sort(); } catch (_) { return []; }
+  }
+
+  function _fmt_ts(ts) {
+    if (!ts) return null;
+    try {
+      const d = new Date(ts);
+      return Number.isNaN(d.getTime()) ? String(ts) : d.toLocaleString();
+    } catch (_) { return String(ts); }
+  }
+
   // ---------------------------------------------------------------------------
-  // Détection famille
+  // Styles (injectés dans document.head une seule fois)
   // ---------------------------------------------------------------------------
 
-  function _family_base(entity_id, kind) {
-    if (!entity_id) return "";
-    let base = entity_id.trim();
+  function _inject_styles() {
+    const id = "__hse_custom_styles_v3__";
+    if (document.getElementById(id)) return;
+    const s = document.createElement("style");
+    s.id = id;
+    s.textContent = `
+/* ─── Group card ─────────────────────────────────────────────────── */
+.hse_gc {
+  border: 1px solid var(--hse_border);
+  border-radius: var(--hse-radius-md, 12px);
+  margin-bottom: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--hse_card_bg) 96%, var(--hse-bg) 4%);
+  transition: box-shadow var(--hse-transition-fast, 120ms ease);
+}
+.hse_gc:hover { box-shadow: var(--hse-shadow-sm, 0 1px 3px rgba(0,0,0,.07)); }
+.hse_gc_warn { border-color: color-mix(in srgb, var(--hse_danger,#ef4444) 35%, var(--hse_border) 65%); }
+
+/* ─── Group header (nom + actions sur 1 ligne) ───────────────────── */
+.hse_gh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+  min-height: 40px;
+  transition: background var(--hse-transition-fast, 120ms ease),
+              border-color var(--hse-transition-fast, 120ms ease);
+}
+.hse_gh:hover { background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,.08)) 70%, transparent); }
+.hse_gc[data-open="1"] .hse_gh { border-bottom-color: var(--hse_border); }
+
+.hse_gh_toggle {
+  border: none; background: transparent;
+  color: var(--hse_muted); font-size: 11px;
+  cursor: pointer; padding: 2px 3px; line-height: 1; flex-shrink: 0;
+}
+.hse_gh_icon  { flex-shrink: 0; font-size: 15px; line-height: 1; }
+.hse_gh_name  {
+  font-size: 13px; font-weight: 700; color: var(--hse_fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1 1 auto; min-width: 0;
+}
+.hse_gh_count {
+  font-size: 11.5px; color: var(--hse_muted);
+  white-space: nowrap; flex-shrink: 0;
+}
+/* mode badge (auto/manual/mixed) */
+.hse_gh_mode {
+  font-size: 10px; padding: 2px 7px;
+  border: 1px solid var(--hse_border);
+  border-radius: 999px; color: var(--hse_muted);
+  white-space: nowrap; flex-shrink: 0;
+  background: color-mix(in srgb, var(--hse_card_bg) 80%, var(--hse-bg) 20%);
+}
+
+/* Actions : petits boutons discrets en fin de ligne */
+.hse_gh_actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px; }
+.hse_gh_ab {
+  border: none; background: transparent; cursor: pointer;
+  padding: 3px 5px; border-radius: var(--hse-radius-sm, 8px);
+  font-size: 13px; opacity: 0; line-height: 1;
+  transition: opacity var(--hse-transition-fast,120ms ease), background var(--hse-transition-fast,120ms ease);
+}
+.hse_gh:hover .hse_gh_ab { opacity: .55; }
+.hse_gh_ab:hover { opacity: 1 !important; background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 90%, transparent); }
+.hse_gh_ab.danger:hover { background: var(--hse-error-soft, rgba(239,68,68,.12)); }
+
+/* ─── Group body ─────────────────────────────────────────────────── */
+.hse_gb {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+}
+@media (max-width: 700px) { .hse_gb { grid-template-columns: 1fr; } }
+
+/* Colonne capteurs */
+.hse_sc_col { min-width: 0; }
+.hse_sc_col_title {
+  font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--hse_muted); margin-bottom: 5px;
+}
+.hse_sc_list  { display: flex; flex-direction: column; gap: 1px; }
+.hse_sc_empty { font-size: 12px; color: var(--hse_muted); font-style: italic; padding: 4px 0; }
+
+/* Ligne capteur */
+.hse_sr {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 6px; border-radius: var(--hse-radius-sm,8px);
+  font-size: 12px; font-family: var(--hse-mono-font-family, ui-monospace);
+  color: var(--hse_fg);
+}
+.hse_sr_click { cursor: pointer; transition: background var(--hse-transition-fast,120ms ease); }
+.hse_sr_click:hover { background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 80%, transparent); }
+.hse_sr_child { margin-left: 14px; color: var(--hse_muted); font-size: 11.5px; }
+.hse_sr_caret { flex-shrink:0; font-size:10px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
+.hse_sr_label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hse_sr_children { padding-left:4px; margin-top:1px; }
+
+/* ─── Header barre / bulk barre ──────────────────────────────────── */
+.hse_hbar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; margin-bottom: 8px;
+}
+.hse_hbar_title {
+  font-size: 14px; font-weight: 800; color: var(--hse_fg);
+  white-space: nowrap;
+}
+.hse_hbar_spacer { flex: 1 1 auto; }
+
+.hse_bulkbar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; margin-bottom: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--hse_card_bg) 88%, var(--hse-bg) 12%);
+  border: 1px solid var(--hse_border);
+  border-radius: var(--hse-radius-sm,8px);
+  font-size: 12px; color: var(--hse_muted);
+}
+.hse_bulkbar_kw  { min-width:140px !important; max-width:200px; }
+.hse_bulkbar_sel { min-width:160px !important; max-width:240px; }
+.hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
+.hse_filter { min-width:180px !important; max-width:260px; }
+
+/* ─── Conteneur liste des cartes ─────────────────────────────────── */
+.hse_groups { display: flex; flex-direction: column; gap: 2px; }
+
+/* ─── Modal ──────────────────────────────────────────────────────── */
+.hse_modal_ov {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.55); z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+}
+.hse_modal {
+  background:var(--hse_card_bg); border:1px solid var(--hse_border);
+  border-radius:var(--hse-radius-md,12px); overflow:hidden;
+  min-width:320px; max-width:520px; width:90vw;
+  box-shadow:var(--hse-shadow-md,0 10px 24px rgba(0,0,0,.12));
+}
+.hse_modal_hd {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid var(--hse_border);
+}
+.hse_modal_title { font-size:14px; font-weight:700; }
+.hse_modal_close {
+  border:none; background:transparent; font-size:18px;
+  cursor:pointer; color:var(--hse_muted); padding:0 4px; line-height:1;
+}
+.hse_modal_bd { padding:16px; }
+.hse_modal_ft {
+  display:flex; gap:8px; justify-content:flex-end;
+  padding:10px 16px; border-top:1px solid var(--hse_border);
+}
+`;
+    document.head.appendChild(s);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Familles (regroupement parent + enfants)
+  // ---------------------------------------------------------------------------
+
+  function _family_base(eid, kind) {
+    let b = String(eid || "");
     if (kind === "energy") {
-      base = base.replace(/_today_energy$/i, "");
-      base = base.replace(/_energy_(hourly|daily|weekly|monthly|yearly)$/i, "");
-      base = base.replace(/_energy$/i, "");
+      b = b.replace(/_today_energy$/i, "")
+           .replace(/_energy_(hourly|daily|weekly|monthly|yearly)$/i, "")
+           .replace(/_energy$/i, "");
     } else {
-      base = base.replace(/_power_energy_(hourly|daily|weekly|monthly|yearly)$/i, "");
-      base = base.replace(/_power_energy$/i, "");
-      base = base.replace(/_power$/i, "");
+      b = b.replace(/_power_energy_(hourly|daily|weekly|monthly|yearly)$/i, "")
+           .replace(/_power_energy$/i, "")
+           .replace(/_power$/i, "");
     }
-    return base;
+    return b;
   }
 
   function _pick_parent(kind, items) {
-    if (!items || items.length === 0) return null;
+    if (!items || !items.length) return null;
     if (kind === "energy") {
-      const t = items.find((id) => /_today_energy$/i.test(id));
-      if (t) return t;
-      const p = items.find((id) => /_energy$/i.test(id));
-      if (p) return p;
-    } else {
-      const p = items.find((id) => /_power$/i.test(id));
-      if (p) return p;
-      const pe = items.find((id) => /_power_energy$/i.test(id));
-      if (pe) return pe;
+      return items.find((id) => /_today_energy$/i.test(id))
+          || items.find((id) => /_energy$/i.test(id))
+          || [...items].sort((a, b) => a.length - b.length)[0];
     }
-    return [...items].sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+    return items.find((id) => /_power$/i.test(id))
+        || items.find((id) => /_power_energy$/i.test(id))
+        || [...items].sort((a, b) => a.length - b.length)[0];
   }
 
-  function _build_families(list, kind, sort_asc) {
+  function _build_families(list, kind) {
     const by_base = new Map();
     (list || []).forEach((eid) => {
       const base = _family_base(eid, kind);
       if (!by_base.has(base)) by_base.set(base, []);
       by_base.get(base).push(eid);
     });
-    const families = [];
+    const fams = [];
     by_base.forEach((items, base) => {
       const parent = _pick_parent(kind, items);
       const children = items.filter((x) => x !== parent).sort((a, b) => a.localeCompare(b));
-      families.push({
-        key: base || parent || (items[0] || ""),
-        parent,
-        children,
-        all: items.sort((a, b) => a.localeCompare(b)),
-      });
+      fams.push({ key: base || parent || items[0] || "", parent, children, all: [...items].sort((a,b)=>a.localeCompare(b)) });
     });
-    families.sort((a, b) => {
-      const ka = a.key || a.parent || "";
-      const kb = b.key || b.parent || "";
-      return sort_asc ? ka.localeCompare(kb) : kb.localeCompare(ka);
-    });
-    return families;
+    return fams.sort((a, b) => (a.key || "").localeCompare(b.key || ""));
   }
 
   function _build_energy_index(assignments) {
     const idx = new Map();
-    Object.entries(assignments || {}).forEach(([eid, a]) => {
-      if (!a) return;
+    Object.keys(assignments || {}).forEach((eid) => {
       const base = _family_base(eid, "energy");
       if (!idx.has(base)) idx.set(base, []);
       idx.get(base).push(eid);
@@ -288,499 +407,151 @@
     return idx;
   }
 
-  function _link_energy_for_power(power_eid, energy_index) {
-    const base = _family_base(power_eid, "power");
-    const candidates = energy_index.get(base) || [];
-    if (!candidates.length) return null;
-    return _pick_parent("energy", candidates);
-  }
-
   // ---------------------------------------------------------------------------
-  // CSS inline pour le composant (injecté une seule fois)
+  // Modal déplacement rooms
   // ---------------------------------------------------------------------------
 
-  function _inject_styles(shadow_root) {
-    const id = "__hse_custom_styles__";
-    if (shadow_root && shadow_root.getElementById && shadow_root.getElementById(id)) return;
-    const style = document.createElement("style");
-    style.id = id;
-    style.textContent = `
-      /* ── Group card ── */
-      .hse_group_card {
-        border: 1px solid var(--hse_border);
-        border-radius: var(--hse-radius-md, var(--hse_radius, 12px));
-        margin-bottom: var(--hse-spacing-sm, 8px);
-        overflow: hidden;
-        background: color-mix(in srgb, var(--hse_card_bg) 94%, var(--hse-bg) 6%);
-        transition: box-shadow var(--hse-transition-fast, 120ms ease);
-      }
-      .hse_group_card:hover {
-        box-shadow: var(--hse-shadow-sm, 0 1px 2px rgba(0,0,0,0.06));
-      }
-      .hse_group_card_unassigned {
-        border-color: color-mix(in srgb, var(--hse_danger, #ef4444) 30%, var(--hse_border) 70%);
-      }
+  function _modal_move(entity_ids, current_room_id, rooms, on_action, redraw) {
+    const ov = el("div", "hse_modal_ov");
+    const m  = el("div", "hse_modal");
+    const close = () => ov.remove();
 
-      /* ── Group header : toggle + icon + name + actions sur UNE seule ligne ── */
-      .hse_group_header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 10px;
-        cursor: pointer;
-        user-select: none;
-        border-bottom: 1px solid transparent;
-        transition: background var(--hse-transition-fast, 120ms ease),
-                    border-color var(--hse-transition-fast, 120ms ease);
-      }
-      .hse_group_header:hover {
-        background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,0.08)) 60%, transparent);
-      }
-      .hse_group_card[data-open="true"] .hse_group_header {
-        border-bottom-color: var(--hse_border);
-      }
+    // Header
+    const hd = el("div", "hse_modal_hd");
+    hd.appendChild(el("div", "hse_modal_title",
+      entity_ids.length > 1 ? `Déplacer ${entity_ids.length} capteur(s)` : `Déplacer : ${entity_ids[0]}`));
+    const xbtn = _btn("×", "hse_modal_close", close);
+    hd.appendChild(xbtn);
 
-      /* Toggle caret */
-      .hse_group_toggle {
-        border: none;
-        background: transparent;
-        color: var(--hse_muted);
-        font-size: 11px;
-        cursor: pointer;
-        padding: 2px 4px;
-        line-height: 1;
-        flex-shrink: 0;
-      }
-
-      /* Icône pièce/type */
-      .hse_group_icon {
-        flex-shrink: 0;
-        font-size: 15px;
-        line-height: 1;
-      }
-
-      /* Nom de la pièce/type */
-      .hse_group_name_label {
-        font-size: 13px;
-        font-weight: var(--hse-font-weight-strong, 700);
-        color: var(--hse_fg);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        flex: 1 1 auto;
-        min-width: 0;
-      }
-
-      /* Compteur capteurs */
-      .hse_group_count {
-        font-size: 11px;
-        color: var(--hse_muted);
-        white-space: nowrap;
-        flex-shrink: 0;
-      }
-
-      /* Actions inline (renommer, supprimer) */
-      .hse_group_actions {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        flex-shrink: 0;
-        margin-left: auto;
-      }
-      .hse_group_action_btn {
-        border: none;
-        background: transparent;
-        cursor: pointer;
-        padding: 3px 5px;
-        border-radius: var(--hse-radius-sm, 8px);
-        font-size: 13px;
-        opacity: 0.55;
-        transition: opacity var(--hse-transition-fast, 120ms ease),
-                    background var(--hse-transition-fast, 120ms ease);
-        line-height: 1;
-      }
-      .hse_group_action_btn:hover {
-        opacity: 1;
-        background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,0.08)) 80%, transparent);
-      }
-      .hse_group_action_btn.danger:hover {
-        background: var(--hse-error-soft, rgba(239,68,68,0.12));
-      }
-
-      /* Body de la carte */
-      .hse_group_body {
-        padding: 10px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-
-      /* Colonne capteurs */
-      .hse_sensor_col {
-        flex: 1 1 280px;
-        min-width: 0;
-      }
-      .hse_sensor_col_title {
-        font-size: 11px;
-        font-weight: var(--hse-font-weight-strong, 700);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--hse_muted);
-        margin-bottom: 6px;
-      }
-      .hse_sensor_list {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .hse_sensor_empty {
-        font-size: 12px;
-        color: var(--hse_muted);
-        font-style: italic;
-        padding: 4px 0;
-      }
-
-      /* Ligne capteur */
-      .hse_sensor_row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 6px;
-        border-radius: var(--hse-radius-sm, 8px);
-        font-size: 12px;
-        font-family: var(--hse-mono-font-family, ui-monospace);
-        color: var(--hse_fg);
-      }
-      .hse_sensor_clickable {
-        cursor: pointer;
-        transition: background var(--hse-transition-fast, 120ms ease);
-      }
-      .hse_sensor_clickable:hover {
-        background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,0.08)) 70%, transparent);
-      }
-      .hse_sensor_child {
-        margin-left: 16px;
-        color: var(--hse_muted);
-        font-size: 11.5px;
-      }
-      .hse_sensor_caret {
-        flex-shrink: 0;
-        font-size: 10px;
-        color: var(--hse_muted);
-        cursor: pointer;
-        padding: 0 2px;
-      }
-      .hse_sensor_label {
-        flex: 1 1 auto;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .hse_sensor_children {
-        padding-left: 4px;
-        margin-top: 2px;
-      }
-
-      /* Container de toutes les cartes */
-      .hse_groups_container {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      /* Header barre (titre + filtres + boutons) */
-      .hse_groups_headerbar {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 8px;
-      }
-      .hse_groups_title {
-        font-size: 14px;
-        font-weight: var(--hse-font-weight-title, 800);
-        color: var(--hse_fg);
-      }
-      .hse_groups_spacer { flex: 1 1 auto; }
-      .hse_groups_filter { min-width: 180px !important; max-width: 260px; }
-
-      /* Barre bulk */
-      .hse_groups_bulkbar {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 10px;
-        padding: 8px 10px;
-        background: color-mix(in srgb, var(--hse_card_bg) 88%, var(--hse-bg) 12%);
-        border: 1px solid var(--hse_border);
-        border-radius: var(--hse-radius-sm, 8px);
-      }
-      .hse_groups_bulk_label {
-        font-size: 12px;
-        color: var(--hse_muted);
-        white-space: nowrap;
-      }
-      .hse_groups_keyword { min-width: 140px !important; max-width: 200px; }
-      .hse_groups_select  { min-width: 160px !important; max-width: 240px; }
-
-      /* Modal */
-      .hse_modal_overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.55);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .hse_modal {
-        background: var(--hse_card_bg);
-        border: 1px solid var(--hse_border);
-        border-radius: var(--hse-radius-md, 12px);
-        padding: 0;
-        min-width: 320px;
-        max-width: 520px;
-        width: 90vw;
-        box-shadow: var(--hse-shadow-md, 0 10px 24px rgba(0,0,0,0.12));
-        overflow: hidden;
-      }
-      .hse_modal_header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--hse_border);
-      }
-      .hse_modal_title {
-        font-size: 14px;
-        font-weight: var(--hse-font-weight-strong, 700);
-      }
-      .hse_modal_close {
-        border: none;
-        background: transparent;
-        font-size: 18px;
-        cursor: pointer;
-        color: var(--hse_muted);
-        padding: 0 4px;
-        line-height: 1;
-      }
-      .hse_modal_body {
-        padding: 16px;
-      }
-      .hse_modal_footer {
-        display: flex;
-        gap: 8px;
-        justify-content: flex-end;
-        padding: 10px 16px;
-        border-top: 1px solid var(--hse_border);
-      }
-    `;
-    // On injecte dans le document courant (shadow root non accessible ici)
-    if (!document.getElementById(id)) {
-      document.head.appendChild(style);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Modal déplacement (rooms)
-  // ---------------------------------------------------------------------------
-
-  function _open_move_modal(entity_ids, current_room_id, rooms, on_action, on_done) {
-    const overlay = el("div", "hse_modal_overlay");
-    const modal = el("div", "hse_modal");
-
-    const header = el("div", "hse_modal_header");
-    const title_el = el("div", "hse_modal_title",
-      entity_ids.length > 1
-        ? `Déplacer ${entity_ids.length} capteur(s) vers…`
-        : `Déplacer ${entity_ids[0]}`
-    );
-    const close_btn = _mk_btn("×", "hse_modal_close", () => document.body.removeChild(overlay));
-    header.appendChild(title_el);
-    header.appendChild(close_btn);
-
-    const body = el("div", "hse_modal_body");
-
+    // Body
+    const bd = el("div", "hse_modal_bd");
     const room_opts = _keys_sorted(rooms).map((rid) => ({
       value: rid,
-      label: rooms[rid]?.name ? `${rooms[rid].name} (${rid})` : rid,
+      label: rooms[rid]?.name ? `${rooms[rid].name}` : rid,
+    }));
+    const sel = _sel(room_opts, current_room_id || "", "hse_input");
+    sel.style.cssText = "width:100%;margin-bottom:10px;";
+    bd.appendChild(el("div", "hse_subtitle", "Choisir une pièce existante :"));
+    bd.appendChild(sel);
+    bd.appendChild(el("div", "hse_subtitle", "— ou créer une nouvelle pièce :"));
+    const new_inp = _inp("Nom de la nouvelle pièce", "", "hse_input");
+    new_inp.style.cssText = "width:100%;margin-top:6px;";
+    bd.appendChild(new_inp);
+
+    // Footer
+    const ft = el("div", "hse_modal_ft");
+    ft.appendChild(_btn("Annuler", "hse_button", close));
+    ft.appendChild(_btn("Déplacer", "hse_button hse_button_primary", () => {
+      let target = new_inp.value.trim() || sel.value;
+      if (!target) { close(); return; }
+      entity_ids.forEach((eid) => {
+        on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target, no_render: true });
+      });
+      close();
+      redraw();
     }));
 
-    const sel = _mk_select(room_opts, current_room_id || "", "hse_input");
-    sel.style.width = "100%";
-    sel.style.marginBottom = "10px";
-    body.appendChild(sel);
-
-    const or_label = el("div", "hse_subtitle", "Ou créer une nouvelle pièce :");
-    body.appendChild(or_label);
-
-    const new_input = _mk_input("Nom de la nouvelle pièce", "", "hse_input");
-    new_input.style.width = "100%";
-    body.appendChild(new_input);
-
-    const footer = el("div", "hse_modal_footer");
-
-    const cancel_btn = _mk_btn("Annuler", "hse_button", () => document.body.removeChild(overlay));
-
-    const confirm_btn = _mk_btn("Déplacer", "hse_button hse_button_primary", () => {
-      let target_room = new_input.value.trim();
-      if (!target_room) target_room = sel.value;
-      if (!target_room) { document.body.removeChild(overlay); return; }
-
-      entity_ids.forEach((eid) => {
-        on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target_room });
-      });
-
-      document.body.removeChild(overlay);
-      if (on_done) on_done(target_room);
-    });
-
-    footer.appendChild(cancel_btn);
-    footer.appendChild(confirm_btn);
-
-    modal.appendChild(header);
-    modal.appendChild(body);
-    modal.appendChild(footer);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
+    m.appendChild(hd); m.appendChild(bd); m.appendChild(ft);
+    ov.appendChild(m);
+    document.body.appendChild(ov);
   }
 
   // ---------------------------------------------------------------------------
   // Modal assignation type
   // ---------------------------------------------------------------------------
 
-  function _open_type_modal(entity_ids, current_type_id, known_types, on_action, on_done) {
-    const overlay = el("div", "hse_modal_overlay");
-    const modal = el("div", "hse_modal");
+  function _modal_type(entity_ids, current_type_id, known_types, on_action, redraw) {
+    const ov = el("div", "hse_modal_ov");
+    const m  = el("div", "hse_modal");
+    const close = () => ov.remove();
 
-    const header = el("div", "hse_modal_header");
-    const title_el = el("div", "hse_modal_title",
-      entity_ids.length > 1
-        ? `Affecter ${entity_ids.length} capteur(s) à un type…`
-        : `Affecter ${entity_ids[0]}`
-    );
-    const close_btn = _mk_btn("×", "hse_modal_close", () => document.body.removeChild(overlay));
-    header.appendChild(title_el);
-    header.appendChild(close_btn);
+    const hd = el("div", "hse_modal_hd");
+    hd.appendChild(el("div", "hse_modal_title",
+      entity_ids.length > 1 ? `Affecter ${entity_ids.length} capteur(s) à un type` : `Type : ${entity_ids[0]}`));
+    hd.appendChild(_btn("×", "hse_modal_close", close));
 
-    const body = el("div", "hse_modal_body");
-
+    const bd = el("div", "hse_modal_bd");
     const type_opts = [...known_types].sort().map((t) => ({ value: t, label: t }));
-    const sel = _mk_select(type_opts, current_type_id || "", "hse_input");
-    sel.style.width = "100%";
-    sel.style.marginBottom = "10px";
-    body.appendChild(sel);
+    const sel = _sel(type_opts, current_type_id || "", "hse_input");
+    sel.style.cssText = "width:100%;margin-bottom:10px;";
+    bd.appendChild(el("div", "hse_subtitle", "Choisir un type existant :"));
+    bd.appendChild(sel);
+    bd.appendChild(el("div", "hse_subtitle", "— ou créer un nouveau type :"));
+    const new_inp = _inp("Ex: TV, Chauffage…", "", "hse_input");
+    new_inp.style.cssText = "width:100%;margin-top:6px;";
+    bd.appendChild(new_inp);
 
-    const or_label = el("div", "hse_subtitle", "Ou créer un nouveau type :");
-    body.appendChild(or_label);
-
-    const new_input = _mk_input("Nom du nouveau type (ex: TV, Chauffage…)", "", "hse_input");
-    new_input.style.width = "100%";
-    body.appendChild(new_input);
-
-    const footer = el("div", "hse_modal_footer");
-    const cancel_btn = _mk_btn("Annuler", "hse_button", () => document.body.removeChild(overlay));
-    const confirm_btn = _mk_btn("Valider", "hse_button hse_button_primary", () => {
-      let target_type = new_input.value.trim();
-      if (!target_type) target_type = sel.value;
-
+    const ft = el("div", "hse_modal_ft");
+    ft.appendChild(_btn("Annuler", "hse_button", close));
+    ft.appendChild(_btn("Valider", "hse_button hse_button_primary", () => {
+      let target = new_inp.value.trim() || sel.value;
       entity_ids.forEach((eid) => {
-        on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target_type || null });
+        on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target || null, no_render: true });
       });
+      close();
+      redraw();
+    }));
 
-      document.body.removeChild(overlay);
-      if (on_done) on_done(target_type);
-    });
-
-    footer.appendChild(cancel_btn);
-    footer.appendChild(confirm_btn);
-    modal.appendChild(header);
-    modal.appendChild(body);
-    modal.appendChild(footer);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
+    m.appendChild(hd); m.appendChild(bd); m.appendChild(ft);
+    ov.appendChild(m);
+    document.body.appendChild(ov);
   }
 
   // ---------------------------------------------------------------------------
-  // Rendu famille (ligne capteur cliquable)
+  // Rendu colonne capteurs (avec familles)
   // ---------------------------------------------------------------------------
 
-  function _render_family_row(fam, kind, collapsed_map, collapsed_key, on_click_parent, on_click_child, redraw_fn) {
-    const wrapper = document.createElement("div");
-    wrapper.style.marginBottom = "2px";
+  function _render_sensor_col(key, title, kind, eids, filter_q, fam_map, on_fam, on_single, full_redraw) {
+    const col = el("div", "hse_sc_col");
+    col.appendChild(el("div", "hse_sc_col_title", title));
 
-    const is_collapsed = collapsed_map.get(collapsed_key) === true;
-
-    const parent_row = el("div", "hse_sensor_row hse_sensor_clickable");
-    parent_row.title = "Cliquer pour déplacer toute cette famille";
-
-    const caret = document.createElement("span");
-    caret.className = "hse_sensor_caret";
-    caret.textContent = fam.children.length > 0 ? (is_collapsed ? "▶" : "▼") : "•";
-    caret.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (fam.children.length === 0) return;
-      collapsed_map.set(collapsed_key, !is_collapsed);
-      redraw_fn();
-    });
-
-    const label = document.createElement("span");
-    label.className = "hse_sensor_label";
-    label.textContent = fam.parent || fam.all[0];
-
-    parent_row.appendChild(caret);
-    parent_row.appendChild(label);
-    parent_row.addEventListener("click", () => on_click_parent(fam));
-    wrapper.appendChild(parent_row);
-
-    if (!is_collapsed && fam.children.length > 0) {
-      const children_box = document.createElement("div");
-      children_box.className = "hse_sensor_children";
-      fam.children.forEach((eid) => {
-        const row = el("div", "hse_sensor_row hse_sensor_clickable hse_sensor_child");
-        row.textContent = eid;
-        row.title = "Cliquer pour déplacer ce capteur seul";
-        row.addEventListener("click", () => on_click_child(eid));
-        children_box.appendChild(row);
-      });
-      wrapper.appendChild(children_box);
-    }
-
-    return wrapper;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Rendu colonne capteurs (energy ou power)
-  // ---------------------------------------------------------------------------
-
-  function _render_sensor_column(key, title, kind, entity_ids, filter_q, collapsed_families_map, on_click_family, on_click_single, redraw_fn) {
-    const col = el("div", "hse_sensor_col");
-    col.appendChild(el("div", "hse_sensor_col_title", title));
-
-    let filtered = (entity_ids || []);
+    let filtered = eids || [];
     if (filter_q) {
       const q = filter_q.toLowerCase();
       filtered = filtered.filter((s) => s.toLowerCase().includes(q));
     }
 
-    const families = _build_families(filtered, kind, true);
-    const list = el("div", "hse_sensor_list");
+    const fams = _build_families(filtered, kind);
+    const list = el("div", "hse_sc_list");
 
-    if (families.length === 0) {
-      list.appendChild(el("div", "hse_sensor_empty", "Aucun capteur."));
+    if (!fams.length) {
+      list.appendChild(el("div", "hse_sc_empty", "Aucun capteur."));
     } else {
-      families.forEach((fam) => {
-        const fam_key = `${key}:${kind}:${fam.key}`;
-        const row = _render_family_row(
-          fam, kind,
-          collapsed_families_map, fam_key,
-          (f) => on_click_family(f, kind),
-          (eid) => on_click_single(eid, kind),
-          redraw_fn
-        );
+      fams.forEach((fam) => {
+        const fkey = `${key}:${kind}:${fam.key}`;
+        const is_coll = fam_map.get(fkey) === true; // false / undefined = ouvert
+
+        const row = el("div", "hse_sr hse_sr_click");
+        row.title = "Cliquer pour déplacer";
+
+        if (fam.children.length) {
+          const caret = el("span", "hse_sr_caret", is_coll ? "▶" : "▼");
+          caret.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            fam_map.set(fkey, !is_coll);
+            full_redraw();
+          });
+          row.appendChild(caret);
+        } else {
+          row.appendChild(el("span", "hse_sr_caret", "•"));
+        }
+
+        const lbl = el("span", "hse_sr_label", fam.parent || fam.all[0]);
+        row.appendChild(lbl);
+        row.addEventListener("click", () => on_fam(fam));
         list.appendChild(row);
+
+        if (!is_coll && fam.children.length) {
+          const cbox = el("div", "hse_sr_children");
+          fam.children.forEach((eid) => {
+            const cr = el("div", "hse_sr hse_sr_click hse_sr_child");
+            cr.title = "Cliquer pour déplacer";
+            cr.appendChild(el("span", "hse_sr_label", eid));
+            cr.addEventListener("click", () => on_single(eid));
+            cbox.appendChild(cr);
+          });
+          list.appendChild(cbox);
+        }
       });
     }
 
@@ -790,64 +561,50 @@
 
   // ---------------------------------------------------------------------------
   // Section ROOMS
+  // IMPORTANT: redraw = () => on_action("org_rerender") → déclenche _render()
+  //            dans hse_panel.js qui réappelle render_customisation().
+  //            On ne redessine PAS localement pour rester cohérent avec l'état.
   // ---------------------------------------------------------------------------
 
-  function _render_rooms_section(container, rooms, assignments, on_action, redraw_fn) {
+  function _render_rooms_section(container, rooms, assignments, on_action) {
     clear(container);
 
-    // Header barre
-    const headerbar = el("div", "hse_groups_headerbar");
-    headerbar.appendChild(el("div", "hse_groups_title", "Pièces & capteurs"));
-    const spacer = el("div", "hse_groups_spacer");
-    headerbar.appendChild(spacer);
+    // ── Headerbar ──────────────────────────────────────────────────
+    const hbar = el("div", "hse_hbar");
+    hbar.appendChild(el("div", "hse_hbar_title", "Pièces & capteurs"));
+    hbar.appendChild(el("div", "hse_hbar_spacer"));
 
-    const filter_input = _mk_input("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_groups_filter");
-    filter_input.addEventListener("input", (ev) => {
+    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
+    fi.addEventListener("input", (ev) => {
       _rooms_filter = ev.target.value || "";
-      _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
+      on_action("org_rerender");
     });
-    headerbar.appendChild(filter_input);
+    hbar.appendChild(fi);
 
-    const sort_btn = _mk_btn(
-      _rooms_sort_asc ? "Tri A→Z" : "Tri Z→A",
-      "hse_button",
-      () => {
-        _rooms_sort_asc = !_rooms_sort_asc;
-        _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-      }
-    );
-    headerbar.appendChild(sort_btn);
+    hbar.appendChild(_btn(_rooms_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+      _rooms_sort_asc = !_rooms_sort_asc;
+      on_action("org_rerender");
+    }));
 
-    const add_btn = _mk_btn("+ Ajouter une pièce", "hse_button", () => {
+    hbar.appendChild(_btn("+ Ajouter une pièce", "hse_button", () => {
       const name = window.prompt("Nom de la nouvelle pièce :");
       if (!name) return;
       const trimmed = name.trim();
-      if (!trimmed) return;
-      const def_id = trimmed.toLowerCase().replaceAll(" ", "_").replaceAll(/[^a-z0-9_\-]/g, "").slice(0, 60);
+      const def_id = trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "").slice(0, 60);
       const room_id = window.prompt("room_id ?", def_id);
       if (!room_id) return;
       on_action("org_room_add", { room_id: room_id.trim(), name: trimmed });
-    });
-    headerbar.appendChild(add_btn);
+    }));
 
-    const refresh_btn = _mk_btn("Rafraîchir", "hse_button", () => on_action("org_refresh"));
-    headerbar.appendChild(refresh_btn);
+    hbar.appendChild(_btn("Rafraîchir", "hse_button", () => on_action("org_refresh")));
 
-    const preview_btn = _mk_btn("Prévisualiser", "hse_button hse_button_primary", () => on_action("org_preview"));
-    headerbar.appendChild(preview_btn);
-
-    const save_btn = _mk_btn("Sauvegarder", "hse_button", () => on_action("org_save"));
-    headerbar.appendChild(save_btn);
-
-    // Bouton Auto rooms (mots-clés, indépendant de HA)
-    const auto_rooms_btn = _mk_btn("⚡ Auto rooms (mots-clés)", "hse_button hse_button_primary", () => {
+    // ⚡ Auto rooms (mots-clés, indépendant de HA)
+    hbar.appendChild(_btn("⚡ Auto rooms", "hse_button hse_button_primary", () => {
       let count = 0;
       Object.entries(assignments || {}).forEach(([eid, a]) => {
-        if (!a) return;
-        if (a.room_id) return; // déjà assigné, ne pas écraser
+        if (!a || a.room_id) return; // ne pas écraser
         const s = eid.toLowerCase();
         for (const [kw, room_id] of Object.entries(DEFAULT_ROOM_KEYWORDS)) {
-          // Vérifie que la room existe dans le draft
           if (rooms[room_id] && s.includes(kw.toLowerCase())) {
             on_action("org_patch", { path: `assignments.${eid}.room_id`, value: room_id, no_render: true });
             count++;
@@ -856,34 +613,33 @@
         }
       });
       alert(`Auto rooms : ${count} capteur(s) assigné(s) automatiquement.`);
-      _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-    });
-    auto_rooms_btn.title = "Assigne automatiquement les capteurs aux pièces d'après les mots-clés de leurs entity_id";
-    headerbar.appendChild(auto_rooms_btn);
-
-    container.appendChild(headerbar);
-
-    // Barre bulk
-    const bulkbar = el("div", "hse_groups_bulkbar");
-    bulkbar.appendChild(el("span", "hse_groups_bulk_label", "Déplacement en masse :"));
-
-    const kw_input = _mk_input("Mot-clé (ex: emma)…", "", "hse_input hse_groups_keyword");
-    bulkbar.appendChild(kw_input);
-
-    bulkbar.appendChild(el("span", "hse_groups_bulk_label", "vers la pièce :"));
-
-    const room_opts_bulk = _keys_sorted(rooms).map((rid) => ({
-      value: rid,
-      label: rooms[rid]?.name ? `${rooms[rid].name} (${rid})` : rid,
+      on_action("org_rerender");
     }));
-    const target_sel = _mk_select(room_opts_bulk, "", "hse_input hse_groups_select");
-    bulkbar.appendChild(target_sel);
 
-    const bulk_btn = _mk_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
-      const kw = kw_input.value.trim().toLowerCase();
-      if (!kw) { alert("Veuillez saisir un mot-clé."); return; }
-      const target_room = target_sel.value;
-      if (!target_room) { alert("Veuillez choisir une pièce cible."); return; }
+    hbar.appendChild(_btn("Sauvegarder", "hse_button", () => on_action("org_save")));
+    container.appendChild(hbar);
+
+    // ── Bulk bar ───────────────────────────────────────────────────
+    const bulk = el("div", "hse_bulkbar");
+    bulk.appendChild(document.createTextNode("Déplacement en masse :"));
+
+    const kw_inp = _inp("Mot-clé (ex: emma)…", "", "hse_input hse_bulkbar_kw");
+    bulk.appendChild(kw_inp);
+
+    bulk.appendChild(document.createTextNode(" vers : "));
+
+    const room_opts = _keys_sorted(rooms).map((rid) => ({
+      value: rid,
+      label: rooms[rid]?.name || rid,
+    }));
+    const tgt_sel = _sel(room_opts, "", "hse_input hse_bulkbar_sel");
+    bulk.appendChild(tgt_sel);
+
+    bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
+      const kw = kw_inp.value.trim().toLowerCase();
+      if (!kw) { alert("Saisir un mot-clé."); return; }
+      const target_room = tgt_sel.value;
+      if (!target_room) { alert("Choisir une pièce cible."); return; }
 
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
@@ -892,185 +648,179 @@
           count++;
         }
       });
-      if (count > 0) {
-        kw_input.value = "";
-        _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-      } else {
-        alert(`Aucun capteur ne contient "${kw}".`);
-      }
-    });
-    bulkbar.appendChild(bulk_btn);
-    container.appendChild(bulkbar);
 
-    // Index capteurs par room
-    const entities_by_room = {};
+      if (count === 0) {
+        alert(`Aucun capteur ne contient "${kw}".`);
+      } else {
+        alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
+        // Déclenche un full rerender via panel pour avoir l'état à jour
+        on_action("org_rerender");
+      }
+    }));
+
+    container.appendChild(bulk);
+
+    // ── Index capteurs par room ─────────────────────────────────────
+    const by_room = {};
     Object.entries(assignments || {}).forEach(([eid, a]) => {
       const rid = a?.room_id || "__none__";
-      if (!entities_by_room[rid]) entities_by_room[rid] = [];
-      entities_by_room[rid].push(eid);
+      if (!by_room[rid]) by_room[rid] = [];
+      by_room[rid].push(eid);
     });
 
-    const room_keys = _keys_sorted(rooms);
-    const sorted_rooms = _rooms_sort_asc ? room_keys : [...room_keys].reverse();
-    const unassigned = entities_by_room["__none__"] || [];
+    const sorted_room_keys = _rooms_sort_asc
+      ? _keys_sorted(rooms)
+      : _keys_sorted(rooms).reverse();
 
-    const list_container = el("div", "hse_groups_container");
+    const list_ctn = el("div", "hse_groups");
 
-    const render_room_card = (room_id, room_cfg, entity_ids_for_room) => {
+    // ── Carte « Non affectés » EN PREMIER ──────────────────────────
+    const unassigned = by_room["__none__"] || [];
+    if (unassigned.length > 0) {
+      const q = _rooms_filter.toLowerCase();
+      const visible = q ? unassigned.filter((eid) => eid.toLowerCase().includes(q)) : unassigned;
+      if (visible.length > 0) {
+        if (!_collapsed_rooms.has("__none__")) _collapsed_rooms.set("__none__", false);
+        const is_open = !_collapsed_rooms.get("__none__");
+
+        const card = el("div", is_open ? "hse_gc hse_gc_warn" : "hse_gc hse_gc_warn");
+        if (is_open) card.setAttribute("data-open", "1");
+
+        const gh = el("div", "hse_gh");
+        const tog = _btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+          ev.stopPropagation();
+          _collapsed_rooms.set("__none__", is_open);
+          on_action("org_rerender");
+        });
+        gh.appendChild(tog);
+        gh.appendChild(el("span", "hse_gh_icon", "❓"));
+        gh.appendChild(el("span", "hse_gh_name", "Non affectés"));
+        gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+        gh.addEventListener("click", () => {
+          _collapsed_rooms.set("__none__", is_open);
+          on_action("org_rerender");
+        });
+        card.appendChild(gh);
+
+        if (is_open) {
+          const body = el("div", "hse_gb");
+          body.style.gridTemplateColumns = "1fr";
+          body.appendChild(_render_sensor_col(
+            "__none__", "Capteurs sans pièce", "power", visible,
+            "", _collapsed_rfam,
+            (fam) => _modal_move(fam.all, null, rooms, on_action, () => on_action("org_rerender")),
+            (eid) => _modal_move([eid], null, rooms, on_action, () => on_action("org_rerender")),
+            () => on_action("org_rerender")
+          ));
+          card.appendChild(body);
+        }
+
+        list_ctn.appendChild(card);
+      }
+    }
+
+    // ── Cartes pièces ──────────────────────────────────────────────
+    sorted_room_keys.forEach((room_id) => {
+      const room_cfg = rooms[room_id];
       const name = room_cfg?.name || room_id;
+      const eids = by_room[room_id] || [];
 
+      // Filtre
       if (_rooms_filter) {
         const q = _rooms_filter.toLowerCase();
         const room_match = room_id.toLowerCase().includes(q) || name.toLowerCase().includes(q);
-        const has_entity_match = (entity_ids_for_room || []).some((eid) => eid.toLowerCase().includes(q));
-        if (!room_match && !has_entity_match) return;
+        const entity_match = eids.some((eid) => eid.toLowerCase().includes(q));
+        if (!room_match && !entity_match) return;
       }
 
-      // Par défaut : pliées (true = collapsed)
+      // Par défaut : pliées
       if (!_collapsed_rooms.has(room_id)) _collapsed_rooms.set(room_id, true);
-      const is_collapsed = _collapsed_rooms.get(room_id);
+      const is_open = !_collapsed_rooms.get(room_id);
 
-      const eids = entity_ids_for_room || [];
+      const energy_eids = eids.filter((eid) => /_energy|_kwh|_consumption/i.test(eid) && !/_power_energy/i.test(eid));
+      const power_eids  = eids.filter((eid) => /_power/i.test(eid) && !/_power_energy/i.test(eid));
+      const other_eids  = eids.filter((eid) => !energy_eids.includes(eid) && !power_eids.includes(eid));
+      const main_eids   = [...power_eids, ...other_eids];
 
-      const energy_eids = eids.filter((eid) => {
-        const e = eid.toLowerCase();
-        return e.includes("_energy") || e.endsWith("_kwh") || e.includes("_consumption");
-      });
-      const power_eids = eids.filter((eid) => {
-        const e = eid.toLowerCase();
-        return e.includes("_power") && !e.includes("_power_energy");
-      });
-      const other_eids = eids.filter((eid) => !energy_eids.includes(eid) && !power_eids.includes(eid));
-      const main_eids = [...power_eids, ...other_eids];
+      const card = el("div", "hse_gc");
+      if (is_open) card.setAttribute("data-open", "1");
 
-      const card = el("div", "hse_group_card");
-      if (!is_collapsed) card.setAttribute("data-open", "true");
-
-      // ── Header : toggle + icône + nom + compteur + actions (une seule ligne)
-      const header = el("div", "hse_group_header");
-
-      const toggle_btn = _mk_btn(is_collapsed ? "▶" : "▼", "hse_group_toggle", (ev) => {
+      // ── Header ──
+      const gh = el("div", "hse_gh");
+      const tog = _btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
         ev.stopPropagation();
-        _collapsed_rooms.set(room_id, !is_collapsed);
-        _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
+        _collapsed_rooms.set(room_id, is_open);
+        on_action("org_rerender");
       });
-      header.appendChild(toggle_btn);
+      gh.appendChild(tog);
+      gh.appendChild(el("span", "hse_gh_icon", "🏠"));
+      gh.appendChild(el("span", "hse_gh_name", name));
+      gh.appendChild(el("span", "hse_gh_count", `— ${eids.length} capteur(s)`));
 
-      header.appendChild(el("span", "hse_group_icon", "🏠"));
-      header.appendChild(el("span", "hse_group_name_label", name));
-      header.appendChild(el("span", "hse_group_count", `— ${eids.length} capteur(s)`));
+      if (room_cfg?.mode) gh.appendChild(el("span", "hse_gh_mode", room_cfg.mode));
 
-      // Actions inline
-      const actions = el("div", "hse_group_actions");
-
-      const rename_btn = _mk_btn("✏️", "hse_group_action_btn", (ev) => {
+      const acts = el("div", "hse_gh_actions");
+      const rename_btn = _btn("✏️", "hse_gh_ab", (ev) => {
         ev.stopPropagation();
-        const new_name = window.prompt("Nouveau nom de la pièce :", name);
-        if (!new_name || new_name.trim() === name) return;
-        on_action("org_patch", { path: `rooms.${room_id}.name`, value: new_name.trim() });
+        const nv = window.prompt("Nouveau nom :", name);
+        if (!nv || nv.trim() === name) return;
+        on_action("org_patch", { path: `rooms.${room_id}.name`, value: nv.trim() });
       });
       rename_btn.title = "Renommer";
-      actions.appendChild(rename_btn);
+      acts.appendChild(rename_btn);
 
-      const del_btn = _mk_btn("🗑️", "hse_group_action_btn danger", (ev) => {
+      const del_btn = _btn("🗑️", "hse_gh_ab danger", (ev) => {
         ev.stopPropagation();
         if (!window.confirm(`Supprimer la pièce "${name}" ?`)) return;
         on_action("org_room_delete", { room_id });
       });
-      del_btn.title = "Supprimer cette pièce";
-      actions.appendChild(del_btn);
+      del_btn.title = "Supprimer";
+      acts.appendChild(del_btn);
 
-      header.appendChild(actions);
-
-      // Clic sur le header (hors boutons) → toggle
-      header.addEventListener("click", () => {
-        _collapsed_rooms.set(room_id, !is_collapsed);
-        _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
+      gh.appendChild(acts);
+      gh.addEventListener("click", () => {
+        _collapsed_rooms.set(room_id, is_open);
+        on_action("org_rerender");
       });
+      card.appendChild(gh);
 
-      card.appendChild(header);
+      // ── Body ──
+      if (is_open) {
+        const body = el("div", "hse_gb");
+        const cols_count = (main_eids.length > 0 ? 1 : 0) + (_show_energy_col && energy_eids.length > 0 ? 1 : 0);
+        if (cols_count <= 1) body.style.gridTemplateColumns = "1fr";
 
-      // Corps
-      const body = el("div", "hse_group_body");
-      if (is_collapsed) body.style.display = "none";
-
-      const redraw_room = () => _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-
-      const on_click_family = (fam) => _open_move_modal(fam.all, room_id, rooms, on_action, () => redraw_room());
-      const on_click_single = (eid) => _open_move_modal([eid], room_id, rooms, on_action, () => redraw_room());
-
-      if (main_eids.length > 0) {
-        body.appendChild(_render_sensor_column(
-          room_id, "Capteurs power / autres", "power", main_eids,
-          _rooms_filter, _collapsed_room_families,
-          on_click_family, on_click_single, redraw_room
-        ));
+        if (main_eids.length > 0) {
+          body.appendChild(_render_sensor_col(
+            room_id, "Capteurs power / autres", "power", main_eids,
+            _rooms_filter, _collapsed_rfam,
+            (fam) => _modal_move(fam.all, room_id, rooms, on_action, () => on_action("org_rerender")),
+            (eid) => _modal_move([eid], room_id, rooms, on_action, () => on_action("org_rerender")),
+            () => on_action("org_rerender")
+          ));
+        }
+        if (_show_energy_col && energy_eids.length > 0) {
+          body.appendChild(_render_sensor_col(
+            room_id + ":e", "Capteurs energy", "energy", energy_eids,
+            _rooms_filter, _collapsed_rfam,
+            (fam) => _modal_move(fam.all, room_id, rooms, on_action, () => on_action("org_rerender")),
+            (eid) => _modal_move([eid], room_id, rooms, on_action, () => on_action("org_rerender")),
+            () => on_action("org_rerender")
+          ));
+        }
+        if (!main_eids.length && !energy_eids.length) {
+          const empty = el("div", "hse_gb"); empty.style.gridTemplateColumns = "1fr";
+          empty.appendChild(el("div", "hse_sc_empty", "Aucun capteur affecté à cette pièce."));
+          card.appendChild(empty);
+        } else {
+          card.appendChild(body);
+        }
       }
-      if (energy_eids.length > 0) {
-        body.appendChild(_render_sensor_column(
-          room_id + ":e", "Capteurs energy", "energy", energy_eids,
-          _rooms_filter, _collapsed_room_families,
-          on_click_family, on_click_single, redraw_room
-        ));
-      }
-      if (main_eids.length === 0 && energy_eids.length === 0) {
-        body.appendChild(el("div", "hse_sensor_empty", "Aucun capteur affecté à cette pièce."));
-      }
 
-      card.appendChild(body);
-      list_container.appendChild(card);
-    };
-
-    sorted_rooms.forEach((room_id) => {
-      render_room_card(room_id, rooms[room_id], entities_by_room[room_id] || []);
+      list_ctn.appendChild(card);
     });
 
-    // Carte "Non affectés"
-    if (unassigned.length > 0) {
-      const eid_match = _rooms_filter
-        ? unassigned.filter((eid) => eid.toLowerCase().includes(_rooms_filter.toLowerCase()))
-        : unassigned;
-
-      if (eid_match.length > 0) {
-        if (!_collapsed_rooms.has("__none__")) _collapsed_rooms.set("__none__", false); // Non affectés : ouvert par défaut
-        const is_collapsed = _collapsed_rooms.get("__none__");
-        const card = el("div", "hse_group_card hse_group_card_unassigned");
-        if (!is_collapsed) card.setAttribute("data-open", "true");
-
-        const header = el("div", "hse_group_header");
-        const toggle_btn = _mk_btn(is_collapsed ? "▶" : "▼", "hse_group_toggle", (ev) => {
-          ev.stopPropagation();
-          _collapsed_rooms.set("__none__", !is_collapsed);
-          _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-        });
-        header.appendChild(toggle_btn);
-        header.appendChild(el("span", "hse_group_icon", "❓"));
-        header.appendChild(el("span", "hse_group_name_label", "Non affectés"));
-        header.appendChild(el("span", "hse_group_count", `— ${eid_match.length} capteur(s)`));
-        header.addEventListener("click", () => {
-          _collapsed_rooms.set("__none__", !is_collapsed);
-          _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-        });
-        card.appendChild(header);
-
-        const body = el("div", "hse_group_body");
-        if (is_collapsed) body.style.display = "none";
-
-        const redraw_none = () => _render_rooms_section(container, rooms, assignments, on_action, redraw_fn);
-        body.appendChild(_render_sensor_column(
-          "__none__", "Capteurs sans pièce", "power", eid_match,
-          "", _collapsed_room_families,
-          (fam) => _open_move_modal(fam.all, null, rooms, on_action, () => redraw_none()),
-          (eid) => _open_move_modal([eid], null, rooms, on_action, () => redraw_none()),
-          redraw_none
-        ));
-
-        card.appendChild(body);
-        list_container.appendChild(card);
-      }
-    }
-
-    container.appendChild(list_container);
+    container.appendChild(list_ctn);
   }
 
   // ---------------------------------------------------------------------------
@@ -1078,111 +828,95 @@
   // ---------------------------------------------------------------------------
 
   function _collect_known_types(assignments) {
-    const types = new Set();
-    Object.values(assignments || {}).forEach((a) => {
-      if (a?.type_id) types.add(a.type_id);
-    });
-    return types;
+    const s = new Set();
+    Object.values(assignments || {}).forEach((a) => { if (a?.type_id) s.add(a.type_id); });
+    return s;
   }
 
   function _render_types_section(container, assignments, on_action) {
     clear(container);
-
     const known_types = _collect_known_types(assignments);
 
-    const headerbar = el("div", "hse_groups_headerbar");
-    headerbar.appendChild(el("div", "hse_groups_title", "Types (catégories)"));
-    const spacer = el("div", "hse_groups_spacer");
-    headerbar.appendChild(spacer);
+    // ── Headerbar ──────────────────────────────────────────────────
+    const hbar = el("div", "hse_hbar");
+    hbar.appendChild(el("div", "hse_hbar_title", "Types (catégories)"));
+    hbar.appendChild(el("div", "hse_hbar_spacer"));
 
-    const filter_input = _mk_input("Filtrer types ou capteurs…", _types_filter, "hse_input hse_groups_filter");
-    filter_input.addEventListener("input", (ev) => {
+    const fi = _inp("Filtrer types ou capteurs…", _types_filter, "hse_input hse_filter");
+    fi.addEventListener("input", (ev) => {
       _types_filter = ev.target.value || "";
-      _render_types_section(container, assignments, on_action);
+      on_action("org_rerender");
     });
-    headerbar.appendChild(filter_input);
+    hbar.appendChild(fi);
 
-    const sort_btn = _mk_btn(
-      _types_sort_asc ? "Tri A→Z" : "Tri Z→A",
-      "hse_button",
-      () => {
-        _types_sort_asc = !_types_sort_asc;
-        _render_types_section(container, assignments, on_action);
-      }
-    );
-    headerbar.appendChild(sort_btn);
+    hbar.appendChild(_btn(_types_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+      _types_sort_asc = !_types_sort_asc;
+      on_action("org_rerender");
+    }));
 
-    const facture_btn = _mk_btn(
-      _show_types_energy ? "Energy: ON" : "Energy: OFF",
-      "hse_button",
-      () => {
-        _show_types_energy = !_show_types_energy;
-        _render_types_section(container, assignments, on_action);
-      }
-    );
-    headerbar.appendChild(facture_btn);
+    hbar.appendChild(_btn(_show_energy_col ? "Energy: ON" : "Energy: OFF", "hse_button", () => {
+      _show_energy_col = !_show_energy_col;
+      on_action("org_rerender");
+    }));
 
-    const add_btn = _mk_btn("+ Ajouter un type", "hse_button", () => {
-      const name = window.prompt("Nom du nouveau type :");
-      if (!name) return;
-      const trimmed = name.trim();
-      if (!trimmed) return;
-      on_action("org_type_create", { type_id: trimmed });
-    });
-    headerbar.appendChild(add_btn);
+    hbar.appendChild(_btn("+ Ajouter un type", "hse_button", () => {
+      const n = window.prompt("Nom du nouveau type :");
+      if (!n) return;
+      on_action("org_type_create", { type_id: n.trim() });
+    }));
 
-    const auto_btn = _mk_btn("⚡ Auto types (mots-clés)", "hse_button hse_button_primary", () => {
+    // ⚡ Auto types
+    hbar.appendChild(_btn("⚡ Auto types", "hse_button hse_button_primary", () => {
       const energy_index = _build_energy_index(assignments);
       let count = 0;
-
       Object.entries(assignments || {}).forEach(([eid, a]) => {
-        if (!a) return;
+        if (!a || a.type_id) return;
         const s = eid.toLowerCase();
         for (const [kw, type_name] of Object.entries(DEFAULT_TYPE_KEYWORDS)) {
           if (s.includes(kw.toLowerCase())) {
-            if (!a.type_id) {
-              on_action("org_patch", { path: `assignments.${eid}.type_id`, value: type_name, no_render: true });
-              count++;
-              const energy_eid = _link_energy_for_power(eid, energy_index);
-              if (energy_eid && assignments[energy_eid] && !assignments[energy_eid].type_id) {
-                on_action("org_patch", { path: `assignments.${energy_eid}.type_id`, value: type_name, no_render: true });
+            on_action("org_patch", { path: `assignments.${eid}.type_id`, value: type_name, no_render: true });
+            count++;
+            // Lier energy sibling
+            const base = _family_base(eid, "power");
+            const siblings = energy_index.get(base) || [];
+            siblings.forEach((sib) => {
+              if (assignments[sib] && !assignments[sib].type_id) {
+                on_action("org_patch", { path: `assignments.${sib}.type_id`, value: type_name, no_render: true });
                 count++;
               }
-            }
+            });
             break;
           }
         }
       });
-
       alert(`Auto types : ${count} capteur(s) typé(s) automatiquement.`);
-      _render_types_section(container, assignments, on_action);
-    });
-    headerbar.appendChild(auto_btn);
+      on_action("org_rerender");
+    }));
 
-    container.appendChild(headerbar);
+    container.appendChild(hbar);
 
-    // Barre bulk
-    const bulkbar = el("div", "hse_groups_bulkbar");
-    bulkbar.appendChild(el("span", "hse_groups_bulk_label", "Affecter en masse :"));
+    // ── Bulk bar ───────────────────────────────────────────────────
+    const bulk = el("div", "hse_bulkbar");
+    bulk.appendChild(document.createTextNode("Affecter en masse :"));
 
-    const kw_input = _mk_input("Mot-clé (ex: tv)…", "", "hse_input hse_groups_keyword");
-    bulkbar.appendChild(kw_input);
+    const kw_inp = _inp("Mot-clé (ex: tv)…", "", "hse_input hse_bulkbar_kw");
+    bulk.appendChild(kw_inp);
 
-    bulkbar.appendChild(el("span", "hse_groups_bulk_label", "→ type :"));
+    bulk.appendChild(document.createTextNode(" → type : "));
 
-    const all_types_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
-    if (all_types_bulk.length === 0) all_types_bulk.push({ value: "", label: "(aucun type défini)" });
-    const target_sel = _mk_select(all_types_bulk, "", "hse_input hse_groups_select");
-    bulkbar.appendChild(target_sel);
+    const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
+    if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
+    const tgt_sel = _sel(type_opts_bulk, "", "hse_input hse_bulkbar_sel");
+    bulk.appendChild(tgt_sel);
 
-    const new_type_input = _mk_input("ou nouveau type…", "", "hse_input hse_groups_keyword");
-    bulkbar.appendChild(new_type_input);
+    const new_t_inp = _inp("ou nouveau type…", "", "hse_input hse_bulkbar_inp");
+    bulk.appendChild(new_t_inp);
 
-    const bulk_btn = _mk_btn("Appliquer", "hse_button hse_button_primary", () => {
-      const kw = kw_input.value.trim().toLowerCase();
-      if (!kw) { alert("Veuillez saisir un mot-clé."); return; }
-      let target_type = new_type_input.value.trim() || target_sel.value;
-      if (!target_type) { alert("Veuillez choisir ou saisir un type cible."); return; }
+    bulk.appendChild(_btn("Appliquer", "hse_button hse_button_primary", () => {
+      const kw = kw_inp.value.trim().toLowerCase();
+      if (!kw) { alert("Saisir un mot-clé."); return; }
+      const target_type = new_t_inp.value.trim() || tgt_sel.value;
+      if (!target_type) { alert("Choisir ou saisir un type cible."); return; }
 
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
@@ -1191,198 +925,185 @@
           count++;
         }
       });
-      if (count === 0) alert(`Aucun capteur ne contient "${kw}".`);
+      if (!count) alert(`Aucun capteur ne contient "${kw}".`);
       else {
-        kw_input.value = "";
-        new_type_input.value = "";
-        _render_types_section(container, assignments, on_action);
+        alert(`${count} capteur(s) affecté(s) au type « ${target_type} ».`);
+        on_action("org_rerender");
       }
-    });
-    bulkbar.appendChild(bulk_btn);
-    container.appendChild(bulkbar);
+    }));
 
-    // Index capteurs par type
-    const entities_by_type = {};
+    container.appendChild(bulk);
+
+    // ── Index capteurs par type ────────────────────────────────────
+    const by_type = {};
     Object.entries(assignments || {}).forEach(([eid, a]) => {
       const tid = a?.type_id || "__none__";
-      if (!entities_by_type[tid]) entities_by_type[tid] = [];
-      entities_by_type[tid].push(eid);
+      if (!by_type[tid]) by_type[tid] = [];
+      by_type[tid].push(eid);
     });
 
-    const type_keys = [...known_types];
-    const sorted_types = _types_sort_asc ? type_keys.sort() : type_keys.sort().reverse();
+    const sorted_type_keys = _types_sort_asc
+      ? [...known_types].sort()
+      : [...known_types].sort().reverse();
 
-    const list_container = el("div", "hse_groups_container");
+    const list_ctn = el("div", "hse_groups");
 
-    sorted_types.forEach((type_id) => {
-      const eids = entities_by_type[type_id] || [];
-
-      if (_types_filter) {
-        const q = _types_filter.toLowerCase();
-        const type_match = type_id.toLowerCase().includes(q);
-        const has_match = eids.some((eid) => eid.toLowerCase().includes(q));
-        if (!type_match && !has_match) return;
-      }
-
-      if (!_collapsed_types.has(type_id)) _collapsed_types.set(type_id, true);
-      const is_collapsed = _collapsed_types.get(type_id);
-
-      const power_eids = eids.filter((eid) => {
-        const e = eid.toLowerCase();
-        return !e.includes("_energy") && !e.endsWith("_kwh");
-      });
-      const energy_eids = eids.filter((eid) => !power_eids.includes(eid));
-
-      const card = el("div", "hse_group_card");
-      if (!is_collapsed) card.setAttribute("data-open", "true");
-
-      const header = el("div", "hse_group_header");
-
-      const toggle_btn = _mk_btn(is_collapsed ? "▶" : "▼", "hse_group_toggle", (ev) => {
-        ev.stopPropagation();
-        _collapsed_types.set(type_id, !is_collapsed);
-        _render_types_section(container, assignments, on_action);
-      });
-      header.appendChild(toggle_btn);
-
-      header.appendChild(el("span", "hse_group_icon", "🏷️"));
-      header.appendChild(el("span", "hse_group_name_label", type_id));
-      header.appendChild(el("span", "hse_group_count", `— ${eids.length} capteur(s)`));
-
-      const actions = el("div", "hse_group_actions");
-      const del_btn = _mk_btn("🗑️", "hse_group_action_btn danger", (ev) => {
-        ev.stopPropagation();
-        if (!window.confirm(`Retirer le type "${type_id}" de tous les capteurs ?`)) return;
-        (entities_by_type[type_id] || []).forEach((eid) => {
-          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: null, no_render: true });
-        });
-        _render_types_section(container, assignments, on_action);
-      });
-      del_btn.title = "Retirer ce type de tous les capteurs";
-      actions.appendChild(del_btn);
-      header.appendChild(actions);
-
-      header.addEventListener("click", () => {
-        _collapsed_types.set(type_id, !is_collapsed);
-        _render_types_section(container, assignments, on_action);
-      });
-
-      card.appendChild(header);
-
-      const body = el("div", "hse_group_body");
-      if (is_collapsed) body.style.display = "none";
-
-      const redraw_types = () => _render_types_section(container, assignments, on_action);
-
-      const on_family_click = (fam) => _open_type_modal(fam.all, type_id, known_types, on_action, () => redraw_types());
-      const on_single_click = (eid) => _open_type_modal([eid], type_id, known_types, on_action, () => redraw_types());
-
-      body.appendChild(_render_sensor_column(
-        type_id, "Capteurs power", "power", power_eids,
-        _types_filter, _collapsed_type_families,
-        on_family_click, on_single_click, redraw_types
-      ));
-
-      if (_show_types_energy && energy_eids.length > 0) {
-        body.appendChild(_render_sensor_column(
-          type_id + ":e", "Capteurs energy", "energy", energy_eids,
-          _types_filter, _collapsed_type_families,
-          on_family_click, on_single_click, redraw_types
-        ));
-      }
-
-      card.appendChild(body);
-      list_container.appendChild(card);
-    });
-
-    // Carte "Non typés"
-    const untyped = entities_by_type["__none__"] || [];
+    // ── Carte « Sans type » EN PREMIER ────────────────────────────
+    const untyped = by_type["__none__"] || [];
     if (untyped.length > 0) {
       const q = _types_filter.toLowerCase();
       const visible = q ? untyped.filter((eid) => eid.toLowerCase().includes(q)) : untyped;
       if (visible.length > 0) {
         if (!_collapsed_types.has("__none__")) _collapsed_types.set("__none__", false);
-        const is_collapsed = _collapsed_types.get("__none__");
-        const card = el("div", "hse_group_card hse_group_card_unassigned");
-        if (!is_collapsed) card.setAttribute("data-open", "true");
+        const is_open = !_collapsed_types.get("__none__");
 
-        const header = el("div", "hse_group_header");
-        const toggle_btn = _mk_btn(is_collapsed ? "▶" : "▼", "hse_group_toggle", (ev) => {
+        const card = el("div", "hse_gc hse_gc_warn");
+        if (is_open) card.setAttribute("data-open", "1");
+
+        const gh = el("div", "hse_gh");
+        gh.appendChild(_btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
           ev.stopPropagation();
-          _collapsed_types.set("__none__", !is_collapsed);
-          _render_types_section(container, assignments, on_action);
+          _collapsed_types.set("__none__", is_open);
+          on_action("org_rerender");
+        }));
+        gh.appendChild(el("span", "hse_gh_icon", "❓"));
+        gh.appendChild(el("span", "hse_gh_name", "Sans type"));
+        gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+        gh.addEventListener("click", () => {
+          _collapsed_types.set("__none__", is_open);
+          on_action("org_rerender");
         });
-        header.appendChild(toggle_btn);
-        header.appendChild(el("span", "hse_group_icon", "❓"));
-        header.appendChild(el("span", "hse_group_name_label", "Sans type"));
-        header.appendChild(el("span", "hse_group_count", `— ${visible.length} capteur(s)`));
-        header.addEventListener("click", () => {
-          _collapsed_types.set("__none__", !is_collapsed);
-          _render_types_section(container, assignments, on_action);
-        });
-        card.appendChild(header);
+        card.appendChild(gh);
 
-        const body = el("div", "hse_group_body");
-        if (is_collapsed) body.style.display = "none";
-
-        const redraw_none = () => _render_types_section(container, assignments, on_action);
-        body.appendChild(_render_sensor_column(
-          "__none__:type", "Capteurs non typés", "power", visible,
-          "", _collapsed_type_families,
-          (fam) => _open_type_modal(fam.all, null, known_types, on_action, () => redraw_none()),
-          (eid) => _open_type_modal([eid], null, known_types, on_action, () => redraw_none()),
-          redraw_none
-        ));
-
-        card.appendChild(body);
-        list_container.appendChild(card);
+        if (is_open) {
+          const body = el("div", "hse_gb"); body.style.gridTemplateColumns = "1fr";
+          body.appendChild(_render_sensor_col(
+            "__none__:t", "Capteurs non typés", "power", visible,
+            "", _collapsed_tfam,
+            (fam) => _modal_type(fam.all, null, known_types, on_action, () => on_action("org_rerender")),
+            (eid) => _modal_type([eid], null, known_types, on_action, () => on_action("org_rerender")),
+            () => on_action("org_rerender")
+          ));
+          card.appendChild(body);
+        }
+        list_ctn.appendChild(card);
       }
     }
 
-    container.appendChild(list_container);
+    sorted_type_keys.forEach((type_id) => {
+      const eids = by_type[type_id] || [];
+
+      if (_types_filter) {
+        const q = _types_filter.toLowerCase();
+        const tm = type_id.toLowerCase().includes(q);
+        const em = eids.some((eid) => eid.toLowerCase().includes(q));
+        if (!tm && !em) return;
+      }
+
+      if (!_collapsed_types.has(type_id)) _collapsed_types.set(type_id, true);
+      const is_open = !_collapsed_types.get(type_id);
+
+      const power_eids  = eids.filter((eid) => !/_energy|_kwh/i.test(eid) || /_power_energy/i.test(eid));
+      const energy_eids = eids.filter((eid) => !power_eids.includes(eid));
+
+      const card = el("div", "hse_gc");
+      if (is_open) card.setAttribute("data-open", "1");
+
+      const gh = el("div", "hse_gh");
+      gh.appendChild(_btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+        ev.stopPropagation();
+        _collapsed_types.set(type_id, is_open);
+        on_action("org_rerender");
+      }));
+      gh.appendChild(el("span", "hse_gh_icon", "🏷️"));
+      gh.appendChild(el("span", "hse_gh_name", type_id));
+      gh.appendChild(el("span", "hse_gh_count", `— ${eids.length} capteur(s)`));
+
+      const acts = el("div", "hse_gh_actions");
+      const del_btn = _btn("🗑️", "hse_gh_ab danger", (ev) => {
+        ev.stopPropagation();
+        if (!window.confirm(`Retirer le type "${type_id}" de tous les capteurs ?`)) return;
+        (by_type[type_id] || []).forEach((eid) => {
+          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: null, no_render: true });
+        });
+        on_action("org_rerender");
+      });
+      del_btn.title = "Retirer ce type de tous les capteurs";
+      acts.appendChild(del_btn);
+      gh.appendChild(acts);
+
+      gh.addEventListener("click", () => {
+        _collapsed_types.set(type_id, is_open);
+        on_action("org_rerender");
+      });
+      card.appendChild(gh);
+
+      if (is_open) {
+        const body = el("div", "hse_gb");
+        const cols_count = 1 + (_show_energy_col && energy_eids.length > 0 ? 1 : 0);
+        if (cols_count <= 1) body.style.gridTemplateColumns = "1fr";
+
+        body.appendChild(_render_sensor_col(
+          type_id, "Capteurs power", "power", power_eids,
+          _types_filter, _collapsed_tfam,
+          (fam) => _modal_type(fam.all, type_id, known_types, on_action, () => on_action("org_rerender")),
+          (eid) => _modal_type([eid], type_id, known_types, on_action, () => on_action("org_rerender")),
+          () => on_action("org_rerender")
+        ));
+
+        if (_show_energy_col && energy_eids.length > 0) {
+          body.appendChild(_render_sensor_col(
+            type_id + ":e", "Capteurs energy", "energy", energy_eids,
+            _types_filter, _collapsed_tfam,
+            (fam) => _modal_type(fam.all, type_id, known_types, on_action, () => on_action("org_rerender")),
+            (eid) => _modal_type([eid], type_id, known_types, on_action, () => on_action("org_rerender")),
+            () => on_action("org_rerender")
+          ));
+        }
+        card.appendChild(body);
+      }
+
+      list_ctn.appendChild(card);
+    });
+
+    container.appendChild(list_ctn);
   }
 
   // ---------------------------------------------------------------------------
-  // Tables diff (Sync HA)
+  // Tables diff sync HA
   // ---------------------------------------------------------------------------
 
   function _render_sync_tables(card, pending) {
-    const rooms = pending?.rooms || {};
+    const rooms       = pending?.rooms || {};
     const assignments = pending?.assignments || {};
-
-    const create_rooms = _as_list(rooms.create);
-    const rename_rooms = _as_list(rooms.rename);
-    const suggest_room = _as_list(assignments.suggest_room);
 
     const add_table = (title, headers, rows) => {
       card.appendChild(el("div", "hse_subtitle", title));
       if (!rows.length) { card.appendChild(el("div", "hse_subtitle", "—")); return; }
-
       const wrap = el("div", "hse_scroll_area");
       const table = el("table", "hse_table");
-      const thead = el("thead");
-      const trh = el("tr");
-      for (const h of headers) trh.appendChild(el("th", null, h));
-      thead.appendChild(trh);
-      table.appendChild(thead);
-
+      const thead = el("thead"); const trh = el("tr");
+      headers.forEach((h) => trh.appendChild(el("th", null, h)));
+      thead.appendChild(trh); table.appendChild(thead);
       const tbody = el("tbody");
-      for (const r of rows) {
+      rows.forEach((r) => {
         const tr = el("tr");
-        for (const c of r) tr.appendChild(el("td", null, c == null ? "" : String(c)));
+        r.forEach((c) => tr.appendChild(el("td", null, c == null ? "" : String(c))));
         tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-      wrap.appendChild(table);
-      card.appendChild(wrap);
+      });
+      table.appendChild(tbody); wrap.appendChild(table); card.appendChild(wrap);
     };
 
-    add_table("Créations de pièces", ["Nom", "room_id", "ha_area_id"],
-      create_rooms.map((x) => [x?.name, x?.room_id, x?.ha_area_id]));
-    add_table("Renommages de pièces", ["room_id", "De", "Vers", "Eligible (auto)"],
-      rename_rooms.map((x) => [x?.room_id, x?.from, x?.to, x?.eligible ? "oui" : "non"]));
-    add_table("Suggestions d'affectation (pièce)", ["entity_id", "De", "Vers", "Raison"],
-      suggest_room.map((x) => [x?.entity_id, x?.from_room_id || "—", x?.to_room_id, x?.reason || "—"]));
+    const cr = Array.isArray(rooms.create) ? rooms.create : [];
+    const rr = Array.isArray(rooms.rename) ? rooms.rename : [];
+    const sr = Array.isArray(assignments.suggest_room) ? assignments.suggest_room : [];
+
+    add_table("Créations de pièces", ["Nom","room_id","ha_area_id"],
+      cr.map((x) => [x?.name, x?.room_id, x?.ha_area_id]));
+    add_table("Renommages", ["room_id","De","Vers","Eligible"],
+      rr.map((x) => [x?.room_id, x?.from, x?.to, x?.eligible ? "oui" : "non"]));
+    add_table("Suggestions (pièce)", ["entity_id","De","Vers","Raison"],
+      sr.map((x) => [x?.entity_id, x?.from_room_id || "—", x?.to_room_id, x?.reason || "—"]));
   }
 
   // ---------------------------------------------------------------------------
@@ -1394,61 +1115,48 @@
     clear(container);
 
     const meta_store = org_state?.meta_store || null;
-    const draft = org_state?.meta_draft || null;
+    const draft      = org_state?.meta_draft || null;
 
-    // Normalisation rooms (Array → dict)
-    const rooms_raw = draft?.rooms || meta_store?.meta?.rooms || {};
-    const rooms = _normalize_rooms(rooms_raw);
+    const rooms_raw        = draft?.rooms || meta_store?.meta?.rooms || {};
+    const rooms            = _normalize_rooms(rooms_raw);
+    const assignments_raw  = draft?.assignments || meta_store?.meta?.assignments || {};
+    const snapshot_ents    = meta_store?.sync?.snapshot?.entities || {};
+    const assignments      = _hydrate_assignments(assignments_raw, rooms, snapshot_ents);
 
-    // Hydratation assignments depuis snapshot HA
-    const assignments_raw = draft?.assignments || meta_store?.meta?.assignments || {};
-    const snapshot_entities = meta_store?.sync?.snapshot?.entities || {};
-    const assignments = _hydrate_assignments(assignments_raw, rooms, snapshot_entities, null);
-
-    const sync = meta_store?.sync || null;
-    const pending = sync?.pending_diff || null;
+    const sync        = meta_store?.sync || null;
+    const pending     = sync?.pending_diff || null;
     const has_pending = !!(pending && pending.has_changes);
 
-    // --- Apparence
+    // ── Apparence ──────────────────────────────────────────────────
     const theme_card = el("div", "hse_card");
     theme_card.appendChild(el("div", null, "Apparence & Thème"));
-    theme_card.appendChild(el("div", "hse_subtitle", "Le thème s'applique à tous les onglets du panel (stocké dans ce navigateur)."));
-
+    theme_card.appendChild(el("div", "hse_subtitle",
+      "Le thème s'applique à tous les onglets du panel (stocké dans ce navigateur)."));
     const theme_row = el("div", "hse_toolbar");
-    const theme_sel = _mk_select(
-      THEMES.map((t) => ({ value: t.key, label: t.label })),
-      state?.theme || "ha",
-      "hse_input"
-    );
+    const theme_sel = _sel(THEMES.map((t) => ({ value: t.key, label: t.label })), state?.theme || "ha", "hse_input");
     theme_sel.style.minWidth = "220px";
     theme_sel.addEventListener("change", (ev) => on_action("set_theme", ev.target.value));
     theme_row.appendChild(theme_sel);
     theme_card.appendChild(theme_row);
-
     const toggles = el("div", "hse_badges");
-    const btn_bg = _mk_btn(state?.dynamic_bg ? "Fond: ON" : "Fond: OFF", "hse_button",
-      () => on_action("toggle_dynamic_bg"));
-    toggles.appendChild(btn_bg);
-    const btn_glass = _mk_btn(state?.glass ? "Glass: ON" : "Glass: OFF", "hse_button",
-      () => on_action("toggle_glass"));
-    toggles.appendChild(btn_glass);
+    toggles.appendChild(_btn(state?.dynamic_bg ? "Fond: ON" : "Fond: OFF", "hse_button", () => on_action("toggle_dynamic_bg")));
+    toggles.appendChild(_btn(state?.glass      ? "Glass: ON" : "Glass: OFF", "hse_button", () => on_action("toggle_glass")));
     theme_card.appendChild(toggles);
     container.appendChild(theme_card);
 
-    // --- Sync HA (résumé + diff)
+    // ── Sync HA ────────────────────────────────────────────────────
     const org = el("div", "hse_card");
     org.appendChild(el("div", null, "Sync Home Assistant"));
     org.appendChild(el("div", "hse_subtitle",
       "Prévisualise puis applique des propositions (pièces/affectations) à partir des zones Home Assistant."));
-
     if (sync?.last_error) org.appendChild(el("pre", "hse_code", String(sync.last_error)));
 
     const summary = [];
     if (has_pending) {
-      const stats = pending?.stats || {};
-      summary.push(`Pièces: +${stats?.create_rooms ?? 0}`);
-      summary.push(`renommages: ${stats?.rename_rooms ?? 0}`);
-      summary.push(`suggestions: ${stats?.suggest_room ?? 0}`);
+      const st = pending?.stats || {};
+      summary.push(`Pièces: +${st?.create_rooms ?? 0}`);
+      summary.push(`renommages: ${st?.rename_rooms ?? 0}`);
+      summary.push(`suggestions: ${st?.suggest_room ?? 0}`);
     } else {
       summary.push("Aucune proposition en attente.");
     }
@@ -1460,55 +1168,45 @@
     org.appendChild(el("div", "hse_subtitle", summary.join(", ")));
 
     const tb = el("div", "hse_toolbar");
+    tb.appendChild(_btn("Prévisualiser sync HA", "hse_button", () => on_action("org_preview")));
 
-    // Prévisualiser (génère le diff HA)
-    const btn_preview = _mk_btn("Prévisualiser sync HA", "hse_button",
-      () => on_action("org_preview"));
-    tb.appendChild(btn_preview);
-
-    // Appliquer auto HA (uniquement si diff dispo)
-    const btn_apply_auto = _mk_btn("Appliquer sync HA (auto)", "hse_button",
+    const btn_auto = _btn("Appliquer sync HA (auto)", "hse_button",
       () => on_action("org_apply", { apply_mode: "auto" }));
-    btn_apply_auto.disabled = !has_pending || !!org_state?.apply_running;
-    tb.appendChild(btn_apply_auto);
+    btn_auto.disabled = !has_pending || !!org_state?.apply_running;
+    tb.appendChild(btn_auto);
 
-    const btn_apply_all = _mk_btn("Appliquer sync HA (all)", "hse_button",
+    const btn_all = _btn("Appliquer sync HA (all)", "hse_button",
       () => on_action("org_apply", { apply_mode: "all" }));
-    btn_apply_all.disabled = !has_pending || !!org_state?.apply_running;
-    tb.appendChild(btn_apply_all);
+    btn_all.disabled = !has_pending || !!org_state?.apply_running;
+    tb.appendChild(btn_all);
 
-    const btn_raw = _mk_btn(org_state?.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
-      () => on_action("org_toggle_raw"));
-    tb.appendChild(btn_raw);
-
+    tb.appendChild(_btn(org_state?.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
+      () => on_action("org_toggle_raw")));
     org.appendChild(tb);
 
     if (org_state?.message) org.appendChild(el("div", "hse_subtitle", String(org_state.message)));
-    if (org_state?.error) org.appendChild(el("pre", "hse_code", String(org_state.error)));
-
+    if (org_state?.error)   org.appendChild(el("pre", "hse_code", String(org_state.error)));
     if (has_pending) _render_sync_tables(org, pending);
-
     if (org_state?.show_raw) {
       org.appendChild(el("div", "hse_subtitle", "Données brutes"));
-      org.appendChild(el("pre", "hse_code", JSON.stringify({ meta_store, meta_draft: org_state?.meta_draft || null }, null, 2)));
+      org.appendChild(el("pre", "hse_code",
+        JSON.stringify({ meta_store, meta_draft: draft }, null, 2)));
     }
-
     container.appendChild(org);
 
-    // --- Rooms
+    // ── Section Rooms ──────────────────────────────────────────────
     const rooms_card = el("div", "hse_card");
-    const rooms_section = el("div");
-    rooms_card.appendChild(rooms_section);
+    const rooms_sec  = el("div");
+    rooms_card.appendChild(rooms_sec);
     container.appendChild(rooms_card);
-    _render_rooms_section(rooms_section, rooms, assignments, on_action,
-      () => _render_rooms_section(rooms_section, rooms, assignments, on_action, null));
+    _render_rooms_section(rooms_sec, rooms, assignments, on_action);
 
-    // --- Types
+    // ── Section Types ──────────────────────────────────────────────
     const types_card = el("div", "hse_card");
-    const types_section = el("div");
-    types_card.appendChild(types_section);
+    const types_sec  = el("div");
+    types_card.appendChild(types_sec);
     container.appendChild(types_card);
-    _render_types_section(types_section, assignments, on_action);
+    _render_types_section(types_sec, assignments, on_action);
   }
 
   window.hse_custom_view = { render_customisation };
