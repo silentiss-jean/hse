@@ -1,22 +1,16 @@
 /*
 HSE_DOC: custom_components/hse/docs/panel_style.md
 HSE_MAINTENANCE: If you change panel CSS selectors/variables consumed by JS/views, update the doc above.
+
+NOTE v4: Ce fichier ne contient plus de variables couleurs.
+Tous les tokens couleurs sont gérés par hse_tokens.shadow.css + hse_themes.shadow.css.
+Seuls les tokens de layout non-thématiques restent ici.
 */
 
 :host {
+  /* Layout uniquement — NE PAS remettre de couleurs HA ici, elles casseraient les thèmes v4 */
   --hse_gap: 12px;
   --hse_radius: 12px;
-
-  --hse_bg: var(--primary-background-color);
-  --hse_fg: var(--primary-text-color);
-  --hse_muted: var(--secondary-text-color);
-  --hse_border: var(--divider-color);
-
-  --hse_card_bg: var(--card-background-color);
-  --hse_code_bg: color-mix(in srgb, var(--hse_card_bg) 70%, #000 30%);
-
-  --hse_accent: var(--primary-color);
-  --hse_danger: var(--error-color);
 }
 
 .hse_page {

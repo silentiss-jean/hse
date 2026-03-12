@@ -29,7 +29,7 @@ HSE_MAINTENANCE: If you add/remove theme keys or required variables, update the 
   --hse-bg-dynamic-opacity: 0.55;
   --hse-font-tracking: 0.1px;
 
-  /* Glass only (default none) */
+  /* Glass (default: none — activé par thème) */
   --hse-backdrop-filter: none;
 
   /* Badge */
@@ -517,6 +517,9 @@ HSE_MAINTENANCE: If you add/remove theme keys or required variables, update the 
 
   --hse-shadow-glow: 0 0 26px rgba(34,211,238,0.14);
 
+  /* Glass activé pour neon */
+  --hse-backdrop-filter: blur(16px) saturate(1.6);
+
   --hse-gradient-primary: linear-gradient(135deg, rgba(168,85,247,1), rgba(34,211,238,1));
   --hse-gradient-header: linear-gradient(135deg, rgba(124,58,237,0.92), rgba(6,182,212,0.84));
   --hse-gradient-info: linear-gradient(135deg, rgba(34,211,238,0.18), rgba(34,211,238,0.06));
@@ -578,6 +581,9 @@ HSE_MAINTENANCE: If you add/remove theme keys or required variables, update the 
   --hse-hover: rgba(167,139,250,0.10);
 
   --hse-shadow-glow: 0 0 28px rgba(167,139,250,0.16);
+
+  /* Glass activé pour aurora */
+  --hse-backdrop-filter: blur(20px) saturate(1.5);
 
   --hse-gradient-primary: linear-gradient(135deg, rgba(96,165,250,1), rgba(167,139,250,1));
   --hse-gradient-header: linear-gradient(135deg, rgba(96,165,250,0.92), rgba(34,211,238,0.85));
