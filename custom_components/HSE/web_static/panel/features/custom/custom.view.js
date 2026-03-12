@@ -174,7 +174,12 @@
       opt.textContent = o.label;
       s.appendChild(opt);
     }
-    s.value = value || "";
+    // FIX: forcer la valeur après insertion des options
+    if (value && s.querySelector(`option[value="${CSS.escape(value)}"]`)) {
+      s.value = value;
+    } else if (s.options.length > 0) {
+      s.value = s.options[0].value;
+    }
     return s;
   }
 
@@ -925,12 +930,15 @@
       label: rooms[rid]?.name || rid,
     }));
     const tgt_sel = _sel(room_opts, _bulk_rooms_target, "hse_input hse_bulkbar_sel");
+    // FIX: synchroniser _bulk_rooms_target avec la valeur réelle du select après rendu
+    _bulk_rooms_target = tgt_sel.value;
     tgt_sel.addEventListener("change", (ev) => { _bulk_rooms_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
 
     bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
       const kw = kw_inp.value.trim().toLowerCase();
       if (!kw) { alert("Saisir un mot-clé."); return; }
+      // FIX: lire directement tgt_sel.value (valeur DOM courante, toujours fiable)
       const target_room = tgt_sel.value;
       if (!target_room) { alert("Choisir une pièce cible."); return; }
 
@@ -946,7 +954,8 @@
         alert(`Aucun capteur ne contient "${kw}".`);
       } else {
         alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
-        on_action("org_rerender");
+        // FIX: sauvegarder automatiquement après déplacement en masse
+        on_action("org_save");
       }
     }));
 
@@ -1042,6 +1051,8 @@
     const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
     if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
     const tgt_sel = _sel(type_opts_bulk, _bulk_types_target, "hse_input hse_bulkbar_sel");
+    // FIX: synchroniser _bulk_types_target avec la valeur réelle du select après rendu
+    _bulk_types_target = tgt_sel.value;
     tgt_sel.addEventListener("change", (ev) => { _bulk_types_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
 
