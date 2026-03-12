@@ -18,7 +18,6 @@
     { key: "neuro",   label: "Neuro (soft light)" },
   ];
 
-  // Mots-clés room : entity_id contient la clé → room_id cible
   const DEFAULT_ROOM_KEYWORDS = {
     salon:          "ha_living_room",
     living:         "ha_living_room",
@@ -92,18 +91,24 @@
   };
 
   // ---------------------------------------------------------------------------
-  // UI state (collapse, filtres) — persistant entre renders
+  // UI state — persistant entre renders
   // ---------------------------------------------------------------------------
 
-  const _collapsed_rooms   = new Map(); // room_id → bool (true = collapsed)
+  const _collapsed_rooms   = new Map();
   const _collapsed_types   = new Map();
-  const _collapsed_rfam    = new Map(); // room family collapse
+  const _collapsed_rfam    = new Map();
   const _collapsed_tfam    = new Map();
-  let _rooms_filter   = "";
-  let _types_filter   = "";
-  let _rooms_sort_asc = true;
-  let _types_sort_asc = true;
-  let _show_energy_col = false;
+  let _rooms_filter        = "";
+  let _types_filter        = "";
+  let _rooms_sort_asc      = true;
+  let _types_sort_asc      = true;
+  let _show_energy_col     = false;
+
+  // État bulk persisté entre renders (évite reset sur filtre input)
+  let _bulk_rooms_kw       = "";
+  let _bulk_rooms_target   = "";
+  let _bulk_types_kw       = "";
+  let _bulk_types_target   = "";
 
   // ---------------------------------------------------------------------------
   // Normalisation backend
@@ -125,7 +130,6 @@
       out[eid] = Object.assign({}, a);
     });
 
-    // Index area_id → room_id
     const area_to_room = {};
     Object.entries(rooms).forEach(([rid, r]) => {
       if (r && r.ha_area_id) area_to_room[r.ha_area_id] = rid;
@@ -187,7 +191,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Styles (injectés dans document.head une seule fois)
+  // Styles
   // ---------------------------------------------------------------------------
 
   function _inject_styles() {
@@ -208,7 +212,6 @@
 .hse_gc:hover { box-shadow: var(--hse-shadow-sm, 0 1px 3px rgba(0,0,0,.07)); }
 .hse_gc_warn { border-color: color-mix(in srgb, var(--hse_danger,#ef4444) 35%, var(--hse_border) 65%); }
 
-/* ─── Group header (nom + actions sur 1 ligne) ───────────────────── */
 .hse_gh {
   display: flex;
   align-items: center;
@@ -239,7 +242,6 @@
   font-size: 11.5px; color: var(--hse_muted);
   white-space: nowrap; flex-shrink: 0;
 }
-/* mode badge (auto/manual/mixed) */
 .hse_gh_mode {
   font-size: 10px; padding: 2px 7px;
   border: 1px solid var(--hse_border);
@@ -248,7 +250,6 @@
   background: color-mix(in srgb, var(--hse_card_bg) 80%, var(--hse-bg) 20%);
 }
 
-/* Actions : petits boutons discrets en fin de ligne */
 .hse_gh_actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px; }
 .hse_gh_ab {
   border: none; background: transparent; cursor: pointer;
@@ -260,7 +261,6 @@
 .hse_gh_ab:hover { opacity: 1 !important; background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 90%, transparent); }
 .hse_gh_ab.danger:hover { background: var(--hse-error-soft, rgba(239,68,68,.12)); }
 
-/* ─── Group body ─────────────────────────────────────────────────── */
 .hse_gb {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -269,7 +269,6 @@
 }
 @media (max-width: 700px) { .hse_gb { grid-template-columns: 1fr; } }
 
-/* Colonne capteurs */
 .hse_sc_col { min-width: 0; }
 .hse_sc_col_title {
   font-size: 10.5px; font-weight: 700;
@@ -279,7 +278,6 @@
 .hse_sc_list  { display: flex; flex-direction: column; gap: 1px; }
 .hse_sc_empty { font-size: 12px; color: var(--hse_muted); font-style: italic; padding: 4px 0; }
 
-/* Ligne capteur */
 .hse_sr {
   display: flex; align-items: center; gap: 5px;
   padding: 3px 6px; border-radius: var(--hse-radius-sm,8px);
@@ -293,7 +291,6 @@
 .hse_sr_label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .hse_sr_children { padding-left:4px; margin-top:1px; }
 
-/* ─── Header barre / bulk barre ──────────────────────────────────── */
 .hse_hbar {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 8px; margin-bottom: 8px;
@@ -318,10 +315,8 @@
 .hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
 .hse_filter { min-width:180px !important; max-width:260px; }
 
-/* ─── Conteneur liste des cartes ─────────────────────────────────── */
 .hse_groups { display: flex; flex-direction: column; gap: 2px; }
 
-/* ─── Modal ──────────────────────────────────────────────────────── */
 .hse_modal_ov {
   position:fixed; inset:0;
   background:rgba(0,0,0,.55); z-index:9999;
@@ -352,7 +347,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Familles (regroupement parent + enfants)
+  // Familles
   // ---------------------------------------------------------------------------
 
   function _family_base(eid, kind) {
@@ -408,7 +403,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal déplacement rooms
+  // Modal rooms
   // ---------------------------------------------------------------------------
 
   function _modal_move(entity_ids, current_room_id, rooms, on_action, redraw) {
@@ -416,14 +411,11 @@
     const m  = el("div", "hse_modal");
     const close = () => ov.remove();
 
-    // Header
     const hd = el("div", "hse_modal_hd");
     hd.appendChild(el("div", "hse_modal_title",
       entity_ids.length > 1 ? `Déplacer ${entity_ids.length} capteur(s)` : `Déplacer : ${entity_ids[0]}`));
-    const xbtn = _btn("×", "hse_modal_close", close);
-    hd.appendChild(xbtn);
+    hd.appendChild(_btn("×", "hse_modal_close", close));
 
-    // Body
     const bd = el("div", "hse_modal_bd");
     const room_opts = _keys_sorted(rooms).map((rid) => ({
       value: rid,
@@ -438,7 +430,6 @@
     new_inp.style.cssText = "width:100%;margin-top:6px;";
     bd.appendChild(new_inp);
 
-    // Footer
     const ft = el("div", "hse_modal_ft");
     ft.appendChild(_btn("Annuler", "hse_button", close));
     ft.appendChild(_btn("Déplacer", "hse_button hse_button_primary", () => {
@@ -457,7 +448,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal assignation type
+  // Modal types
   // ---------------------------------------------------------------------------
 
   function _modal_type(entity_ids, current_type_id, known_types, on_action, redraw) {
@@ -498,7 +489,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Rendu colonne capteurs (avec familles)
+  // Colonne capteurs
   // ---------------------------------------------------------------------------
 
   function _render_sensor_col(key, title, kind, eids, filter_q, fam_map, on_fam, on_single, full_redraw) {
@@ -519,7 +510,7 @@
     } else {
       fams.forEach((fam) => {
         const fkey = `${key}:${kind}:${fam.key}`;
-        const is_coll = fam_map.get(fkey) === true; // false / undefined = ouvert
+        const is_coll = fam_map.get(fkey) === true;
 
         const row = el("div", "hse_sr hse_sr_click");
         row.title = "Cliquer pour déplacer";
@@ -560,107 +551,12 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Section ROOMS
-  // IMPORTANT: redraw = () => on_action("org_rerender") → déclenche _render()
-  //            dans hse_panel.js qui réappelle render_customisation().
-  //            On ne redessine PAS localement pour rester cohérent avec l'état.
+  // _refresh_rooms_list — redessine uniquement list_ctn (pas header ni bulk)
   // ---------------------------------------------------------------------------
 
-  function _render_rooms_section(container, rooms, assignments, on_action) {
-    clear(container);
+  function _refresh_rooms_list(list_ctn, rooms, assignments, on_action) {
+    clear(list_ctn);
 
-    // ── Headerbar ──────────────────────────────────────────────────
-    const hbar = el("div", "hse_hbar");
-    hbar.appendChild(el("div", "hse_hbar_title", "Pièces & capteurs"));
-    hbar.appendChild(el("div", "hse_hbar_spacer"));
-
-    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
-    fi.addEventListener("input", (ev) => {
-      _rooms_filter = ev.target.value || "";
-      on_action("org_rerender");
-    });
-    hbar.appendChild(fi);
-
-    hbar.appendChild(_btn(_rooms_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
-      _rooms_sort_asc = !_rooms_sort_asc;
-      on_action("org_rerender");
-    }));
-
-    hbar.appendChild(_btn("+ Ajouter une pièce", "hse_button", () => {
-      const name = window.prompt("Nom de la nouvelle pièce :");
-      if (!name) return;
-      const trimmed = name.trim();
-      const def_id = trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "").slice(0, 60);
-      const room_id = window.prompt("room_id ?", def_id);
-      if (!room_id) return;
-      on_action("org_room_add", { room_id: room_id.trim(), name: trimmed });
-    }));
-
-    hbar.appendChild(_btn("Rafraîchir", "hse_button", () => on_action("org_refresh")));
-
-    // ⚡ Auto rooms (mots-clés, indépendant de HA)
-    hbar.appendChild(_btn("⚡ Auto rooms", "hse_button hse_button_primary", () => {
-      let count = 0;
-      Object.entries(assignments || {}).forEach(([eid, a]) => {
-        if (!a || a.room_id) return; // ne pas écraser
-        const s = eid.toLowerCase();
-        for (const [kw, room_id] of Object.entries(DEFAULT_ROOM_KEYWORDS)) {
-          if (rooms[room_id] && s.includes(kw.toLowerCase())) {
-            on_action("org_patch", { path: `assignments.${eid}.room_id`, value: room_id, no_render: true });
-            count++;
-            break;
-          }
-        }
-      });
-      alert(`Auto rooms : ${count} capteur(s) assigné(s) automatiquement.`);
-      on_action("org_rerender");
-    }));
-
-    hbar.appendChild(_btn("Sauvegarder", "hse_button", () => on_action("org_save")));
-    container.appendChild(hbar);
-
-    // ── Bulk bar ───────────────────────────────────────────────────
-    const bulk = el("div", "hse_bulkbar");
-    bulk.appendChild(document.createTextNode("Déplacement en masse :"));
-
-    const kw_inp = _inp("Mot-clé (ex: emma)…", "", "hse_input hse_bulkbar_kw");
-    bulk.appendChild(kw_inp);
-
-    bulk.appendChild(document.createTextNode(" vers : "));
-
-    const room_opts = _keys_sorted(rooms).map((rid) => ({
-      value: rid,
-      label: rooms[rid]?.name || rid,
-    }));
-    const tgt_sel = _sel(room_opts, "", "hse_input hse_bulkbar_sel");
-    bulk.appendChild(tgt_sel);
-
-    bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
-      const kw = kw_inp.value.trim().toLowerCase();
-      if (!kw) { alert("Saisir un mot-clé."); return; }
-      const target_room = tgt_sel.value;
-      if (!target_room) { alert("Choisir une pièce cible."); return; }
-
-      let count = 0;
-      Object.keys(assignments || {}).forEach((eid) => {
-        if (eid.toLowerCase().includes(kw)) {
-          on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target_room, no_render: true });
-          count++;
-        }
-      });
-
-      if (count === 0) {
-        alert(`Aucun capteur ne contient "${kw}".`);
-      } else {
-        alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
-        // Déclenche un full rerender via panel pour avoir l'état à jour
-        on_action("org_rerender");
-      }
-    }));
-
-    container.appendChild(bulk);
-
-    // ── Index capteurs par room ─────────────────────────────────────
     const by_room = {};
     Object.entries(assignments || {}).forEach(([eid, a]) => {
       const rid = a?.room_id || "__none__";
@@ -672,9 +568,7 @@
       ? _keys_sorted(rooms)
       : _keys_sorted(rooms).reverse();
 
-    const list_ctn = el("div", "hse_groups");
-
-    // ── Carte « Non affectés » EN PREMIER ──────────────────────────
+    // Carte Non affectés
     const unassigned = by_room["__none__"] || [];
     if (unassigned.length > 0) {
       const q = _rooms_filter.toLowerCase();
@@ -683,7 +577,7 @@
         if (!_collapsed_rooms.has("__none__")) _collapsed_rooms.set("__none__", false);
         const is_open = !_collapsed_rooms.get("__none__");
 
-        const card = el("div", is_open ? "hse_gc hse_gc_warn" : "hse_gc hse_gc_warn");
+        const card = el("div", "hse_gc hse_gc_warn");
         if (is_open) card.setAttribute("data-open", "1");
 
         const gh = el("div", "hse_gh");
@@ -719,13 +613,12 @@
       }
     }
 
-    // ── Cartes pièces ──────────────────────────────────────────────
+    // Cartes pièces
     sorted_room_keys.forEach((room_id) => {
       const room_cfg = rooms[room_id];
       const name = room_cfg?.name || room_id;
       const eids = by_room[room_id] || [];
 
-      // Filtre
       if (_rooms_filter) {
         const q = _rooms_filter.toLowerCase();
         const room_match = room_id.toLowerCase().includes(q) || name.toLowerCase().includes(q);
@@ -733,7 +626,6 @@
         if (!room_match && !entity_match) return;
       }
 
-      // Par défaut : pliées
       if (!_collapsed_rooms.has(room_id)) _collapsed_rooms.set(room_id, true);
       const is_open = !_collapsed_rooms.get(room_id);
 
@@ -745,7 +637,6 @@
       const card = el("div", "hse_gc");
       if (is_open) card.setAttribute("data-open", "1");
 
-      // ── Header ──
       const gh = el("div", "hse_gh");
       const tog = _btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
         ev.stopPropagation();
@@ -784,7 +675,6 @@
       });
       card.appendChild(gh);
 
-      // ── Body ──
       if (is_open) {
         const body = el("div", "hse_gb");
         const cols_count = (main_eids.length > 0 ? 1 : 0) + (_show_energy_col && energy_eids.length > 0 ? 1 : 0);
@@ -819,122 +709,17 @@
 
       list_ctn.appendChild(card);
     });
-
-    container.appendChild(list_ctn);
   }
 
   // ---------------------------------------------------------------------------
-  // Section TYPES
+  // _refresh_types_list — redessine uniquement list_ctn types
   // ---------------------------------------------------------------------------
 
-  function _collect_known_types(assignments) {
-    const s = new Set();
-    Object.values(assignments || {}).forEach((a) => { if (a?.type_id) s.add(a.type_id); });
-    return s;
-  }
+  function _refresh_types_list(list_ctn, assignments, on_action) {
+    clear(list_ctn);
 
-  function _render_types_section(container, assignments, on_action) {
-    clear(container);
     const known_types = _collect_known_types(assignments);
 
-    // ── Headerbar ──────────────────────────────────────────────────
-    const hbar = el("div", "hse_hbar");
-    hbar.appendChild(el("div", "hse_hbar_title", "Types (catégories)"));
-    hbar.appendChild(el("div", "hse_hbar_spacer"));
-
-    const fi = _inp("Filtrer types ou capteurs…", _types_filter, "hse_input hse_filter");
-    fi.addEventListener("input", (ev) => {
-      _types_filter = ev.target.value || "";
-      on_action("org_rerender");
-    });
-    hbar.appendChild(fi);
-
-    hbar.appendChild(_btn(_types_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
-      _types_sort_asc = !_types_sort_asc;
-      on_action("org_rerender");
-    }));
-
-    hbar.appendChild(_btn(_show_energy_col ? "Energy: ON" : "Energy: OFF", "hse_button", () => {
-      _show_energy_col = !_show_energy_col;
-      on_action("org_rerender");
-    }));
-
-    hbar.appendChild(_btn("+ Ajouter un type", "hse_button", () => {
-      const n = window.prompt("Nom du nouveau type :");
-      if (!n) return;
-      on_action("org_type_create", { type_id: n.trim() });
-    }));
-
-    // ⚡ Auto types
-    hbar.appendChild(_btn("⚡ Auto types", "hse_button hse_button_primary", () => {
-      const energy_index = _build_energy_index(assignments);
-      let count = 0;
-      Object.entries(assignments || {}).forEach(([eid, a]) => {
-        if (!a || a.type_id) return;
-        const s = eid.toLowerCase();
-        for (const [kw, type_name] of Object.entries(DEFAULT_TYPE_KEYWORDS)) {
-          if (s.includes(kw.toLowerCase())) {
-            on_action("org_patch", { path: `assignments.${eid}.type_id`, value: type_name, no_render: true });
-            count++;
-            // Lier energy sibling
-            const base = _family_base(eid, "power");
-            const siblings = energy_index.get(base) || [];
-            siblings.forEach((sib) => {
-              if (assignments[sib] && !assignments[sib].type_id) {
-                on_action("org_patch", { path: `assignments.${sib}.type_id`, value: type_name, no_render: true });
-                count++;
-              }
-            });
-            break;
-          }
-        }
-      });
-      alert(`Auto types : ${count} capteur(s) typé(s) automatiquement.`);
-      on_action("org_rerender");
-    }));
-
-    container.appendChild(hbar);
-
-    // ── Bulk bar ───────────────────────────────────────────────────
-    const bulk = el("div", "hse_bulkbar");
-    bulk.appendChild(document.createTextNode("Affecter en masse :"));
-
-    const kw_inp = _inp("Mot-clé (ex: tv)…", "", "hse_input hse_bulkbar_kw");
-    bulk.appendChild(kw_inp);
-
-    bulk.appendChild(document.createTextNode(" → type : "));
-
-    const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
-    if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
-    const tgt_sel = _sel(type_opts_bulk, "", "hse_input hse_bulkbar_sel");
-    bulk.appendChild(tgt_sel);
-
-    const new_t_inp = _inp("ou nouveau type…", "", "hse_input hse_bulkbar_inp");
-    bulk.appendChild(new_t_inp);
-
-    bulk.appendChild(_btn("Appliquer", "hse_button hse_button_primary", () => {
-      const kw = kw_inp.value.trim().toLowerCase();
-      if (!kw) { alert("Saisir un mot-clé."); return; }
-      const target_type = new_t_inp.value.trim() || tgt_sel.value;
-      if (!target_type) { alert("Choisir ou saisir un type cible."); return; }
-
-      let count = 0;
-      Object.keys(assignments || {}).forEach((eid) => {
-        if (eid.toLowerCase().includes(kw)) {
-          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target_type, no_render: true });
-          count++;
-        }
-      });
-      if (!count) alert(`Aucun capteur ne contient "${kw}".`);
-      else {
-        alert(`${count} capteur(s) affecté(s) au type « ${target_type} ».`);
-        on_action("org_rerender");
-      }
-    }));
-
-    container.appendChild(bulk);
-
-    // ── Index capteurs par type ────────────────────────────────────
     const by_type = {};
     Object.entries(assignments || {}).forEach(([eid, a]) => {
       const tid = a?.type_id || "__none__";
@@ -946,9 +731,7 @@
       ? [...known_types].sort()
       : [...known_types].sort().reverse();
 
-    const list_ctn = el("div", "hse_groups");
-
-    // ── Carte « Sans type » EN PREMIER ────────────────────────────
+    // Carte Sans type
     const untyped = by_type["__none__"] || [];
     if (untyped.length > 0) {
       const q = _types_filter.toLowerCase();
@@ -1065,8 +848,231 @@
 
       list_ctn.appendChild(card);
     });
+  }
 
+  // ---------------------------------------------------------------------------
+  // Section ROOMS
+  // ---------------------------------------------------------------------------
+
+  function _render_rooms_section(container, rooms, assignments, on_action) {
+    clear(container);
+
+    // ── Headerbar ──────────────────────────────────────────────────
+    const hbar = el("div", "hse_hbar");
+    hbar.appendChild(el("div", "hse_hbar_title", "Pièces & capteurs"));
+    hbar.appendChild(el("div", "hse_hbar_spacer"));
+
+    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
+
+    // list_ctn déclaré ici pour être accessible depuis le listener filtre
+    const list_ctn = el("div", "hse_groups");
+
+    fi.addEventListener("input", (ev) => {
+      _rooms_filter = ev.target.value || "";
+      _refresh_rooms_list(list_ctn, rooms, assignments, on_action);
+    });
+    hbar.appendChild(fi);
+
+    hbar.appendChild(_btn(_rooms_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+      _rooms_sort_asc = !_rooms_sort_asc;
+      on_action("org_rerender");
+    }));
+
+    hbar.appendChild(_btn("+ Ajouter une pièce", "hse_button", () => {
+      const name = window.prompt("Nom de la nouvelle pièce :");
+      if (!name) return;
+      const trimmed = name.trim();
+      const def_id = trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "").slice(0, 60);
+      const room_id = window.prompt("room_id ?", def_id);
+      if (!room_id) return;
+      on_action("org_room_add", { room_id: room_id.trim(), name: trimmed });
+    }));
+
+    hbar.appendChild(_btn("Rafraîchir", "hse_button", () => on_action("org_refresh")));
+
+    hbar.appendChild(_btn("⚡ Auto rooms", "hse_button hse_button_primary", () => {
+      let count = 0;
+      Object.entries(assignments || {}).forEach(([eid, a]) => {
+        if (!a || a.room_id) return;
+        const s = eid.toLowerCase();
+        for (const [kw, room_id] of Object.entries(DEFAULT_ROOM_KEYWORDS)) {
+          if (rooms[room_id] && s.includes(kw.toLowerCase())) {
+            on_action("org_patch", { path: `assignments.${eid}.room_id`, value: room_id, no_render: true });
+            count++;
+            break;
+          }
+        }
+      });
+      alert(`Auto rooms : ${count} capteur(s) assigné(s) automatiquement.`);
+      on_action("org_rerender");
+    }));
+
+    hbar.appendChild(_btn("Sauvegarder", "hse_button", () => on_action("org_save")));
+    container.appendChild(hbar);
+
+    // ── Bulk bar ──────────────────────────────────────────────── (état persisté)
+    const bulk = el("div", "hse_bulkbar");
+    bulk.appendChild(document.createTextNode("Déplacement en masse :"));
+
+    const kw_inp = _inp("Mot-clé (ex: emma)…", _bulk_rooms_kw, "hse_input hse_bulkbar_kw");
+    kw_inp.addEventListener("input", (ev) => { _bulk_rooms_kw = ev.target.value || ""; });
+    bulk.appendChild(kw_inp);
+
+    bulk.appendChild(document.createTextNode(" vers : "));
+
+    const room_opts = _keys_sorted(rooms).map((rid) => ({
+      value: rid,
+      label: rooms[rid]?.name || rid,
+    }));
+    const tgt_sel = _sel(room_opts, _bulk_rooms_target, "hse_input hse_bulkbar_sel");
+    tgt_sel.addEventListener("change", (ev) => { _bulk_rooms_target = ev.target.value || ""; });
+    bulk.appendChild(tgt_sel);
+
+    bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
+      const kw = kw_inp.value.trim().toLowerCase();
+      if (!kw) { alert("Saisir un mot-clé."); return; }
+      const target_room = tgt_sel.value;
+      if (!target_room) { alert("Choisir une pièce cible."); return; }
+
+      let count = 0;
+      Object.keys(assignments || {}).forEach((eid) => {
+        if (eid.toLowerCase().includes(kw)) {
+          on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target_room, no_render: true });
+          count++;
+        }
+      });
+
+      if (count === 0) {
+        alert(`Aucun capteur ne contient "${kw}".`);
+      } else {
+        alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
+        on_action("org_rerender");
+      }
+    }));
+
+    container.appendChild(bulk);
+
+    // ── Liste des cartes ────────────────────────────────────────────
     container.appendChild(list_ctn);
+    _refresh_rooms_list(list_ctn, rooms, assignments, on_action);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Section TYPES
+  // ---------------------------------------------------------------------------
+
+  function _collect_known_types(assignments) {
+    const s = new Set();
+    Object.values(assignments || {}).forEach((a) => { if (a?.type_id) s.add(a.type_id); });
+    return s;
+  }
+
+  function _render_types_section(container, assignments, on_action) {
+    clear(container);
+    const known_types = _collect_known_types(assignments);
+
+    // ── Headerbar ──────────────────────────────────────────────────
+    const hbar = el("div", "hse_hbar");
+    hbar.appendChild(el("div", "hse_hbar_title", "Types (catégories)"));
+    hbar.appendChild(el("div", "hse_hbar_spacer"));
+
+    const list_ctn = el("div", "hse_groups");
+
+    const fi = _inp("Filtrer types ou capteurs…", _types_filter, "hse_input hse_filter");
+    fi.addEventListener("input", (ev) => {
+      _types_filter = ev.target.value || "";
+      _refresh_types_list(list_ctn, assignments, on_action);
+    });
+    hbar.appendChild(fi);
+
+    hbar.appendChild(_btn(_types_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+      _types_sort_asc = !_types_sort_asc;
+      on_action("org_rerender");
+    }));
+
+    hbar.appendChild(_btn(_show_energy_col ? "Energy: ON" : "Energy: OFF", "hse_button", () => {
+      _show_energy_col = !_show_energy_col;
+      on_action("org_rerender");
+    }));
+
+    hbar.appendChild(_btn("+ Ajouter un type", "hse_button", () => {
+      const n = window.prompt("Nom du nouveau type :");
+      if (!n) return;
+      on_action("org_type_create", { type_id: n.trim() });
+    }));
+
+    hbar.appendChild(_btn("⚡ Auto types", "hse_button hse_button_primary", () => {
+      const energy_index = _build_energy_index(assignments);
+      let count = 0;
+      Object.entries(assignments || {}).forEach(([eid, a]) => {
+        if (!a || a.type_id) return;
+        const s = eid.toLowerCase();
+        for (const [kw, type_name] of Object.entries(DEFAULT_TYPE_KEYWORDS)) {
+          if (s.includes(kw.toLowerCase())) {
+            on_action("org_patch", { path: `assignments.${eid}.type_id`, value: type_name, no_render: true });
+            count++;
+            const base = _family_base(eid, "power");
+            const siblings = energy_index.get(base) || [];
+            siblings.forEach((sib) => {
+              if (assignments[sib] && !assignments[sib].type_id) {
+                on_action("org_patch", { path: `assignments.${sib}.type_id`, value: type_name, no_render: true });
+                count++;
+              }
+            });
+            break;
+          }
+        }
+      });
+      alert(`Auto types : ${count} capteur(s) typé(s) automatiquement.`);
+      on_action("org_rerender");
+    }));
+
+    container.appendChild(hbar);
+
+    // ── Bulk bar ──────────────────────────────────────────────── (état persisté)
+    const bulk = el("div", "hse_bulkbar");
+    bulk.appendChild(document.createTextNode("Affecter en masse :"));
+
+    const kw_inp = _inp("Mot-clé (ex: tv)…", _bulk_types_kw, "hse_input hse_bulkbar_kw");
+    kw_inp.addEventListener("input", (ev) => { _bulk_types_kw = ev.target.value || ""; });
+    bulk.appendChild(kw_inp);
+
+    bulk.appendChild(document.createTextNode(" → type : "));
+
+    const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
+    if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
+    const tgt_sel = _sel(type_opts_bulk, _bulk_types_target, "hse_input hse_bulkbar_sel");
+    tgt_sel.addEventListener("change", (ev) => { _bulk_types_target = ev.target.value || ""; });
+    bulk.appendChild(tgt_sel);
+
+    const new_t_inp = _inp("ou nouveau type…", "", "hse_input hse_bulkbar_inp");
+    bulk.appendChild(new_t_inp);
+
+    bulk.appendChild(_btn("Appliquer", "hse_button hse_button_primary", () => {
+      const kw = kw_inp.value.trim().toLowerCase();
+      if (!kw) { alert("Saisir un mot-clé."); return; }
+      const target_type = new_t_inp.value.trim() || tgt_sel.value;
+      if (!target_type) { alert("Choisir ou saisir un type cible."); return; }
+
+      let count = 0;
+      Object.keys(assignments || {}).forEach((eid) => {
+        if (eid.toLowerCase().includes(kw)) {
+          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target_type, no_render: true });
+          count++;
+        }
+      });
+      if (!count) alert(`Aucun capteur ne contient "${kw}".`);
+      else {
+        alert(`${count} capteur(s) affecté(s) au type « ${target_type} ».`);
+        on_action("org_rerender");
+      }
+    }));
+
+    container.appendChild(bulk);
+
+    // ── Liste des cartes ────────────────────────────────────────────
+    container.appendChild(list_ctn);
+    _refresh_types_list(list_ctn, assignments, on_action);
   }
 
   // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
   const SHARED_BASE = "/api/hse/static/shared";
 
   // IMPORTANT: must match const.py PANEL_JS_URL
-  const ASSET_V = "0.1.32";
+  const ASSET_V = "0.1.33";
 
   const NAV_ITEMS_FALLBACK = [
     { id: "overview", label: "Accueil" },
