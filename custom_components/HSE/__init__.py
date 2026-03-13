@@ -76,7 +76,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         domain_data["meta_sync_running"] = True
         try:
-            snap = await async_build_ha_snapshot(hass)
+            # Passer le catalogue pour filtrer snapshot.entities sur les capteurs HSE uniquement
+            snap = await async_build_ha_snapshot(hass, catalogue=domain_data.get("catalogue"))
             diff = compute_pending_diff(domain_data["meta"], snap)
 
             sync = domain_data["meta"].setdefault("sync", {})
