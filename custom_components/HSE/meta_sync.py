@@ -20,7 +20,31 @@ def room_id_for_area(area_id: str) -> str:
     return "ha_" + _safe_id(area_id)
 
 
-async def async_build_ha_snapshot(hass: HomeAssistant) -> dict[str, Any]:
+def _build_catalogue_entity_ids(catalogue: dict[str, Any] | None) -> set[str]:
+    """Retourne l'ensemble des entity_id présents dans le catalogue HSE (items)."""
+    if not catalogue or not isinstance(catalogue, dict):
+        return set()
+    items = catalogue.get("items")
+    if not isinstance(items, dict):
+        return set()
+    result: set[str] = set()
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        src = item.get("source")
+        if isinstance(src, dict):
+            eid = src.get("entity_id")
+        else:
+            eid = item.get("entity_id")
+        if isinstance(eid, str) and eid:
+            result.add(eid)
+    return result
+
+
+async def async_build_ha_snapshot(
+    hass: HomeAssistant,
+    catalogue: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     from homeassistant.helpers import area_registry as ar
     from homeassistant.helpers import entity_registry as er
 
@@ -32,12 +56,21 @@ async def async_build_ha_snapshot(hass: HomeAssistant) -> dict[str, Any]:
         if a and a.id:
             area_name_by_id[a.id] = a.name or a.id
 
+    # Construire l'allowlist depuis le catalogue HSE.
+    # Si le catalogue est vide/absent on ne filtre pas (compatibilité initiale).
+    catalogue_eids = _build_catalogue_entity_ids(catalogue)
+    filter_by_catalogue = len(catalogue_eids) > 0
+
     entities: dict[str, Any] = {}
     for e in ent_reg.entities.values():
         eid = getattr(e, "entity_id", None)
         if not isinstance(eid, str) or not eid:
             continue
         if not eid.startswith("sensor."):
+            continue
+
+        # Filtrer : uniquement les entités du catalogue HSE
+        if filter_by_catalogue and eid not in catalogue_eids:
             continue
 
         entities[eid] = {
