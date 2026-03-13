@@ -200,8 +200,13 @@
   // ---------------------------------------------------------------------------
 
   function _inject_styles() {
-    const id = "__hse_custom_styles_v3__";
+    const id = "__hse_custom_styles_v4__";
     if (document.getElementById(id)) return;
+    // Purger ancienne version
+    ["__hse_custom_styles_v3__", "__hse_custom_styles_v2__"].forEach((old) => {
+      const el_old = document.getElementById(old);
+      if (el_old) el_old.remove();
+    });
     const s = document.createElement("style");
     s.id = id;
     s.textContent = `
@@ -211,91 +216,142 @@
   border-radius: var(--hse-radius-md, 12px);
   margin-bottom: 4px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--hse_card_bg) 96%, var(--hse-bg) 4%);
+  background: var(--hse_card_bg);
   transition: box-shadow var(--hse-transition-fast, 120ms ease);
 }
 .hse_gc:hover { box-shadow: var(--hse-shadow-sm, 0 1px 3px rgba(0,0,0,.07)); }
-.hse_gc_warn { border-color: color-mix(in srgb, var(--hse_danger,#ef4444) 35%, var(--hse_border) 65%); }
+.hse_gc_warn { border-color: color-mix(in srgb, var(--hse_danger,#ef4444) 40%, var(--hse_border) 60%); }
 
+/* ─── Group header ────────────────────────────────────────────────── */
 .hse_gh {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 5px;
+  padding: 7px 10px;
   cursor: pointer;
   user-select: none;
   border-bottom: 1px solid transparent;
-  min-height: 40px;
+  min-height: 36px;
   transition: background var(--hse-transition-fast, 120ms ease),
               border-color var(--hse-transition-fast, 120ms ease);
 }
-.hse_gh:hover { background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,.08)) 70%, transparent); }
+.hse_gh:hover { background: color-mix(in srgb, var(--hse-hover, rgba(37,99,235,.08)) 60%, transparent); }
 .hse_gc[data-open="1"] .hse_gh { border-bottom-color: var(--hse_border); }
 
 .hse_gh_toggle {
   border: none; background: transparent;
-  color: var(--hse_muted); font-size: 11px;
+  color: var(--hse_muted); font-size: 10px;
   cursor: pointer; padding: 2px 3px; line-height: 1; flex-shrink: 0;
 }
-.hse_gh_icon  { flex-shrink: 0; font-size: 15px; line-height: 1; }
-.hse_gh_name  {
+.hse_gh_icon  { flex-shrink: 0; font-size: 14px; line-height: 1; }
+
+/* Nom + actions inline — groupe compact */
+.hse_gh_namegroup {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 55%;
+}
+.hse_gh_name {
   font-size: 13px; font-weight: 700; color: var(--hse_fg);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  flex: 1 1 auto; min-width: 0;
+  min-width: 0;
 }
+
+/* Actions (✏️🗑️) inline après le nom */
+.hse_gh_actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+.hse_gh_ab {
+  border: none; background: transparent; cursor: pointer;
+  padding: 2px 4px; border-radius: var(--hse-radius-sm, 6px);
+  font-size: 12px; line-height: 1;
+  opacity: 0.3;
+  transition: opacity var(--hse-transition-fast,120ms ease),
+              background var(--hse-transition-fast,120ms ease);
+}
+.hse_gh:hover .hse_gh_ab { opacity: 0.65; }
+.hse_gh_ab:hover { opacity: 1 !important; background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 90%, transparent); }
+.hse_gh_ab.danger:hover { background: color-mix(in srgb, var(--hse_danger,#ef4444) 12%, transparent); }
+
+/* Spacer + meta à droite */
+.hse_gh_spacer { flex: 1 1 auto; min-width: 8px; }
 .hse_gh_count {
-  font-size: 11.5px; color: var(--hse_muted);
+  font-size: 11px; color: var(--hse_muted);
   white-space: nowrap; flex-shrink: 0;
 }
 .hse_gh_mode {
-  font-size: 10px; padding: 2px 7px;
-  border: 1px solid var(--hse_border);
-  border-radius: 999px; color: var(--hse_muted);
+  font-size: 10px; padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--hse_muted);
+  border: 1px solid color-mix(in srgb, var(--hse_border) 70%, transparent);
   white-space: nowrap; flex-shrink: 0;
-  background: color-mix(in srgb, var(--hse_card_bg) 80%, var(--hse-bg) 20%);
 }
 
-.hse_gh_actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px; }
-.hse_gh_ab {
-  border: none; background: transparent; cursor: pointer;
-  padding: 3px 5px; border-radius: var(--hse-radius-sm, 8px);
-  font-size: 13px; opacity: 0; line-height: 1;
-  transition: opacity var(--hse-transition-fast,120ms ease), background var(--hse-transition-fast,120ms ease);
-}
-.hse_gh:hover .hse_gh_ab { opacity: .55; }
-.hse_gh_ab:hover { opacity: 1 !important; background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 90%, transparent); }
-.hse_gh_ab.danger:hover { background: var(--hse-error-soft, rgba(239,68,68,.12)); }
-
+/* ─── Group body ──────────────────────────────────────────────────── */
 .hse_gb {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
-@media (max-width: 700px) { .hse_gb { grid-template-columns: 1fr; } }
 
+/* ─── Grille capteurs (3 colonnes par défaut) ─────────────────────── */
 .hse_sc_col { min-width: 0; }
 .hse_sc_col_title {
-  font-size: 10.5px; font-weight: 700;
+  font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: .06em;
-  color: var(--hse_muted); margin-bottom: 5px;
+  color: var(--hse_muted); margin-bottom: 4px;
 }
-.hse_sc_list  { display: flex; flex-direction: column; gap: 1px; }
-.hse_sc_empty { font-size: 12px; color: var(--hse_muted); font-style: italic; padding: 4px 0; }
+.hse_sc_list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px 6px;
+}
+@media (max-width: 800px) {
+  .hse_sc_list { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .hse_sc_list { grid-template-columns: 1fr; }
+}
+.hse_sc_empty { font-size: 11px; color: var(--hse_muted); font-style: italic; padding: 3px 0; }
 
 .hse_sr {
-  display: flex; align-items: center; gap: 5px;
-  padding: 3px 6px; border-radius: var(--hse-radius-sm,8px);
-  font-size: 12px; font-family: var(--hse-mono-font-family, ui-monospace);
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 5px; border-radius: var(--hse-radius-sm,6px);
+  font-size: 11px; font-family: var(--hse-mono-font-family, ui-monospace);
   color: var(--hse_fg);
+  min-width: 0;
 }
 .hse_sr_click { cursor: pointer; transition: background var(--hse-transition-fast,120ms ease); }
 .hse_sr_click:hover { background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 80%, transparent); }
-.hse_sr_child { margin-left: 14px; color: var(--hse_muted); font-size: 11.5px; }
-.hse_sr_caret { flex-shrink:0; font-size:10px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
+.hse_sr_child { margin-left: 12px; color: var(--hse_muted); font-size: 10.5px; }
+.hse_sr_caret { flex-shrink:0; font-size:9px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
 .hse_sr_label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hse_sr_children { padding-left:4px; margin-top:1px; }
+/* enfants d'une famille : toute la largeur pour éviter le découpage */
+.hse_sr_children {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px 6px;
+  padding-left: 12px; margin-top: 1px;
+}
+@media (max-width: 800px) { .hse_sr_children { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px) { .hse_sr_children { grid-template-columns: 1fr; } }
 
+/* ─── Grille pièces (multi-colonnes) ──────────────────────────────── */
+.hse_groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 6px;
+  align-items: start;
+}
+/* Les cartes "Non affectés" et "Sans type" prennent toute la largeur */
+.hse_gc_warn { grid-column: 1 / -1; }
+
+/* ─── Headerbar / Bulkbar ─────────────────────────────────────────── */
 .hse_hbar {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 8px; margin-bottom: 8px;
@@ -309,8 +365,8 @@
 .hse_bulkbar {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 8px; margin-bottom: 10px;
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--hse_card_bg) 88%, var(--hse-bg) 12%);
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--hse_card_bg) 60%, var(--hse-surface, transparent) 40%);
   border: 1px solid var(--hse_border);
   border-radius: var(--hse-radius-sm,8px);
   font-size: 12px; color: var(--hse_muted);
@@ -320,8 +376,7 @@
 .hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
 .hse_filter { min-width:180px !important; max-width:260px; }
 
-.hse_groups { display: flex; flex-direction: column; gap: 2px; }
-
+/* ─── Modals ──────────────────────────────────────────────────────── */
 .hse_modal_ov {
   position:fixed; inset:0;
   background:rgba(0,0,0,.55); z-index:9999;
@@ -494,7 +549,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Colonne capteurs
+  // Colonne capteurs — grille 3 colonnes
   // ---------------------------------------------------------------------------
 
   function _render_sensor_col(key, title, kind, eids, filter_q, fam_map, on_fam, on_single, full_redraw) {
@@ -556,7 +611,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // _refresh_rooms_list — redessine uniquement list_ctn (pas header ni bulk)
+  // _refresh_rooms_list
   // ---------------------------------------------------------------------------
 
   function _refresh_rooms_list(list_ctn, rooms, assignments, on_action) {
@@ -573,7 +628,7 @@
       ? _keys_sorted(rooms)
       : _keys_sorted(rooms).reverse();
 
-    // Carte Non affectés
+    // Carte Non affectés — pleine largeur (hse_gc_warn)
     const unassigned = by_room["__none__"] || [];
     if (unassigned.length > 0) {
       const q = _rooms_filter.toLowerCase();
@@ -593,8 +648,14 @@
         });
         gh.appendChild(tog);
         gh.appendChild(el("span", "hse_gh_icon", "❓"));
-        gh.appendChild(el("span", "hse_gh_name", "Non affectés"));
+
+        const ng = el("div", "hse_gh_namegroup");
+        ng.appendChild(el("span", "hse_gh_name", "Non affectés"));
+        gh.appendChild(ng);
+
+        gh.appendChild(el("div", "hse_gh_spacer"));
         gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+
         gh.addEventListener("click", () => {
           _collapsed_rooms.set("__none__", is_open);
           on_action("org_rerender");
@@ -603,7 +664,6 @@
 
         if (is_open) {
           const body = el("div", "hse_gb");
-          body.style.gridTemplateColumns = "1fr";
           body.appendChild(_render_sensor_col(
             "__none__", "Capteurs sans pièce", "power", visible,
             "", _collapsed_rfam,
@@ -618,7 +678,7 @@
       }
     }
 
-    // Cartes pièces
+    // Cartes pièces — dans la grille multi-colonnes
     sorted_room_keys.forEach((room_id) => {
       const room_cfg = rooms[room_id];
       const name = room_cfg?.name || room_id;
@@ -650,10 +710,10 @@
       });
       gh.appendChild(tog);
       gh.appendChild(el("span", "hse_gh_icon", "🏠"));
-      gh.appendChild(el("span", "hse_gh_name", name));
-      gh.appendChild(el("span", "hse_gh_count", `— ${eids.length} capteur(s)`));
 
-      if (room_cfg?.mode) gh.appendChild(el("span", "hse_gh_mode", room_cfg.mode));
+      // Nom + actions inline
+      const ng = el("div", "hse_gh_namegroup");
+      ng.appendChild(el("span", "hse_gh_name", name));
 
       const acts = el("div", "hse_gh_actions");
       const rename_btn = _btn("✏️", "hse_gh_ab", (ev) => {
@@ -673,7 +733,14 @@
       del_btn.title = "Supprimer";
       acts.appendChild(del_btn);
 
-      gh.appendChild(acts);
+      ng.appendChild(acts);
+      gh.appendChild(ng);
+
+      // Spacer + meta à droite
+      gh.appendChild(el("div", "hse_gh_spacer"));
+      gh.appendChild(el("span", "hse_gh_count", `${eids.length}`));
+      if (room_cfg?.mode) gh.appendChild(el("span", "hse_gh_mode", room_cfg.mode));
+
       gh.addEventListener("click", () => {
         _collapsed_rooms.set(room_id, is_open);
         on_action("org_rerender");
@@ -682,8 +749,6 @@
 
       if (is_open) {
         const body = el("div", "hse_gb");
-        const cols_count = (main_eids.length > 0 ? 1 : 0) + (_show_energy_col && energy_eids.length > 0 ? 1 : 0);
-        if (cols_count <= 1) body.style.gridTemplateColumns = "1fr";
 
         if (main_eids.length > 0) {
           body.appendChild(_render_sensor_col(
@@ -704,12 +769,9 @@
           ));
         }
         if (!main_eids.length && !energy_eids.length) {
-          const empty = el("div", "hse_gb"); empty.style.gridTemplateColumns = "1fr";
-          empty.appendChild(el("div", "hse_sc_empty", "Aucun capteur affecté à cette pièce."));
-          card.appendChild(empty);
-        } else {
-          card.appendChild(body);
+          body.appendChild(el("div", "hse_sc_empty", "Aucun capteur affecté à cette pièce."));
         }
+        card.appendChild(body);
       }
 
       list_ctn.appendChild(card);
@@ -717,7 +779,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // _refresh_types_list — redessine uniquement list_ctn types
+  // _refresh_types_list
   // ---------------------------------------------------------------------------
 
   function _refresh_types_list(list_ctn, assignments, on_action) {
@@ -736,7 +798,7 @@
       ? [...known_types].sort()
       : [...known_types].sort().reverse();
 
-    // Carte Sans type
+    // Carte Sans type — pleine largeur
     const untyped = by_type["__none__"] || [];
     if (untyped.length > 0) {
       const q = _types_filter.toLowerCase();
@@ -755,8 +817,14 @@
           on_action("org_rerender");
         }));
         gh.appendChild(el("span", "hse_gh_icon", "❓"));
-        gh.appendChild(el("span", "hse_gh_name", "Sans type"));
+
+        const ng = el("div", "hse_gh_namegroup");
+        ng.appendChild(el("span", "hse_gh_name", "Sans type"));
+        gh.appendChild(ng);
+
+        gh.appendChild(el("div", "hse_gh_spacer"));
         gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+
         gh.addEventListener("click", () => {
           _collapsed_types.set("__none__", is_open);
           on_action("org_rerender");
@@ -764,7 +832,7 @@
         card.appendChild(gh);
 
         if (is_open) {
-          const body = el("div", "hse_gb"); body.style.gridTemplateColumns = "1fr";
+          const body = el("div", "hse_gb");
           body.appendChild(_render_sensor_col(
             "__none__:t", "Capteurs non typés", "power", visible,
             "", _collapsed_tfam,
@@ -804,8 +872,10 @@
         on_action("org_rerender");
       }));
       gh.appendChild(el("span", "hse_gh_icon", "🏷️"));
-      gh.appendChild(el("span", "hse_gh_name", type_id));
-      gh.appendChild(el("span", "hse_gh_count", `— ${eids.length} capteur(s)`));
+
+      // Nom + actions inline
+      const ng = el("div", "hse_gh_namegroup");
+      ng.appendChild(el("span", "hse_gh_name", type_id));
 
       const acts = el("div", "hse_gh_actions");
       const del_btn = _btn("🗑️", "hse_gh_ab danger", (ev) => {
@@ -818,7 +888,11 @@
       });
       del_btn.title = "Retirer ce type de tous les capteurs";
       acts.appendChild(del_btn);
-      gh.appendChild(acts);
+      ng.appendChild(acts);
+      gh.appendChild(ng);
+
+      gh.appendChild(el("div", "hse_gh_spacer"));
+      gh.appendChild(el("span", "hse_gh_count", `${eids.length}`));
 
       gh.addEventListener("click", () => {
         _collapsed_types.set(type_id, is_open);
@@ -828,8 +902,6 @@
 
       if (is_open) {
         const body = el("div", "hse_gb");
-        const cols_count = 1 + (_show_energy_col && energy_eids.length > 0 ? 1 : 0);
-        if (cols_count <= 1) body.style.gridTemplateColumns = "1fr";
 
         body.appendChild(_render_sensor_col(
           type_id, "Capteurs power", "power", power_eids,
@@ -862,16 +934,13 @@
   function _render_rooms_section(container, rooms, assignments, on_action) {
     clear(container);
 
-    // ── Headerbar ──────────────────────────────────────────────────
     const hbar = el("div", "hse_hbar");
     hbar.appendChild(el("div", "hse_hbar_title", "Pièces & capteurs"));
     hbar.appendChild(el("div", "hse_hbar_spacer"));
 
-    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
-
-    // list_ctn déclaré ici pour être accessible depuis le listener filtre
     const list_ctn = el("div", "hse_groups");
 
+    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
     fi.addEventListener("input", (ev) => {
       _rooms_filter = ev.target.value || "";
       _refresh_rooms_list(list_ctn, rooms, assignments, on_action);
@@ -915,7 +984,7 @@
     hbar.appendChild(_btn("Sauvegarder", "hse_button", () => on_action("org_save")));
     container.appendChild(hbar);
 
-    // ── Bulk bar ──────────────────────────────────────────────── (état persisté)
+    // Bulk bar
     const bulk = el("div", "hse_bulkbar");
     bulk.appendChild(document.createTextNode("Déplacement en masse :"));
 
@@ -930,7 +999,6 @@
       label: rooms[rid]?.name || rid,
     }));
     const tgt_sel = _sel(room_opts, _bulk_rooms_target, "hse_input hse_bulkbar_sel");
-    // FIX: synchroniser _bulk_rooms_target avec la valeur réelle du select après rendu
     _bulk_rooms_target = tgt_sel.value;
     tgt_sel.addEventListener("change", (ev) => { _bulk_rooms_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
@@ -938,7 +1006,6 @@
     bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
       const kw = kw_inp.value.trim().toLowerCase();
       if (!kw) { alert("Saisir un mot-clé."); return; }
-      // FIX: lire directement tgt_sel.value (valeur DOM courante, toujours fiable)
       const target_room = tgt_sel.value;
       if (!target_room) { alert("Choisir une pièce cible."); return; }
 
@@ -954,14 +1021,11 @@
         alert(`Aucun capteur ne contient "${kw}".`);
       } else {
         alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
-        // FIX: sauvegarder automatiquement après déplacement en masse
         on_action("org_save");
       }
     }));
 
     container.appendChild(bulk);
-
-    // ── Liste des cartes ────────────────────────────────────────────
     container.appendChild(list_ctn);
     _refresh_rooms_list(list_ctn, rooms, assignments, on_action);
   }
@@ -980,7 +1044,6 @@
     clear(container);
     const known_types = _collect_known_types(assignments);
 
-    // ── Headerbar ──────────────────────────────────────────────────
     const hbar = el("div", "hse_hbar");
     hbar.appendChild(el("div", "hse_hbar_title", "Types (catégories)"));
     hbar.appendChild(el("div", "hse_hbar_spacer"));
@@ -1038,7 +1101,7 @@
 
     container.appendChild(hbar);
 
-    // ── Bulk bar ──────────────────────────────────────────────── (état persisté)
+    // Bulk bar
     const bulk = el("div", "hse_bulkbar");
     bulk.appendChild(document.createTextNode("Affecter en masse :"));
 
@@ -1051,7 +1114,6 @@
     const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
     if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
     const tgt_sel = _sel(type_opts_bulk, _bulk_types_target, "hse_input hse_bulkbar_sel");
-    // FIX: synchroniser _bulk_types_target avec la valeur réelle du select après rendu
     _bulk_types_target = tgt_sel.value;
     tgt_sel.addEventListener("change", (ev) => { _bulk_types_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
@@ -1080,8 +1142,6 @@
     }));
 
     container.appendChild(bulk);
-
-    // ── Liste des cartes ────────────────────────────────────────────
     container.appendChild(list_ctn);
     _refresh_types_list(list_ctn, assignments, on_action);
   }
