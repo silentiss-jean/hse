@@ -441,7 +441,7 @@
       let target = new_inp.value.trim() || sel.value;
       if (!target) { close(); return; }
       entity_ids.forEach((eid) => {
-        on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target, no_render: true });
+        on_action("org_patch", { path_parts: ["assignments", eid, "room_id"], value: target, no_render: true });
       });
       close();
       redraw();
@@ -482,7 +482,7 @@
     ft.appendChild(_btn("Valider", "hse_button hse_button_primary", () => {
       let target = new_inp.value.trim() || sel.value;
       entity_ids.forEach((eid) => {
-        on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target || null, no_render: true });
+        on_action("org_patch", { path_parts: ["assignments", eid, "type_id"], value: target || null, no_render: true });
       });
       close();
       redraw();
@@ -660,7 +660,7 @@
         ev.stopPropagation();
         const nv = window.prompt("Nouveau nom :", name);
         if (!nv || nv.trim() === name) return;
-        on_action("org_patch", { path: `rooms.${room_id}.name`, value: nv.trim() });
+        on_action("org_patch", { path_parts: ["rooms", room_id, "name"], value: nv.trim() });
       });
       rename_btn.title = "Renommer";
       acts.appendChild(rename_btn);
@@ -812,7 +812,7 @@
         ev.stopPropagation();
         if (!window.confirm(`Retirer le type "${type_id}" de tous les capteurs ?`)) return;
         (by_type[type_id] || []).forEach((eid) => {
-          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: null, no_render: true });
+          on_action("org_patch", { path_parts: ["assignments", eid, "type_id"], value: null, no_render: true });
         });
         on_action("org_rerender");
       });
@@ -902,7 +902,7 @@
         const s = eid.toLowerCase();
         for (const [kw, room_id] of Object.entries(DEFAULT_ROOM_KEYWORDS)) {
           if (rooms[room_id] && s.includes(kw.toLowerCase())) {
-            on_action("org_patch", { path: `assignments.${eid}.room_id`, value: room_id, no_render: true });
+            on_action("org_patch", { path_parts: ["assignments", eid, "room_id"], value: room_id, no_render: true });
             count++;
             break;
           }
@@ -945,7 +945,7 @@
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
         if (eid.toLowerCase().includes(kw)) {
-          on_action("org_patch", { path: `assignments.${eid}.room_id`, value: target_room, no_render: true });
+          on_action("org_patch", { path_parts: ["assignments", eid, "room_id"], value: target_room, no_render: true });
           count++;
         }
       });
@@ -1018,13 +1018,13 @@
         const s = eid.toLowerCase();
         for (const [kw, type_name] of Object.entries(DEFAULT_TYPE_KEYWORDS)) {
           if (s.includes(kw.toLowerCase())) {
-            on_action("org_patch", { path: `assignments.${eid}.type_id`, value: type_name, no_render: true });
+            on_action("org_patch", { path_parts: ["assignments", eid, "type_id"], value: type_name, no_render: true });
             count++;
             const base = _family_base(eid, "power");
             const siblings = energy_index.get(base) || [];
             siblings.forEach((sib) => {
               if (assignments[sib] && !assignments[sib].type_id) {
-                on_action("org_patch", { path: `assignments.${sib}.type_id`, value: type_name, no_render: true });
+                on_action("org_patch", { path_parts: ["assignments", sib, "type_id"], value: type_name, no_render: true });
                 count++;
               }
             });
@@ -1068,7 +1068,7 @@
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
         if (eid.toLowerCase().includes(kw)) {
-          on_action("org_patch", { path: `assignments.${eid}.type_id`, value: target_type, no_render: true });
+          on_action("org_patch", { path_parts: ["assignments", eid, "type_id"], value: target_type, no_render: true });
           count++;
         }
       });
