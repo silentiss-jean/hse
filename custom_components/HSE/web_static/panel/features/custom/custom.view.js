@@ -955,7 +955,7 @@
       } else {
         alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
         // FIX: sauvegarder automatiquement après déplacement en masse
-        on_action("org_rerender");
+        on_action("org_save");
       }
     }));
 

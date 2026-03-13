@@ -560,17 +560,30 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
 
       this._org_ensure_draft();
 
+      // FIX: snapshot du draft AVANT le confirm() pour éviter qu'un render
+      // intermédiaire déclenché par hass update écrase meta_draft pendant
+      // que le confirm() bloque le thread JS.
+      let draft_snapshot;
+      try {
+        draft_snapshot = JSON.parse(JSON.stringify(this._org_state.meta_draft));
+      } catch (_) {
+        draft_snapshot = this._org_state.meta_draft;
+      }
+
       const ok = window.confirm("Sauvegarder l'organisation (meta: rooms/types/assignments) ?");
       if (!ok) return;
 
       this._org_state.saving = true;
       this._org_state.error = null;
       this._org_state.message = "Sauvegarde\u2026";
-      this._render();
+      // FIX: _do_render partiel au lieu de this._render() global
+      // Ne pas appeler this._render() ici — on est dans _on_action de _render_custom,
+      // le container custom est actif. Mettre à jour seulement le message via
+      // un re-render partiel est fait au retour dans finally.
 
       try {
         const resp = await this._hass.callApi("post", "hse/unified/meta", {
-          meta: this._org_state.meta_draft,
+          meta: draft_snapshot,
         });
 
         this._org_state.meta_store = resp?.meta_store || this._org_state.meta_store;
@@ -578,18 +591,16 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_state.error = null;
         this._org_state.dirty = false;
 
-        if (!this._org_state.dirty) {
-          this._org_reset_draft_from_store();
-        }
+        this._org_reset_draft_from_store();
       } catch (err) {
         this._org_state.error = this._err_msg(err);
         this._org_state.message = "\u00c9chec de sauvegarde.";
       } finally {
         this._org_state.saving = false;
-        // FIX-3: utiliser _render_if_not_interacting() dans le finally
         this._render_if_not_interacting();
       }
     }
+
 
     async _org_preview() {
       if (!this._hass) return;
