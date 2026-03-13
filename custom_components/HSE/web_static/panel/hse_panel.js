@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
+const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -113,32 +113,16 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       this._reference_status_polling = false;
       this._reference_status_target_entity_id = undefined;
 
-      // -----------------------------------------------------------------------
-      // FLAG ANTI-RERENDER
-      // Mis à true pendant qu'une interaction utilisateur est en cours
-      // (ouverture d'un <select>, saisie dans un <input>, etc.).
-      // Les re-renders automatiques (polling statut référence, autorefresh
-      // overview) sont supprimés tant que ce flag est actif.
-      // Remis à false après la fin de l'interaction (timer 2000ms, repoussé
-      // tant qu'un <select> natif reste actif).
-      // -----------------------------------------------------------------------
       this._user_interacting = false;
       this._user_interacting_timer = null;
 
-      // Bound handlers for document-level listeners (needed for removeEventListener)
       this._doc_mousedown_handler = () => this._mark_user_interacting();
       this._doc_focusin_handler = (e) => {
-        // Only react to focusin events that originate from within our shadow root
-        // (composed path crosses the shadow boundary).
         if (this._root && e.composedPath && e.composedPath().some((n) => n === this._root)) {
           this._mark_user_interacting();
         }
       };
     }
-
-    // -------------------------------------------------------------------------
-    // Gestion du flag _user_interacting
-    // -------------------------------------------------------------------------
 
     _mark_user_interacting() {
       this._user_interacting = true;
@@ -146,18 +130,13 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         clearTimeout(this._user_interacting_timer);
       }
 
-      // FIX-2: timer 2000ms au lieu de 800ms pour laisser le temps aux
-      // <select> natifs d'être utilisés. Si un <select> est encore focusé
-      // (dropdown ouvert), on repousse le timer jusqu'à ce qu'il se ferme.
       const schedule = () => {
         this._user_interacting_timer = setTimeout(() => {
-          // Vérifier si un <select> natif est encore actif dans le document
           const active = document.activeElement;
           if (active && active.tagName === "SELECT") {
             schedule();
             return;
           }
-          // Vérifier aussi dans le shadow root
           const shadow_active = this._root?.activeElement;
           if (shadow_active && shadow_active.tagName === "SELECT") {
             schedule();
@@ -165,17 +144,12 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           }
           this._user_interacting = false;
           this._user_interacting_timer = null;
-          // Re-render différé pour appliquer les données arrivées pendant l'interaction
           this._render();
         }, 2000);
       };
       schedule();
     }
 
-    // Appeler ce wrapper à la place de this._render() dans les callbacks
-    // automatiques (polling, autorefresh). Si l'utilisateur est en train
-    // d'interagir, le render est ignoré — il sera déclenché automatiquement
-    // après la fin de l'interaction par _mark_user_interacting().
     _render_if_not_interacting() {
       if (this._user_interacting) return;
       this._render();
@@ -188,20 +162,15 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         clearTimeout(this._user_interacting_timer);
         this._user_interacting_timer = null;
       }
-      // Cleanup document-level listeners
       document.removeEventListener("mousedown", this._doc_mousedown_handler, true);
       document.removeEventListener("focusin", this._doc_focusin_handler, true);
     }
 
     set hass(hass) {
       this._hass = hass;
-
-      // IMPORTANT: avoid tearing down interactive UI controls on frequent hass updates.
-      // Otherwise <select> and other inputs close/reset while the user interacts.
       if (this._active_tab === "custom") return;
       if (this._active_tab === "config") return;
       if (this._active_tab === "costs") return;
-
       this._render();
     }
 
@@ -241,16 +210,11 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
 
       this._root = this.attachShadow({ mode: "open" });
 
-      // Shadow root listeners (keyboard, touch, focusin inside shadow)
       this._root.addEventListener("mousedown", () => this._mark_user_interacting(), true);
       this._root.addEventListener("focusin", () => this._mark_user_interacting(), true);
       this._root.addEventListener("keydown", () => this._mark_user_interacting(), true);
       this._root.addEventListener("touchstart", () => this._mark_user_interacting(), { passive: true, capture: true });
 
-      // Document-level listeners to catch native <select> popup interactions.
-      // Native select dropdowns render outside the shadow DOM, so mousedown/focusin
-      // on their options never reach the shadow root. Listening at document level
-      // ensures _mark_user_interacting() fires before the polling re-render kills the open list.
       document.addEventListener("mousedown", this._doc_mousedown_handler, true);
       document.addEventListener("focusin", this._doc_focusin_handler, true);
 
@@ -409,23 +373,13 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       } finally {
         this._reference_status_polling = false;
 
-        // FIX-1: ne pas appeler _render() complet ici — cela détruirait le DOM
-        // du container via clear(this._ui.content) et viderait la page Config.
-        // Stratégie :
-        //   - Si data-hse-config-built est présent → patch partiel via render_config()
-        //   - Si absent (container vidé entre-temps par un autre _render()) → rebuild
-        //     complet via _render() pour reconstruire la page, sauf si l'utilisateur
-        //     est en cours d'interaction (dans ce cas on laisse _mark_user_interacting
-        //     déclencher le _render() final).
         if (this._active_tab === "config" && !this._user_interacting) {
           try {
             const container = this._ui?.content;
             if (container && window.hse_config_view?.render_config) {
               if (container.hasAttribute("data-hse-config-built")) {
-                // Patch partiel : ne vide pas le container
                 window.hse_config_view.render_config(container, this._config_state, () => {});
               } else {
-                // Fallback : le container a été vidé, rebuild complet nécessaire
                 this._render();
               }
             }
@@ -449,10 +403,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._overview_data = { error: this._err_msg(err) };
         } finally {
           this._overview_refreshing = false;
-          // AUDIT-RERENDER-002: render automatique après autorefresh overview/costs (30s).
-          // Sur overview: ok, pas d'interaction. Sur costs: peut interrompre un filtre.
-          // Utilise _render_if_not_interacting() pour les deux cas.
-          // Cible future: rendu partiel du corps seulement (TODO: audit_rerender.py).
           this._render_if_not_interacting();
         }
       };
@@ -464,12 +414,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       }
     }
 
-    // -------------------------------------------------------------------------
-    // FIX-5: normalisation rooms/types — le backend retourne ces champs sous
-    // forme de liste [{id, name, ...}]. Le frontend les traite comme des dicts
-    // {room_id: {...}}. Cette fonction convertit Array → dict si nécessaire,
-    // en utilisant la propriété "id" de chaque item comme clé.
-    // -------------------------------------------------------------------------
     _org_normalize_dict(raw) {
       if (!raw) return {};
       if (Array.isArray(raw)) {
@@ -496,7 +440,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_state.meta_draft = { rooms: {}, types: {}, assignments: {} };
       }
 
-      // FIX-5: normaliser rooms et types en dict après copie depuis le backend
       this._org_state.meta_draft.rooms = this._org_normalize_dict(this._org_state.meta_draft.rooms);
       this._org_state.meta_draft.types = this._org_normalize_dict(this._org_state.meta_draft.types);
       if (!this._org_state.meta_draft.assignments) this._org_state.meta_draft.assignments = {};
@@ -514,10 +457,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         }
       }
 
-      // FIX-5: normaliser rooms et types en dict après copie depuis le backend
-      // Le backend retourne meta.rooms sous forme de liste [{id, name, ...}].
-      // Toutes les opérations du panel (org_room_add, org_room_delete, org_patch,
-      // _refresh_rooms_list) accèdent à rooms par clé string → dict obligatoire.
       this._org_state.meta_draft.rooms = this._org_normalize_dict(this._org_state.meta_draft.rooms);
       this._org_state.meta_draft.types = this._org_normalize_dict(this._org_state.meta_draft.types);
       if (!this._org_state.meta_draft.assignments) this._org_state.meta_draft.assignments = {};
@@ -548,8 +487,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.loading = false;
-        // FIX-3: utiliser _render_if_not_interacting() pour ne pas détruire
-        // le DOM pendant qu'un <select> ou un <input> est en cours d'utilisation.
         this._render_if_not_interacting();
       }
     }
@@ -560,9 +497,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
 
       this._org_ensure_draft();
 
-      // FIX: snapshot du draft AVANT le confirm() pour éviter qu'un render
-      // intermédiaire déclenché par hass update écrase meta_draft pendant
-      // que le confirm() bloque le thread JS.
       let draft_snapshot;
       try {
         draft_snapshot = JSON.parse(JSON.stringify(this._org_state.meta_draft));
@@ -576,10 +510,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       this._org_state.saving = true;
       this._org_state.error = null;
       this._org_state.message = "Sauvegarde\u2026";
-      // FIX: _do_render partiel au lieu de this._render() global
-      // Ne pas appeler this._render() ici — on est dans _on_action de _render_custom,
-      // le container custom est actif. Mettre à jour seulement le message via
-      // un re-render partiel est fait au retour dans finally.
 
       try {
         const resp = await this._hass.callApi("post", "hse/unified/meta", {
@@ -600,7 +530,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._render_if_not_interacting();
       }
     }
-
 
     async _org_preview() {
       if (!this._hass) return;
@@ -626,7 +555,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.preview_running = false;
-        // FIX-3: utiliser _render_if_not_interacting() dans le finally
         this._render_if_not_interacting();
       }
     }
@@ -665,7 +593,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.apply_running = false;
-        // FIX-3: utiliser _render_if_not_interacting() dans le finally
         this._render_if_not_interacting();
       }
     }
@@ -799,20 +726,10 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       this._ensure_valid_tab();
       this._render_nav_tabs();
 
-      // FIX-4: si on n'est PAS sur l'onglet config, on retire l'attribut
-      // data-hse-config-built du container pour qu'au prochain retour sur config
-      // le guard ne bloque pas le clear() et force un rebuild propre.
-      // Sans ce nettoyage, naviguer vers un autre onglet puis revenir sur config
-      // laissait l'ancien contenu visible (le guard empêchait le clear).
       if (this._active_tab !== "config" && this._ui.content.hasAttribute("data-hse-config-built")) {
         this._ui.content.removeAttribute("data-hse-config-built");
       }
 
-      // FIX: si l'onglet actif est "config" et que la page est déjà construite
-      // (data-hse-config-built présent), on ne vide PAS le container ici.
-      // config.view.js gère lui-même son DOM via render_config() (patch partiel
-      // ou rebuild). Vider le container ici causerait une page blanche car
-      // _render_config() est async et ne peuple pas le container de façon synchrone.
       const config_already_built =
         this._active_tab === "config" &&
         this._ui.content.hasAttribute("data-hse-config-built");
@@ -822,7 +739,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       }
 
       if (!this._hass) {
-        // Si on a gardé le container config, on le vide quand même (pas de hass)
         if (config_already_built) window.hse_dom.clear(this._ui.content);
         this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass\u2026"));
         return;
@@ -929,9 +845,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         return;
       }
 
-      // FIX: afficher un placeholder pendant le chargement initial
-      // (le container est vide sinon car _render_config est async et retourne
-      // immédiatement après avoir lancé le fetch)
       if (this._config_state.loading) {
         const { el } = window.hse_dom;
         const card = el("div", "hse_card");
@@ -1746,7 +1659,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       const container = this._ui.content;
 
       if (!window.hse_custom_view?.render_customisation) {
-        this._render_placeholder("Customisation", "custom.view.js non chargé.");
+        this._render_placeholder("Customisation", "custom.view.js non charg\u00e9.");
         return;
       }
 
@@ -1754,7 +1667,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_fetch_meta();
       }
 
-      // FIX: callback nommé pour permettre org_rerender sans this._render() global
       const _do_render = () => {
         window.hse_custom_view.render_customisation(
           container, this._custom_state, this._org_state, _on_action
@@ -1804,7 +1716,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         }
 
         if (action === "org_draft_reset") {
-          const ok = window.confirm("Réinitialiser le brouillon (perdre les modifications locales non sauvegardées) ?");
+          const ok = window.confirm("R\u00e9initialiser le brouillon (perdre les modifications locales non sauvegard\u00e9es) ?");
           if (!ok) return;
           this._org_reset_draft_from_store();
           _do_render();
@@ -1812,12 +1724,27 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         }
 
         if (action === "org_patch") {
+          // FIX: accepter path_parts (tableau) pour éviter split('.') sur entity_id
+          // ex: path_parts=["assignments","sensor.salon_tv","room_id"]
+          // évite que _deep_set découpe "sensor.salon_tv" en segments séparés
+          const parts = value?.path_parts;
           const path = value?.path;
           const v = value?.value;
           const no_render = value?.no_render === true;
 
           this._org_ensure_draft();
-          this._deep_set(this._org_state.meta_draft, path, v);
+
+          if (Array.isArray(parts) && parts.length) {
+            let cur = this._org_state.meta_draft;
+            for (let i = 0; i < parts.length - 1; i++) {
+              if (!cur[parts[i]] || typeof cur[parts[i]] !== "object") cur[parts[i]] = {};
+              cur = cur[parts[i]];
+            }
+            cur[parts[parts.length - 1]] = v;
+          } else {
+            this._deep_set(this._org_state.meta_draft, path, v);
+          }
+
           this._org_state.dirty = true;
 
           if (!no_render) _do_render();
@@ -1832,7 +1759,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           const rooms = this._org_state.meta_draft.rooms;
           if (rooms[room_id]) {
-            this._org_state.message = `Room existe déjà: ${room_id}`;
+            this._org_state.message = `Room existe d\u00e9j\u00e0: ${room_id}`;
             _do_render();
             return;
           }
@@ -1845,7 +1772,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Room ajoutée: ${room_id}`;
+          this._org_state.message = `Room ajout\u00e9e: ${room_id}`;
           _do_render();
           return;
         }
@@ -1857,7 +1784,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           delete this._org_state.meta_draft.rooms[room_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Room supprimée: ${room_id}`;
+          this._org_state.message = `Room supprim\u00e9e: ${room_id}`;
           _do_render();
           return;
         }
@@ -1869,7 +1796,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           const asg = this._org_state.meta_draft.assignments;
           if (asg[entity_id]) {
-            this._org_state.message = `Assignment existe déjà: ${entity_id}`;
+            this._org_state.message = `Assignment existe d\u00e9j\u00e0: ${entity_id}`;
             _do_render();
             return;
           }
@@ -1882,7 +1809,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment ajoutée: ${entity_id}`;
+          this._org_state.message = `Assignment ajout\u00e9e: ${entity_id}`;
           _do_render();
           return;
         }
@@ -1894,16 +1821,10 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           delete this._org_state.meta_draft.assignments[entity_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment supprimée: ${entity_id}`;
+          this._org_state.message = `Assignment supprim\u00e9e: ${entity_id}`;
           _do_render();
           return;
         }
-
-        // FIX: org_filter_rooms et org_filter_assignments supprimés intentionnellement
-        // — ces filtres sont gérés en interne par custom.view.js via les listeners
-        //   input sur fi (_refresh_rooms_list / _refresh_types_list) sans passer
-        //   par hse_panel.js. Les cases ici causaient un this._render() global qui
-        //   détruisait le DOM et faisait perdre le focus du champ en cours de saisie.
 
         if (action === "org_toggle_raw") {
           this._org_state.show_raw = !this._org_state.show_raw;
@@ -1911,9 +1832,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           return;
         }
 
-        // FIX PRINCIPAL: org_rerender → re-render partiel via _do_render()
-        // au lieu de this._render() global. Évite le clear(this._ui.content)
-        // qui détruisait le DOM et faisait perdre le focus des inputs/selects.
         if (action === "org_rerender") {
           _do_render();
           return;
@@ -1922,7 +1840,6 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
 
       _do_render();
     }
-
 
     async _render_costs() {
       const { el, clear } = window.hse_dom;
