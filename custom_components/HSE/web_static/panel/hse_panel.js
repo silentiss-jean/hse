@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
+const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -464,6 +464,24 @@ const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
       }
     }
 
+    // -------------------------------------------------------------------------
+    // FIX-5: normalisation rooms/types — le backend retourne ces champs sous
+    // forme de liste [{id, name, ...}]. Le frontend les traite comme des dicts
+    // {room_id: {...}}. Cette fonction convertit Array → dict si nécessaire,
+    // en utilisant la propriété "id" de chaque item comme clé.
+    // -------------------------------------------------------------------------
+    _org_normalize_dict(raw) {
+      if (!raw) return {};
+      if (Array.isArray(raw)) {
+        const out = {};
+        raw.forEach((item) => {
+          if (item && item.id) out[item.id] = item;
+        });
+        return out;
+      }
+      return raw;
+    }
+
     _org_ensure_draft() {
       if (this._org_state.meta_draft) return;
 
@@ -478,8 +496,9 @@ const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
         this._org_state.meta_draft = { rooms: {}, types: {}, assignments: {} };
       }
 
-      if (!this._org_state.meta_draft.rooms) this._org_state.meta_draft.rooms = {};
-      if (!this._org_state.meta_draft.types) this._org_state.meta_draft.types = {};
+      // FIX-5: normaliser rooms et types en dict après copie depuis le backend
+      this._org_state.meta_draft.rooms = this._org_normalize_dict(this._org_state.meta_draft.rooms);
+      this._org_state.meta_draft.types = this._org_normalize_dict(this._org_state.meta_draft.types);
       if (!this._org_state.meta_draft.assignments) this._org_state.meta_draft.assignments = {};
     }
 
@@ -495,8 +514,12 @@ const build_signature = "2026-03-11_1125_fix_config_tab_switch_stale_attr";
         }
       }
 
-      if (!this._org_state.meta_draft.rooms) this._org_state.meta_draft.rooms = {};
-      if (!this._org_state.meta_draft.types) this._org_state.meta_draft.types = {};
+      // FIX-5: normaliser rooms et types en dict après copie depuis le backend
+      // Le backend retourne meta.rooms sous forme de liste [{id, name, ...}].
+      // Toutes les opérations du panel (org_room_add, org_room_delete, org_patch,
+      // _refresh_rooms_list) accèdent à rooms par clé string → dict obligatoire.
+      this._org_state.meta_draft.rooms = this._org_normalize_dict(this._org_state.meta_draft.rooms);
+      this._org_state.meta_draft.types = this._org_normalize_dict(this._org_state.meta_draft.types);
       if (!this._org_state.meta_draft.assignments) this._org_state.meta_draft.assignments = {};
 
       this._org_state.dirty = false;
