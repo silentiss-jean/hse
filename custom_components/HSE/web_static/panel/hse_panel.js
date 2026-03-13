@@ -1735,7 +1735,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
       const container = this._ui.content;
 
       if (!window.hse_custom_view?.render_customisation) {
-        this._render_placeholder("Customisation", "custom.view.js non charg\u00e9.");
+        this._render_placeholder("Customisation", "custom.view.js non chargé.");
         return;
       }
 
@@ -1743,7 +1743,14 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         this._org_fetch_meta();
       }
 
-      window.hse_custom_view.render_customisation(container, this._custom_state, this._org_state, (action, value) => {
+      // FIX: callback nommé pour permettre org_rerender sans this._render() global
+      const _do_render = () => {
+        window.hse_custom_view.render_customisation(
+          container, this._custom_state, this._org_state, _on_action
+        );
+      };
+
+      const _on_action = (action, value) => {
         if (action === "set_theme") {
           this._set_theme(value || "ha");
           return;
@@ -1786,10 +1793,10 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
         }
 
         if (action === "org_draft_reset") {
-          const ok = window.confirm("R\u00e9initialiser le brouillon (perdre les modifications locales non sauvegard\u00e9es) ?");
+          const ok = window.confirm("Réinitialiser le brouillon (perdre les modifications locales non sauvegardées) ?");
           if (!ok) return;
           this._org_reset_draft_from_store();
-          this._render();
+          _do_render();
           return;
         }
 
@@ -1802,7 +1809,7 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._deep_set(this._org_state.meta_draft, path, v);
           this._org_state.dirty = true;
 
-          if (!no_render) this._render();
+          if (!no_render) _do_render();
           return;
         }
 
@@ -1814,8 +1821,8 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           const rooms = this._org_state.meta_draft.rooms;
           if (rooms[room_id]) {
-            this._org_state.message = `Room existe d\u00e9j\u00e0: ${room_id}`;
-            this._render();
+            this._org_state.message = `Room existe déjà: ${room_id}`;
+            _do_render();
             return;
           }
 
@@ -1827,8 +1834,8 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Room ajout\u00e9e: ${room_id}`;
-          this._render();
+          this._org_state.message = `Room ajoutée: ${room_id}`;
+          _do_render();
           return;
         }
 
@@ -1839,8 +1846,8 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           delete this._org_state.meta_draft.rooms[room_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Room supprim\u00e9e: ${room_id}`;
-          this._render();
+          this._org_state.message = `Room supprimée: ${room_id}`;
+          _do_render();
           return;
         }
 
@@ -1851,8 +1858,8 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           const asg = this._org_state.meta_draft.assignments;
           if (asg[entity_id]) {
-            this._org_state.message = `Assignment existe d\u00e9j\u00e0: ${entity_id}`;
-            this._render();
+            this._org_state.message = `Assignment existe déjà: ${entity_id}`;
+            _do_render();
             return;
           }
 
@@ -1864,8 +1871,8 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           };
 
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment ajout\u00e9e: ${entity_id}`;
-          this._render();
+          this._org_state.message = `Assignment ajoutée: ${entity_id}`;
+          _do_render();
           return;
         }
 
@@ -1876,30 +1883,35 @@ const build_signature = "2026-03-13_0822_fix_org_rooms_normalize_dict";
           this._org_ensure_draft();
           delete this._org_state.meta_draft.assignments[entity_id];
           this._org_state.dirty = true;
-          this._org_state.message = `Assignment supprim\u00e9e: ${entity_id}`;
-          this._render();
+          this._org_state.message = `Assignment supprimée: ${entity_id}`;
+          _do_render();
           return;
         }
 
-        if (action === "org_filter_rooms") {
-          this._org_state.rooms_filter_q = String(value || "");
-          this._render();
-          return;
-        }
-
-        if (action === "org_filter_assignments") {
-          this._org_state.assignments_filter_q = String(value || "");
-          this._render();
-          return;
-        }
+        // FIX: org_filter_rooms et org_filter_assignments supprimés intentionnellement
+        // — ces filtres sont gérés en interne par custom.view.js via les listeners
+        //   input sur fi (_refresh_rooms_list / _refresh_types_list) sans passer
+        //   par hse_panel.js. Les cases ici causaient un this._render() global qui
+        //   détruisait le DOM et faisait perdre le focus du champ en cours de saisie.
 
         if (action === "org_toggle_raw") {
           this._org_state.show_raw = !this._org_state.show_raw;
-          this._render();
+          _do_render();
           return;
         }
-      });
+
+        // FIX PRINCIPAL: org_rerender → re-render partiel via _do_render()
+        // au lieu de this._render() global. Évite le clear(this._ui.content)
+        // qui détruisait le DOM et faisait perdre le focus des inputs/selects.
+        if (action === "org_rerender") {
+          _do_render();
+          return;
+        }
+      };
+
+      _do_render();
     }
+
 
     async _render_costs() {
       const { el, clear } = window.hse_dom;
