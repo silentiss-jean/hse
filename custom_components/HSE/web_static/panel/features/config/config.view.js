@@ -24,6 +24,12 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
   //   candidats sélectionnés a réellement changé (ajout/retrait/auto-select)
   //   ou si le filtre texte a changé — dans ce cas on restaure l'état open
   //   avant de reconstruire.
+  //
+  // FIX-6: doublons dans Disponibles.
+  //   La liste Disponibles n'affiche plus qu'un seul candidat par groupe de
+  //   doublons (le best_entity_id). Les autres membres du groupe sont masqués
+  //   SAUF si un membre du groupe est déjà sélectionné : dans ce cas ils
+  //   restent visibles avec le bouton "Remplacer".
   // ---------------------------------------------------------------------------
 
   function _current_reference_entity_id(catalogue) {
@@ -939,7 +945,25 @@ HSE_MAINTENANCE: If you change UI semantics here, update the doc above.
     const left = el("div", "hse_card hse_card_inner");
     const right = el("div", "hse_card hse_card_inner");
 
-    const avail = _filter_candidates(candidatesForCost.filter((c) => !selectedSet.has(c.entity_id)), filter_q);
+    // ── FIX-6 : dans Disponibles, masquer les doublons non-best
+    // SAUF si un membre du groupe est déjà sélectionné (dans ce cas on garde
+    // tous les membres non-sélectionnés pour permettre le remplacement).
+    const availRaw = candidatesForCost.filter((c) => !selectedSet.has(c.entity_id));
+    const avail = _filter_candidates(
+      availRaw.filter((c) => {
+        const gk = _group_key(c);
+        if (!gk) return true; // pas de device_id → pas de groupe → toujours visible
+        const meta = group_meta.get(gk);
+        if (!meta) return true; // groupe singleton → toujours visible
+        // Si un membre du groupe est déjà sélectionné, on garde tous les
+        // non-sélectionnés pour permettre le bouton "Remplacer"
+        if (selectedByGroup.has(gk)) return true;
+        // Sinon : n'afficher que le best du groupe
+        return c.entity_id === meta.best_entity_id;
+      }),
+      filter_q
+    );
+
     const selectedOk = _filter_candidates(
       candidatesForCost.filter((c) => selectedSet.has(c.entity_id))
         .sort((a, b) => String(a.name || a.entity_id || "").localeCompare(String(b.name || b.entity_id || ""))),
