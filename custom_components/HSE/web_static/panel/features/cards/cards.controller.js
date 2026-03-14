@@ -1,24 +1,23 @@
 (function () {
   "use strict";
 
-  /**
-   * Contrôleur principal de l'onglet "Génération de cartes".
-   * Suit le pattern global window.hse_xxx_view utilisé dans hse_panel.js.
-   */
-
   let _instance = null;
 
   class CardsController {
-    constructor(hass) {
+    constructor(hass, root) {
       this._hass = hass;
+      this._root = root; // ShadowRoot
       this._sensors = [];
       this._yaml = "";
       this._pf_row_seq = 0;
       this._pf_all_facture_total = [];
-      this._handlers = {};
     }
 
-    // ─── Helpers utilitaires ──────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    _$(id) {
+      return this._root.getElementById(id);
+    }
 
     _normalize(value) {
       const raw = String(value || "").toLowerCase();
@@ -56,7 +55,7 @@
     // ─── Chargement des données ───────────────────────────────────────────────
 
     async load_sensors() {
-      const count_el = document.getElementById("hse_cards_sensor_count");
+      const count_el = this._("hse_cards_sensor_count");
       try {
         const sensors = await window.hse_cards_api.fetch_lovelace_sensors(this._hass);
         this._sensors = sensors;
@@ -76,8 +75,8 @@
     // ─── Visibilité options Power Flow ────────────────────────────────────────
 
     _apply_card_type_visibility() {
-      const type_el = document.getElementById("hse_cards_card_type");
-      const pf_el = document.getElementById("hse_cards_pf_options");
+      const type_el = this._("hse_cards_card_type");
+      const pf_el = this._("hse_cards_pf_options");
       if (!type_el || !pf_el) return;
       pf_el.style.display = type_el.value === "power_flow_card_plus" ? "" : "none";
     }
@@ -100,7 +99,7 @@
     }
 
     _fill_select(id, options, empty_label, required) {
-      const el = document.getElementById(id);
+      const el = this._(id);
       if (!el) return;
       const cur = el.value;
       el.innerHTML = "";
@@ -118,8 +117,8 @@
     }
 
     _render_home_cost_options() {
-      const cost_el = document.getElementById("hse_cards_pf_home_cost");
-      const kw_el = document.getElementById("hse_cards_pf_cost_keyword");
+      const cost_el = this._("hse_cards_pf_home_cost");
+      const kw_el = this._("hse_cards_pf_cost_keyword");
       if (!cost_el) return;
 
       const cur = String(cost_el.value || "");
@@ -155,9 +154,9 @@
     }
 
     _suggest_home_cost_from_title() {
-      const cost_el = document.getElementById("hse_cards_pf_home_cost");
-      const title_el = document.getElementById("hse_cards_pf_title");
-      const kw_el = document.getElementById("hse_cards_pf_cost_keyword");
+      const cost_el = this._("hse_cards_pf_home_cost");
+      const title_el = this._("hse_cards_pf_title");
+      const kw_el = this._("hse_cards_pf_cost_keyword");
       if (!cost_el || !title_el) return;
       if (kw_el && this._normalize(kw_el.value)) return;
       const title = this._normalize(title_el.value);
@@ -173,7 +172,7 @@
     }
 
     _refresh_individual_options() {
-      const container = document.getElementById("hse_cards_pf_individuals");
+      const container = this._("hse_cards_pf_individuals");
       if (!container) return;
 
       const power_sensors = this._sensors.filter((s) => this._is_power(s));
@@ -220,7 +219,7 @@
     // ─── Gestion des lignes individuals ──────────────────────────────────────
 
     _add_individual_row() {
-      const container = document.getElementById("hse_cards_pf_individuals");
+      const container = this._("hse_cards_pf_individuals");
       if (!container) return;
 
       this._pf_row_seq++;
@@ -262,19 +261,19 @@
     generate_yaml() {
       if (!this._sensors.length) { alert("Aucun sensor HSE trouvé. Vérifiez que vos sensors sont créés."); return; }
 
-      const type_el = document.getElementById("hse_cards_card_type");
+      const type_el = this._("hse_cards_card_type");
       const card_type = type_el ? type_el.value : "overview";
 
       if (card_type === "power_flow_card_plus") {
-        const title = String(document.getElementById("hse_cards_pf_title")?.value || "").trim();
-        const grid_power = String(document.getElementById("hse_cards_pf_grid_power")?.value || "").trim();
-        const home_power = String(document.getElementById("hse_cards_pf_home_power")?.value || "").trim();
-        const home_cost = String(document.getElementById("hse_cards_pf_home_cost")?.value || "").trim();
+        const title = String(this._("hse_cards_pf_title")?.value || "").trim();
+        const grid_power = String(this._("hse_cards_pf_grid_power")?.value || "").trim();
+        const home_power = String(this._("hse_cards_pf_home_power")?.value || "").trim();
+        const home_cost = String(this._("hse_cards_pf_home_cost")?.value || "").trim();
 
         if (!grid_power) { alert("Power Flow: Grid puissance obligatoire"); return; }
 
         const individuals = [];
-        const container = document.getElementById("hse_cards_pf_individuals");
+        const container = this._("hse_cards_pf_individuals");
         if (container) {
           container.querySelectorAll(".hse_cards_individual_row").forEach((row_el) => {
             const p_el = row_el.querySelector("select[data-role='power']");
@@ -291,7 +290,6 @@
           options: { title, grid: { power_entity: grid_power }, home: { power_entity: home_power, cost_entity: home_cost }, individuals },
         });
       } else {
-        // Overview: top 10 sensors daily
         const daily = this._sensors
           .filter((s) => { const eid = s.entity_id; return eid.includes("_d") || eid.includes("daily") || eid.includes("_day"); })
           .sort((a, b) => parseFloat(b.state || 0) - parseFloat(a.state || 0))
@@ -302,10 +300,10 @@
         this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({ sensors: to_use, cardTypes: ["overview"], options: {} });
       }
 
-      const yaml_el = document.getElementById("hse_cards_yaml_code");
+      const yaml_el = this._("hse_cards_yaml_code");
       if (yaml_el) yaml_el.textContent = this._yaml;
 
-      const last_gen_el = document.getElementById("hse_cards_last_gen");
+      const last_gen_el = this._("hse_cards_last_gen");
       if (last_gen_el) last_gen_el.textContent = new Date().toLocaleString("fr-FR");
     }
 
@@ -345,8 +343,8 @@
     }
 
     toggle_preview() {
-      const pv = document.getElementById("hse_cards_preview_container");
-      const btn = document.getElementById("hse_cards_btn_preview");
+      const pv = this._("hse_cards_preview_container");
+      const btn = this._("hse_cards_btn_preview");
       if (!pv) return;
 
       const visible = pv.style.display !== "none";
@@ -361,7 +359,7 @@
     }
 
     _render_preview() {
-      const grid = document.getElementById("hse_cards_preview_grid");
+      const grid = this._("hse_cards_preview_grid");
       if (!grid) return;
 
       if (!this._sensors.length) { grid.innerHTML = '<p class="hse_hint">Aucun sensor disponible</p>'; return; }
@@ -388,8 +386,8 @@
 
     attach_events() {
       const _on = (id, event, fn) => {
-        const el = document.getElementById(id);
-        if (!el) return;
+        const el = this._(id);
+        if (!el) { console.warn(`[HSE cards] attach_events: #${id} not found in shadowRoot`); return; }
         el.addEventListener(event, fn);
       };
 
@@ -415,8 +413,7 @@
       this._apply_card_type_visibility();
       this._populate_selects();
 
-      // Ajouter une ligne individual vide par défaut pour Power Flow
-      const container = document.getElementById("hse_cards_pf_individuals");
+      const container = this._("hse_cards_pf_individuals");
       if (container && container.children.length === 0) {
         this._add_individual_row();
       }
@@ -425,10 +422,13 @@
     }
   }
 
+  // Alias interne : raccourci pour _(id)
+  CardsController.prototype._ = CardsController.prototype._$;
+
   /**
-   * Point d'entrée appelé par hse_panel.js pour l'onglet "cards".
-   * @param {HTMLElement} container - conteneur de l'onglet
-   * @param {Object} hass
+   * Point d'entrée appelé par hse_panel.js — render_cards(container, hass).
+   * On passe le shadowRoot via container.getRootNode() pour que getElementById
+   * fonctionne correctement dans le shadow DOM.
    */
   function render_cards(container, hass) {
     if (!window.hse_cards_view || !window.hse_cards_yaml || !window.hse_cards_api) {
@@ -436,26 +436,32 @@
       return;
     }
 
-    // Injecter le layout HTML (DOM toujours recréé)
+    // Récupérer la shadowRoot depuis le container
+    const shadow_root = container.getRootNode();
+
+    // Injecter le layout HTML
     container.innerHTML = window.hse_cards_view.render_cards_layout();
 
-    // Réutiliser l'instance existante : mettre à jour hass et re-attacher les events sur le nouveau DOM
-    if (_instance) {
+    if (_instance && shadow_root instanceof ShadowRoot) {
+      // Réutiliser l'instance, mettre à jour root + hass
       _instance._hass = hass;
+      _instance._root = shadow_root;
       _instance.attach_events();
       _instance._apply_card_type_visibility();
-      // Re-peupler les selects depuis les sensors déjà chargés
       _instance._populate_selects();
-      // Re-afficher le YAML précédemment généré s'il existe
       if (_instance._yaml) {
-        const yaml_el = document.getElementById("hse_cards_yaml_code");
+        const yaml_el = shadow_root.getElementById("hse_cards_yaml_code");
         if (yaml_el) yaml_el.textContent = _instance._yaml;
       }
       return;
     }
 
-    // Première création
-    const ctrl = new CardsController(hass);
+    if (!(shadow_root instanceof ShadowRoot)) {
+      console.error("[HSE cards] getRootNode() n'est pas un ShadowRoot — impossible d'attacher les événements.");
+      return;
+    }
+
+    const ctrl = new CardsController(hass, shadow_root);
     _instance = ctrl;
     ctrl.init().catch((err) => console.error("[HSE cards] init error:", err));
   }
