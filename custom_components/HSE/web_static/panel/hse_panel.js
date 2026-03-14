@@ -1,12 +1,12 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
+const build_signature = "2026-03-14_1422_wire_cards_tab";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
 
   // IMPORTANT: must match const.py PANEL_JS_URL
-  const ASSET_V = "0.1.33";
+  const ASSET_V = "0.1.34";
 
   const NAV_ITEMS_FALLBACK = [
     { id: "overview", label: "Accueil" },
@@ -171,6 +171,7 @@ const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
       if (this._active_tab === "custom") return;
       if (this._active_tab === "config") return;
       if (this._active_tab === "costs") return;
+      if (this._active_tab === "cards") return;
       this._render();
     }
 
@@ -643,12 +644,19 @@ const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.api.js?v=${ASSET_V}`);
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.view.js?v=${ASSET_V}`);
 
+        // cards feature
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.api.js?v=${ASSET_V}`);
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/logic/yamlComposer.js?v=${ASSET_V}`);
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.view.js?v=${ASSET_V}`);
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.controller.js?v=${ASSET_V}`);
+
         const css_tokens = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_tokens.shadow.css?v=${ASSET_V}`);
         const css_themes = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_themes.shadow.css?v=${ASSET_V}`);
         const css_alias = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_alias.v2.css?v=${ASSET_V}`);
         const css_panel = await window.hse_loader.load_css_text(`${SHARED_BASE}/styles/tokens.css?v=${ASSET_V}`);
+        const css_cards = await window.hse_loader.load_css_text(`${PANEL_BASE}/features/cards/cards.css?v=${ASSET_V}`);
 
-        this._root.innerHTML = `<style>\n${css_tokens}\n\n${css_themes}\n\n${css_alias}\n\n${css_panel}\n</style><div id="root"></div>`;
+        this._root.innerHTML = `<style>\n${css_tokens}\n\n${css_themes}\n\n${css_alias}\n\n${css_panel}\n\n${css_cards}\n</style><div id="root"></div>`;
 
         this._boot_done = true;
         this._boot_error = null;
@@ -774,6 +782,9 @@ const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
           case "custom":
             this._render_custom().catch((err) => this._render_ui_error("Customisation", err));
             return;
+          case "cards":
+            this._render_cards().catch((err) => this._render_ui_error("G\u00e9n\u00e9ration cartes", err));
+            return;
           default:
             this._render_placeholder("Page", "\u00c0 venir.");
         }
@@ -801,6 +812,17 @@ const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
       card.appendChild(el("div", null, title));
       card.appendChild(el("div", "hse_subtitle", subtitle || "\u00c0 venir."));
       this._ui.content.appendChild(card);
+    }
+
+    async _render_cards() {
+      const container = this._ui.content;
+
+      if (!window.hse_cards_controller?.render_cards) {
+        this._render_placeholder("G\u00e9n\u00e9ration cartes", "cards.controller.js non charg\u00e9.");
+        return;
+      }
+
+      window.hse_cards_controller.render_cards(container, this._hass);
     }
 
     async _render_migration() {
@@ -1724,9 +1746,6 @@ const build_signature = "2026-03-13_1545_fix_org_patch_path_parts";
         }
 
         if (action === "org_patch") {
-          // FIX: accepter path_parts (tableau) pour éviter split('.') sur entity_id
-          // ex: path_parts=["assignments","sensor.salon_tv","room_id"]
-          // évite que _deep_set découpe "sensor.salon_tv" en segments séparés
           const parts = value?.path_parts;
           const path = value?.path;
           const v = value?.value;
