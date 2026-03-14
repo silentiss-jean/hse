@@ -104,11 +104,13 @@
   let _types_sort_asc      = true;
   let _show_energy_col     = false;
 
-  // État bulk persisté entre renders (évite reset sur filtre input)
   let _bulk_rooms_kw       = "";
   let _bulk_rooms_target   = "";
   let _bulk_types_kw       = "";
   let _bulk_types_target   = "";
+
+  // Référence au shadow root courant (pour les modals)
+  let _shadow_root         = null;
 
   // ---------------------------------------------------------------------------
   // Normalisation backend
@@ -124,24 +126,13 @@
     return raw;
   }
 
+  // FIX #2 : n'hydrate QUE les entités déjà présentes dans assignments_raw
+  // (ne pas ajouter les capteurs hors-scope comme studio_code_server)
   function _hydrate_assignments(assignments_raw, rooms, snapshot_entities) {
     const out = {};
     Object.entries(assignments_raw || {}).forEach(([eid, a]) => {
       out[eid] = Object.assign({}, a);
     });
-
-    const area_to_room = {};
-    Object.entries(rooms).forEach(([rid, r]) => {
-      if (r && r.ha_area_id) area_to_room[r.ha_area_id] = rid;
-    });
-
-    Object.values(snapshot_entities || {}).forEach((entity) => {
-      const eid = entity && entity.entity_id;
-      if (!eid || out[eid]) return;
-      const room_id = entity.area_id ? (area_to_room[entity.area_id] || null) : null;
-      out[eid] = { room_id, room_mode: "auto", type_id: null, type_mode: "mixed" };
-    });
-
     return out;
   }
 
@@ -174,7 +165,6 @@
       opt.textContent = o.label;
       s.appendChild(opt);
     }
-    // FIX: forcer la valeur après insertion des options
     if (value && s.querySelector(`option[value="${CSS.escape(value)}"]`)) {
       s.value = value;
     } else if (s.options.length > 0) {
@@ -196,13 +186,13 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Styles — injectés dans le Shadow DOM du container
+  // Styles
   // ---------------------------------------------------------------------------
 
   const STYLE_ID = "__hse_custom_styles__";
 
   const STYLE_CSS = `
-/* ─── Group card ─────────────────────────────────────────────────── */
+/* ─── Group card ───────────────────────────────────────────────── */
 .hse_gc {
   border: 1px solid var(--hse_border);
   border-radius: var(--hse-radius-md, 12px);
@@ -214,7 +204,7 @@
 .hse_gc:hover { box-shadow: var(--hse-shadow-sm, 0 1px 3px rgba(0,0,0,.07)); }
 .hse_gc_warn { border-color: color-mix(in srgb, var(--hse_danger,#ef4444) 40%, var(--hse_border) 60%); }
 
-/* ─── Group header ────────────────────────────────────────────────── */
+/* ─── Group header ──────────────────────────────────────────────── */
 .hse_gh {
   display: flex;
   align-items: center;
@@ -237,7 +227,6 @@
 }
 .hse_gh_icon  { flex-shrink: 0; font-size: 14px; line-height: 1; }
 
-/* Nom + actions inline — groupe compact */
 .hse_gh_namegroup {
   display: flex;
   align-items: center;
@@ -252,7 +241,6 @@
   min-width: 0;
 }
 
-/* Actions (✏️🗑️) inline après le nom */
 .hse_gh_actions {
   display: flex;
   align-items: center;
@@ -271,7 +259,6 @@
 .hse_gh_ab:hover { opacity: 1 !important; background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 90%, transparent); }
 .hse_gh_ab.danger:hover { background: color-mix(in srgb, var(--hse_danger,#ef4444) 12%, transparent); }
 
-/* Spacer + meta à droite */
 .hse_gh_spacer { flex: 1 1 auto; min-width: 8px; }
 .hse_gh_count {
   font-size: 11px; color: var(--hse_muted);
@@ -285,12 +272,10 @@
   white-space: nowrap; flex-shrink: 0;
 }
 
-/* ─── Group body ──────────────────────────────────────────────────── */
-.hse_gb {
-  padding: 8px 10px;
-}
+/* ─── Group body ────────────────────────────────────────────────── */
+.hse_gb { padding: 8px 10px; }
 
-/* ─── Grille capteurs (3 colonnes par défaut) ─────────────────────── */
+/* ─── FIX #1 : liste capteurs — 1 colonne, nom complet ────────────── */
 .hse_sc_col { min-width: 0; }
 .hse_sc_col_title {
   font-size: 10px; font-weight: 700;
@@ -298,15 +283,9 @@
   color: var(--hse_muted); margin-bottom: 4px;
 }
 .hse_sc_list {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px 6px;
-}
-@media (max-width: 800px) {
-  .hse_sc_list { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 500px) {
-  .hse_sc_list { grid-template-columns: 1fr; }
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .hse_sc_empty { font-size: 11px; color: var(--hse_muted); font-style: italic; padding: 3px 0; }
 
@@ -319,31 +298,34 @@
 }
 .hse_sr_click { cursor: pointer; transition: background var(--hse-transition-fast,120ms ease); }
 .hse_sr_click:hover { background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 80%, transparent); }
-.hse_sr_child { margin-left: 12px; color: var(--hse_muted); font-size: 10.5px; }
+.hse_sr_child { margin-left: 16px; color: var(--hse_muted); font-size: 10.5px; }
 .hse_sr_caret { flex-shrink:0; font-size:9px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
-.hse_sr_label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* enfants d'une famille : toute la largeur pour éviter le découpage */
-.hse_sr_children {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px 6px;
-  padding-left: 12px; margin-top: 1px;
+/* FIX #1 : pas de troncature, le nom s’affiche en entier */
+.hse_sr_label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.3;
 }
-@media (max-width: 800px) { .hse_sr_children { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px) { .hse_sr_children { grid-template-columns: 1fr; } }
+.hse_sr_children {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 16px;
+  margin-top: 1px;
+}
 
-/* ─── Grille pièces (multi-colonnes) ──────────────────────────────── */
+/* ─── Grille pièces (multi-colonnes) ────────────────────────────── */
 .hse_groups {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 6px;
   align-items: start;
 }
-/* Les cartes "Non affectés" et "Sans type" prennent toute la largeur */
 .hse_gc_warn { grid-column: 1 / -1; }
 
-/* ─── Headerbar / Bulkbar ─────────────────────────────────────────── */
+/* ─── Headerbar / Bulkbar ───────────────────────────────────────── */
 .hse_hbar {
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 8px; margin-bottom: 8px;
@@ -368,67 +350,61 @@
 .hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
 .hse_filter { min-width:180px !important; max-width:260px; }
 
-/* ─── Modals ──────────────────────────────────────────────────────── */
+/* ─── FIX #3 : Modals — attachées au shadow root ─────────────────── */
 .hse_modal_ov {
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.55); z-index:9999;
-  display:flex; align-items:center; justify-content:center;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55); z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
 }
 .hse_modal {
-  background:var(--hse_card_bg); border:1px solid var(--hse_border);
-  border-radius:var(--hse-radius-md,12px); overflow:hidden;
-  min-width:320px; max-width:520px; width:90vw;
-  box-shadow:var(--hse-shadow-md,0 10px 24px rgba(0,0,0,.12));
+  background: var(--hse_card_bg, #1e1e2e);
+  border: 1px solid var(--hse_border, #444);
+  border-radius: var(--hse-radius-md,12px); overflow: hidden;
+  min-width: 320px; max-width: 520px; width: 90vw;
+  box-shadow: var(--hse-shadow-md, 0 10px 24px rgba(0,0,0,.35));
+  color: var(--hse_fg, #fff);
 }
 .hse_modal_hd {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px; border-bottom:1px solid var(--hse_border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--hse_border, #444);
 }
-.hse_modal_title { font-size:14px; font-weight:700; }
+.hse_modal_title { font-size: 14px; font-weight: 700; }
 .hse_modal_close {
-  border:none; background:transparent; font-size:18px;
-  cursor:pointer; color:var(--hse_muted); padding:0 4px; line-height:1;
+  border: none; background: transparent; font-size: 18px;
+  cursor: pointer; color: var(--hse_muted, #888); padding: 0 4px; line-height: 1;
 }
-.hse_modal_bd { padding:16px; }
+.hse_modal_bd { padding: 16px; }
 .hse_modal_ft {
-  display:flex; gap:8px; justify-content:flex-end;
-  padding:10px 16px; border-top:1px solid var(--hse_border);
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 10px 16px; border-top: 1px solid var(--hse_border, #444);
 }
 `;
 
   function _inject_styles(container) {
-    // Remonter jusqu'au shadowRoot pour injecter les styles au bon endroit
     let root = null;
     try {
-      let node = container;
-      while (node) {
-        if (node instanceof ShadowRoot) { root = node; break; }
-        node = node.parentNode || node.host || null;
-        // getRootNode() est plus direct
-      }
-      if (!root && container && container.getRootNode) {
-        const rn = container.getRootNode();
-        if (rn instanceof ShadowRoot) root = rn;
-      }
+      const rn = container.getRootNode ? container.getRootNode() : null;
+      if (rn instanceof ShadowRoot) root = rn;
     } catch (_) {}
-
-    // Fallback : document.head si pas de shadow root trouvé
     const target = root || document.head;
 
-    // Supprimer toute ancienne version (shadow ou document)
-    ["__hse_custom_styles__", "__hse_custom_styles_v4__", "__hse_custom_styles_v3__", "__hse_custom_styles_v2__"].forEach((old_id) => {
+    ["__hse_custom_styles__","__hse_custom_styles_v4__","__hse_custom_styles_v3__","__hse_custom_styles_v2__"].forEach((oid) => {
       [target, document.head].forEach((t) => {
-        try {
-          const old_el = t.querySelector ? t.querySelector(`#${old_id}`) : t.getElementById ? t.getElementById(old_id) : null;
-          if (old_el) old_el.remove();
-        } catch (_) {}
+        try { const x = t.querySelector ? t.querySelector(`#${oid}`) : null; if (x) x.remove(); } catch(_){}
       });
     });
-
     const s = document.createElement("style");
     s.id = STYLE_ID;
     s.textContent = STYLE_CSS;
     target.appendChild(s);
+
+    // FIX #3 : mémoriser le shadow root pour les modals
+    _shadow_root = root;
+  }
+
+  // FIX #3 : helper pour ouvrir une modal dans le bon contexte
+  function _modal_root() {
+    return _shadow_root || document.body;
   }
 
   // ---------------------------------------------------------------------------
@@ -488,7 +464,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal rooms
+  // Modal rooms — FIX #3 : append dans le shadow root
   // ---------------------------------------------------------------------------
 
   function _modal_move(entity_ids, current_room_id, rooms, on_action, redraw) {
@@ -529,11 +505,11 @@
 
     m.appendChild(hd); m.appendChild(bd); m.appendChild(ft);
     ov.appendChild(m);
-    document.body.appendChild(ov);
+    _modal_root().appendChild(ov);
   }
 
   // ---------------------------------------------------------------------------
-  // Modal types
+  // Modal types — FIX #3 : append dans le shadow root
   // ---------------------------------------------------------------------------
 
   function _modal_type(entity_ids, current_type_id, known_types, on_action, redraw) {
@@ -570,11 +546,11 @@
 
     m.appendChild(hd); m.appendChild(bd); m.appendChild(ft);
     ov.appendChild(m);
-    document.body.appendChild(ov);
+    _modal_root().appendChild(ov);
   }
 
   // ---------------------------------------------------------------------------
-  // Colonne capteurs — grille 3 colonnes
+  // Colonne capteurs
   // ---------------------------------------------------------------------------
 
   function _render_sensor_col(key, title, kind, eids, filter_q, fam_map, on_fam, on_single, full_redraw) {
@@ -653,7 +629,6 @@
       ? _keys_sorted(rooms)
       : _keys_sorted(rooms).reverse();
 
-    // Carte Non affectés — pleine largeur (hse_gc_warn)
     const unassigned = by_room["__none__"] || [];
     if (unassigned.length > 0) {
       const q = _rooms_filter.toLowerCase();
@@ -673,14 +648,11 @@
         });
         gh.appendChild(tog);
         gh.appendChild(el("span", "hse_gh_icon", "❓"));
-
         const ng = el("div", "hse_gh_namegroup");
         ng.appendChild(el("span", "hse_gh_name", "Non affectés"));
         gh.appendChild(ng);
-
         gh.appendChild(el("div", "hse_gh_spacer"));
         gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
-
         gh.addEventListener("click", () => {
           _collapsed_rooms.set("__none__", is_open);
           on_action("org_rerender");
@@ -698,12 +670,10 @@
           ));
           card.appendChild(body);
         }
-
         list_ctn.appendChild(card);
       }
     }
 
-    // Cartes pièces — dans la grille multi-colonnes
     sorted_room_keys.forEach((room_id) => {
       const room_cfg = rooms[room_id];
       const name = room_cfg?.name || room_id;
@@ -736,7 +706,6 @@
       gh.appendChild(tog);
       gh.appendChild(el("span", "hse_gh_icon", "🏠"));
 
-      // Nom + actions inline
       const ng = el("div", "hse_gh_namegroup");
       ng.appendChild(el("span", "hse_gh_name", name));
 
@@ -757,11 +726,9 @@
       });
       del_btn.title = "Supprimer";
       acts.appendChild(del_btn);
-
       ng.appendChild(acts);
       gh.appendChild(ng);
 
-      // Spacer + meta à droite
       gh.appendChild(el("div", "hse_gh_spacer"));
       gh.appendChild(el("span", "hse_gh_count", `${eids.length}`));
       if (room_cfg?.mode) gh.appendChild(el("span", "hse_gh_mode", room_cfg.mode));
@@ -774,7 +741,6 @@
 
       if (is_open) {
         const body = el("div", "hse_gb");
-
         if (main_eids.length > 0) {
           body.appendChild(_render_sensor_col(
             room_id, "Capteurs power / autres", "power", main_eids,
@@ -798,7 +764,6 @@
         }
         card.appendChild(body);
       }
-
       list_ctn.appendChild(card);
     });
   }
@@ -823,7 +788,6 @@
       ? [...known_types].sort()
       : [...known_types].sort().reverse();
 
-    // Carte Sans type — pleine largeur
     const untyped = by_type["__none__"] || [];
     if (untyped.length > 0) {
       const q = _types_filter.toLowerCase();
@@ -842,14 +806,11 @@
           on_action("org_rerender");
         }));
         gh.appendChild(el("span", "hse_gh_icon", "❓"));
-
         const ng = el("div", "hse_gh_namegroup");
         ng.appendChild(el("span", "hse_gh_name", "Sans type"));
         gh.appendChild(ng);
-
         gh.appendChild(el("div", "hse_gh_spacer"));
         gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
-
         gh.addEventListener("click", () => {
           _collapsed_types.set("__none__", is_open);
           on_action("org_rerender");
@@ -898,7 +859,6 @@
       }));
       gh.appendChild(el("span", "hse_gh_icon", "🏷️"));
 
-      // Nom + actions inline
       const ng = el("div", "hse_gh_namegroup");
       ng.appendChild(el("span", "hse_gh_name", type_id));
 
@@ -927,7 +887,6 @@
 
       if (is_open) {
         const body = el("div", "hse_gb");
-
         body.appendChild(_render_sensor_col(
           type_id, "Capteurs power", "power", power_eids,
           _types_filter, _collapsed_tfam,
@@ -935,7 +894,6 @@
           (eid) => _modal_type([eid], type_id, known_types, on_action, () => on_action("org_rerender")),
           () => on_action("org_rerender")
         ));
-
         if (_show_energy_col && energy_eids.length > 0) {
           body.appendChild(_render_sensor_col(
             type_id + ":e", "Capteurs energy", "energy", energy_eids,
@@ -947,7 +905,6 @@
         }
         card.appendChild(body);
       }
-
       list_ctn.appendChild(card);
     });
   }
@@ -1009,14 +966,12 @@
     hbar.appendChild(_btn("Sauvegarder", "hse_button", () => on_action("org_save")));
     container.appendChild(hbar);
 
-    // Bulk bar
     const bulk = el("div", "hse_bulkbar");
     bulk.appendChild(document.createTextNode("Déplacement en masse :"));
 
     const kw_inp = _inp("Mot-clé (ex: emma)…", _bulk_rooms_kw, "hse_input hse_bulkbar_kw");
     kw_inp.addEventListener("input", (ev) => { _bulk_rooms_kw = ev.target.value || ""; });
     bulk.appendChild(kw_inp);
-
     bulk.appendChild(document.createTextNode(" vers : "));
 
     const room_opts = _keys_sorted(rooms).map((rid) => ({
@@ -1033,7 +988,6 @@
       if (!kw) { alert("Saisir un mot-clé."); return; }
       const target_room = tgt_sel.value;
       if (!target_room) { alert("Choisir une pièce cible."); return; }
-
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
         if (eid.toLowerCase().includes(kw)) {
@@ -1041,7 +995,6 @@
           count++;
         }
       });
-
       if (count === 0) {
         alert(`Aucun capteur ne contient "${kw}".`);
       } else {
@@ -1126,14 +1079,12 @@
 
     container.appendChild(hbar);
 
-    // Bulk bar
     const bulk = el("div", "hse_bulkbar");
     bulk.appendChild(document.createTextNode("Affecter en masse :"));
 
     const kw_inp = _inp("Mot-clé (ex: tv)…", _bulk_types_kw, "hse_input hse_bulkbar_kw");
     kw_inp.addEventListener("input", (ev) => { _bulk_types_kw = ev.target.value || ""; });
     bulk.appendChild(kw_inp);
-
     bulk.appendChild(document.createTextNode(" → type : "));
 
     const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
@@ -1151,7 +1102,6 @@
       if (!kw) { alert("Saisir un mot-clé."); return; }
       const target_type = new_t_inp.value.trim() || tgt_sel.value;
       if (!target_type) { alert("Choisir ou saisir un type cible."); return; }
-
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
         if (eid.toLowerCase().includes(kw)) {
@@ -1213,7 +1163,6 @@
   // ---------------------------------------------------------------------------
 
   function render_customisation(container, state, org_state, on_action) {
-    // FIX: injecter les styles dans le Shadow DOM du panel (pas document.head)
     _inject_styles(container);
     clear(container);
 
@@ -1230,7 +1179,7 @@
     const pending     = sync?.pending_diff || null;
     const has_pending = !!(pending && pending.has_changes);
 
-    // ── Apparence ──────────────────────────────────────────────────
+    // ── Apparence
     const theme_card = el("div", "hse_card");
     theme_card.appendChild(el("div", null, "Apparence & Thème"));
     theme_card.appendChild(el("div", "hse_subtitle",
@@ -1247,7 +1196,7 @@
     theme_card.appendChild(toggles);
     container.appendChild(theme_card);
 
-    // ── Sync HA ────────────────────────────────────────────────────
+    // ── Sync HA
     const org = el("div", "hse_card");
     org.appendChild(el("div", null, "Sync Home Assistant"));
     org.appendChild(el("div", "hse_subtitle",
@@ -1272,17 +1221,14 @@
 
     const tb = el("div", "hse_toolbar");
     tb.appendChild(_btn("Prévisualiser sync HA", "hse_button", () => on_action("org_preview")));
-
     const btn_auto = _btn("Appliquer sync HA (auto)", "hse_button",
       () => on_action("org_apply", { apply_mode: "auto" }));
     btn_auto.disabled = !has_pending || !!org_state?.apply_running;
     tb.appendChild(btn_auto);
-
     const btn_all = _btn("Appliquer sync HA (all)", "hse_button",
       () => on_action("org_apply", { apply_mode: "all" }));
     btn_all.disabled = !has_pending || !!org_state?.apply_running;
     tb.appendChild(btn_all);
-
     tb.appendChild(_btn(org_state?.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
       () => on_action("org_toggle_raw")));
     org.appendChild(tb);
@@ -1297,14 +1243,14 @@
     }
     container.appendChild(org);
 
-    // ── Section Rooms ──────────────────────────────────────────────
+    // ── Section Rooms
     const rooms_card = el("div", "hse_card");
     const rooms_sec  = el("div");
     rooms_card.appendChild(rooms_sec);
     container.appendChild(rooms_card);
     _render_rooms_section(rooms_sec, rooms, assignments, on_action);
 
-    // ── Section Types ──────────────────────────────────────────────
+    // ── Section Types
     const types_card = el("div", "hse_card");
     const types_sec  = el("div");
     types_card.appendChild(types_sec);
