@@ -196,20 +196,12 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Styles
+  // Styles — injectés dans le Shadow DOM du container
   // ---------------------------------------------------------------------------
 
-  function _inject_styles() {
-    const id = "__hse_custom_styles_v4__";
-    if (document.getElementById(id)) return;
-    // Purger ancienne version
-    ["__hse_custom_styles_v3__", "__hse_custom_styles_v2__"].forEach((old) => {
-      const el_old = document.getElementById(old);
-      if (el_old) el_old.remove();
-    });
-    const s = document.createElement("style");
-    s.id = id;
-    s.textContent = `
+  const STYLE_ID = "__hse_custom_styles__";
+
+  const STYLE_CSS = `
 /* ─── Group card ─────────────────────────────────────────────────── */
 .hse_gc {
   border: 1px solid var(--hse_border);
@@ -403,7 +395,40 @@
   padding:10px 16px; border-top:1px solid var(--hse_border);
 }
 `;
-    document.head.appendChild(s);
+
+  function _inject_styles(container) {
+    // Remonter jusqu'au shadowRoot pour injecter les styles au bon endroit
+    let root = null;
+    try {
+      let node = container;
+      while (node) {
+        if (node instanceof ShadowRoot) { root = node; break; }
+        node = node.parentNode || node.host || null;
+        // getRootNode() est plus direct
+      }
+      if (!root && container && container.getRootNode) {
+        const rn = container.getRootNode();
+        if (rn instanceof ShadowRoot) root = rn;
+      }
+    } catch (_) {}
+
+    // Fallback : document.head si pas de shadow root trouvé
+    const target = root || document.head;
+
+    // Supprimer toute ancienne version (shadow ou document)
+    ["__hse_custom_styles__", "__hse_custom_styles_v4__", "__hse_custom_styles_v3__", "__hse_custom_styles_v2__"].forEach((old_id) => {
+      [target, document.head].forEach((t) => {
+        try {
+          const old_el = t.querySelector ? t.querySelector(`#${old_id}`) : t.getElementById ? t.getElementById(old_id) : null;
+          if (old_el) old_el.remove();
+        } catch (_) {}
+      });
+    });
+
+    const s = document.createElement("style");
+    s.id = STYLE_ID;
+    s.textContent = STYLE_CSS;
+    target.appendChild(s);
   }
 
   // ---------------------------------------------------------------------------
@@ -1188,7 +1213,8 @@
   // ---------------------------------------------------------------------------
 
   function render_customisation(container, state, org_state, on_action) {
-    _inject_styles();
+    // FIX: injecter les styles dans le Shadow DOM du panel (pas document.head)
+    _inject_styles(container);
     clear(container);
 
     const meta_store = org_state?.meta_store || null;
