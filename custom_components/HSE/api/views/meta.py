@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.components.http import HomeAssistantView
 
 from ...const import API_PREFIX, DOMAIN
+from ...meta_sync import _build_catalogue_entity_ids
 from ...time_utils import utc_now_iso
 
 
@@ -147,6 +148,21 @@ def _validate_assignments(assignments_in: Any) -> dict[str, Any]:
     return out
 
 
+def _filter_assignments_by_catalogue(
+    assignments: dict[str, Any],
+    catalogue: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Retourne assignments filtré aux seuls entity_id présents dans le catalogue HSE.
+
+    Si le catalogue est vide ou absent (première installation), on retourne assignments
+    tel quel pour ne pas casser la compatibilité initiale.
+    """
+    catalogue_eids = _build_catalogue_entity_ids(catalogue)
+    if not catalogue_eids:
+        return assignments
+    return {eid: v for eid, v in assignments.items() if eid in catalogue_eids}
+
+
 class MetaView(HomeAssistantView):
     url = f"{API_PREFIX}/meta"
     name = "hse:unified:meta"
@@ -160,7 +176,19 @@ class MetaView(HomeAssistantView):
         if not meta_store:
             meta_store = {"schema_version": 1, "generated_at": None, "meta": {"rooms": [], "types": [], "assignments": {}}, "sync": {}}
 
-        return self.json({"ok": True, "meta_store": meta_store})
+        # Filtrer les assignments zombies (sensors hors catalogue) avant de les exposer au frontend
+        catalogue = domain_data.get("catalogue")
+        meta = (meta_store.get("meta") or {})
+        raw_assignments = meta.get("assignments") or {}
+        filtered_assignments = _filter_assignments_by_catalogue(raw_assignments, catalogue)
+
+        # Retourner une vue filtrée sans modifier le store en mémoire
+        import copy
+        meta_store_out = copy.deepcopy(meta_store)
+        if isinstance(meta_store_out.get("meta"), dict):
+            meta_store_out["meta"]["assignments"] = filtered_assignments
+
+        return self.json({"ok": True, "meta_store": meta_store_out})
 
     async def post(self, request):
         hass = request.app["hass"]
@@ -181,6 +209,11 @@ class MetaView(HomeAssistantView):
             rooms = _validate_rooms(meta_in.get("rooms"))
             types = _validate_types(meta_in.get("types"))
             assignments = _validate_assignments(meta_in.get("assignments"))
+
+            # Filtrer les assignments zombies avant persistance
+            catalogue = domain_data.get("catalogue")
+            assignments = _filter_assignments_by_catalogue(assignments, catalogue)
+
             rules = meta_in.get("rules")
             if rules is None:
                 rules = meta_store.get("meta", {}).get("rules")
