@@ -436,17 +436,25 @@
       return;
     }
 
-    // Injecter le layout HTML
+    // Injecter le layout HTML (DOM toujours recréé)
     container.innerHTML = window.hse_cards_view.render_cards_layout();
 
-    // Si une instance existe déjà, on la réutilise (re-attache les events)
-    if (_instance && _instance._hass === hass) {
+    // Réutiliser l'instance existante : mettre à jour hass et re-attacher les events sur le nouveau DOM
+    if (_instance) {
+      _instance._hass = hass;
       _instance.attach_events();
       _instance._apply_card_type_visibility();
+      // Re-peupler les selects depuis les sensors déjà chargés
       _instance._populate_selects();
+      // Re-afficher le YAML précédemment généré s'il existe
+      if (_instance._yaml) {
+        const yaml_el = document.getElementById("hse_cards_yaml_code");
+        if (yaml_el) yaml_el.textContent = _instance._yaml;
+      }
       return;
     }
 
+    // Première création
     const ctrl = new CardsController(hass);
     _instance = ctrl;
     ctrl.init().catch((err) => console.error("[HSE cards] init error:", err));
