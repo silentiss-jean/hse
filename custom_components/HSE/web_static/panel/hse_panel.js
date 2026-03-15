@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-14_1422_wire_cards_tab";
+const build_signature = "2026-03-15_fix_render_guards";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -18,6 +18,11 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
     { id: "migration", label: "Migration capteurs" },
     { id: "costs", label: "Analyse de coûts" },
   ];
+
+  // Onglets dont le DOM NE DOIT PAS être détruit par les callbacks async
+  // des autres onglets (org_fetch_meta, etc.)
+  // Pour ces onglets, _render_for_active_tab() ne rerendera que si l'onglet est actif.
+  const TABS_STABLE = new Set(["cards", "custom", "config", "costs", "diagnostic", "scan", "migration"]);
 
   class hse_panel extends HTMLElement {
     constructor() {
@@ -85,7 +90,6 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
       this._boot_done = false;
       this._boot_error = null;
 
-      // Default: follow Home Assistant theme
       this._theme = "ha";
       this._custom_state = {
         theme: "ha",
@@ -155,6 +159,22 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
       this._render();
     }
 
+    /**
+     * Variante de _render_if_not_interacting() à utiliser dans les callbacks
+     * async qui sont propres à UN onglet spécifique (org_fetch_meta, org_save, etc.).
+     *
+     * Ne rerendera QUE si l'onglet actif correspond à tab_id ET que l'utilisateur
+     * n'est pas en train d'interagir.
+     *
+     * Ceci évite qu'un callback de l'onglet "custom" détruise le DOM de l'onglet
+     * "cards" ou tout autre onglet actif.
+     */
+    _render_for_active_tab(tab_id) {
+      if (this._active_tab !== tab_id) return;
+      if (this._user_interacting) return;
+      this._render();
+    }
+
     disconnectedCallback() {
       this._clear_overview_autorefresh();
       this._clear_reference_status_polling();
@@ -168,10 +188,9 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
 
     set hass(hass) {
       this._hass = hass;
-      if (this._active_tab === "custom") return;
-      if (this._active_tab === "config") return;
-      if (this._active_tab === "costs") return;
-      if (this._active_tab === "cards") return;
+      // Ne pas rerender sur update HA pour les onglets avec état DOM persistant.
+      // L'overview et costs ont besoin du setter hass pour déclencher le refresh.
+      if (TABS_STABLE.has(this._active_tab)) return;
       this._render();
     }
 
@@ -404,6 +423,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
           this._overview_data = { error: this._err_msg(err) };
         } finally {
           this._overview_refreshing = false;
+          // overview et costs sont les seuls onglets qui s'auto-refresh
           this._render_if_not_interacting();
         }
       };
@@ -488,7 +508,8 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.loading = false;
-        this._render_if_not_interacting();
+        // Ne rerender que si on est toujours sur l'onglet custom
+        this._render_for_active_tab("custom");
       }
     }
 
@@ -528,7 +549,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
         this._org_state.message = "\u00c9chec de sauvegarde.";
       } finally {
         this._org_state.saving = false;
-        this._render_if_not_interacting();
+        this._render_for_active_tab("custom");
       }
     }
 
@@ -556,7 +577,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.preview_running = false;
-        this._render_if_not_interacting();
+        this._render_for_active_tab("custom");
       }
     }
 
@@ -594,7 +615,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
         this._org_state.error = this._err_msg(err);
       } finally {
         this._org_state.apply_running = false;
-        this._render_if_not_interacting();
+        this._render_for_active_tab("custom");
       }
     }
 
@@ -693,6 +714,11 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
     }
 
     _set_active_tab(tab_id) {
+      // Nettoyer les flags "built" de l'ancien onglet lors du changement
+      if (this._ui?.content) {
+        this._ui.content.removeAttribute("data-hse-config-built");
+        this._ui.content.removeAttribute("data-hse-cards-built");
+      }
       this._active_tab = tab_id;
       this._storage_set("hse_active_tab", tab_id);
       this._render();
@@ -734,20 +760,31 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
       this._ensure_valid_tab();
       this._render_nav_tabs();
 
+      // ── Guards "built" : ne pas détruire le DOM si l'onglet est déjà construit ──
+
+      // Guard config (existant)
       if (this._active_tab !== "config" && this._ui.content.hasAttribute("data-hse-config-built")) {
         this._ui.content.removeAttribute("data-hse-config-built");
       }
-
       const config_already_built =
         this._active_tab === "config" &&
         this._ui.content.hasAttribute("data-hse-config-built");
 
-      if (!config_already_built) {
+      // Guard cards (nouveau) : l'état aperçu/yaml est désormais restauré par cards.controller,
+      // mais on évite de redéclencher render_cards() complet si déjà construit.
+      if (this._active_tab !== "cards" && this._ui.content.hasAttribute("data-hse-cards-built")) {
+        this._ui.content.removeAttribute("data-hse-cards-built");
+      }
+      const cards_already_built =
+        this._active_tab === "cards" &&
+        this._ui.content.hasAttribute("data-hse-cards-built");
+
+      if (!config_already_built && !cards_already_built) {
         window.hse_dom.clear(this._ui.content);
       }
 
       if (!this._hass) {
-        if (config_already_built) window.hse_dom.clear(this._ui.content);
+        if (config_already_built || cards_already_built) window.hse_dom.clear(this._ui.content);
         this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass\u2026"));
         return;
       }
@@ -822,7 +859,11 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
         return;
       }
 
+      // Marquer comme construit — les rerenders suivants (callbacks async)
+      // ne détruiront plus ce DOM tant qu'on reste sur cet onglet.
+      // cards.controller restaure lui-même l'état preview/yaml si déjà construit.
       window.hse_cards_controller.render_cards(container, this._hass);
+      this._ui.content.setAttribute("data-hse-cards-built", "1");
     }
 
     async _render_migration() {
@@ -846,7 +887,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
           this._migration_state.error = this._err_msg(err);
         } finally {
           this._migration_state.loading = false;
-          this._render();
+          this._render_for_active_tab("migration");
         }
       };
 
@@ -1538,7 +1579,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             this._diag_state.check_error = this._err_msg(err);
           } finally {
             this._diag_state.check_loading = false;
-            this._render();
+            this._render_for_active_tab("diagnostic");
           }
           return;
         }
@@ -1564,7 +1605,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             path: "hse/unified/catalogue",
             body: null,
           });
-          this._render();
+          this._render_for_active_tab("diagnostic");
           return;
         }
 
@@ -1586,7 +1627,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             path: "hse/unified/catalogue",
             body: null,
           });
-          this._render();
+          this._render_for_active_tab("diagnostic");
           return;
         }
 
@@ -1613,7 +1654,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
           const req = _default_check_request([entity_id]);
           this._diag_state.check_loading = true;
           this._diag_state.check_error = null;
-          this._render();
+          this._render_for_active_tab("diagnostic");
           try {
             this._diag_state.check_result = await _wrap_last("diagnostic_check", () => diag_api.check_consistency(req), {
               method: "post",
@@ -1625,7 +1666,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             this._diag_state.check_error = this._err_msg(err);
           } finally {
             this._diag_state.check_loading = false;
-            this._render();
+            this._render_for_active_tab("diagnostic");
           }
           return;
         }
@@ -1641,7 +1682,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             path: "hse/unified/catalogue",
             body: null,
           });
-          this._render();
+          this._render_for_active_tab("diagnostic");
           return;
         }
 
@@ -1656,7 +1697,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             path: "hse/unified/catalogue",
             body: null,
           });
-          this._render();
+          this._render_for_active_tab("diagnostic");
           return;
         }
 
@@ -1671,7 +1712,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             path: "hse/unified/catalogue",
             body: null,
           });
-          this._render();
+          this._render_for_active_tab("diagnostic");
           return;
         }
       });
@@ -2011,7 +2052,7 @@ const build_signature = "2026-03-14_1422_wire_cards_tab";
             this._scan_result = { error: this._err_msg(err), integrations: [], candidates: [] };
           } finally {
             this._scan_state.scan_running = false;
-            this._render();
+            this._render_for_active_tab("scan");
           }
         }
       });
