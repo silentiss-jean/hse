@@ -6,14 +6,12 @@
   class CardsController {
     constructor(hass, root) {
       this._hass = hass;
-      this._root = root; // ShadowRoot
+      this._root = root;
       this._sensors = [];
       this._yaml = "";
       this._pf_row_seq = 0;
       this._pf_all_facture_total = [];
     }
-
-    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     _$(id) {
       return this._root.getElementById(id);
@@ -52,8 +50,6 @@
       return eid.includes("_cout_daily") && eid.includes("_ttc");
     }
 
-    // ─── Chargement des données ───────────────────────────────────────────────
-
     async load_sensors() {
       const count_el = this._("hse_cards_sensor_count");
       try {
@@ -72,16 +68,18 @@
       }
     }
 
-    // ─── Visibilité options Power Flow ────────────────────────────────────────
+    // ─── Visibilité des options selon le type de carte ────────────────────────
 
     _apply_card_type_visibility() {
       const type_el = this._("hse_cards_card_type");
-      const pf_el = this._("hse_cards_pf_options");
-      if (!type_el || !pf_el) return;
-      pf_el.style.display = type_el.value === "power_flow_card_plus" ? "" : "none";
-    }
+      const card_type = type_el ? type_el.value : "overview";
 
-    // ─── Population des selects ───────────────────────────────────────────────
+      const pf_el = this._("hse_cards_pf_options");
+      const sensor_el = this._("hse_cards_sensor_options");
+
+      if (pf_el) pf_el.style.display = card_type === "power_flow_card_plus" ? "" : "none";
+      if (sensor_el) sensor_el.style.display = card_type === "sensor" ? "" : "none";
+    }
 
     _populate_selects() {
       const power_sensors = this._sensors.filter((s) => this._is_power(s));
@@ -96,6 +94,12 @@
       this._fill_select("hse_cards_pf_home_power", power_opts, "— Aucun (optionnel) —", false);
       this._render_home_cost_options();
       this._refresh_individual_options();
+
+      // Select pour le type sensor
+      const all_sensors_opts = this._sensors
+        .map((s) => ({ entity_id: s.entity_id, label: s.attributes?.friendly_name || s.entity_id }))
+        .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+      this._fill_select("hse_cards_sensor_entity", all_sensors_opts, "— Choisir un capteur —", true);
     }
 
     _fill_select(id, options, empty_label, required) {
@@ -216,8 +220,6 @@
       });
     }
 
-    // ─── Gestion des lignes individuals ──────────────────────────────────────
-
     _add_individual_row() {
       const container = this._("hse_cards_pf_individuals");
       if (!container) return;
@@ -256,8 +258,6 @@
       this._refresh_individual_options();
     }
 
-    // ─── Génération YAML ──────────────────────────────────────────────────────
-
     generate_yaml() {
       if (!this._sensors.length) { alert("Aucun sensor HSE trouvé. Vérifiez que vos sensors sont créés."); return; }
 
@@ -289,14 +289,37 @@
           cardTypes: ["power_flow_card_plus"],
           options: { title, grid: { power_entity: grid_power }, home: { power_entity: home_power, cost_entity: home_cost }, individuals },
         });
+
+      } else if (card_type === "sensor") {
+        const sensor_entity_id = String(this._("hse_cards_sensor_entity")?.value || "").trim();
+        if (!sensor_entity_id) { alert("Capteur individuel: choisissez un capteur."); return; }
+        this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({
+          sensors: this._sensors,
+          cardTypes: ["sensor"],
+          options: { sensor_entity_id },
+        });
+
+      } else if (card_type === "distribution") {
+        this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({
+          sensors: this._sensors,
+          cardTypes: ["distribution"],
+          options: {},
+        });
+
+      } else if (card_type === "multi_sensor") {
+        this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({
+          sensors: this._sensors,
+          cardTypes: ["multi_sensor"],
+          options: {},
+        });
+
       } else {
+        // overview (défaut)
         const daily = this._sensors
           .filter((s) => { const eid = s.entity_id; return eid.includes("_d") || eid.includes("daily") || eid.includes("_day"); })
           .sort((a, b) => parseFloat(b.state || 0) - parseFloat(a.state || 0))
           .slice(0, 10);
-
         const to_use = daily.length ? daily : this._sensors.sort((a, b) => parseFloat(b.state || 0) - parseFloat(a.state || 0)).slice(0, 10);
-
         this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({ sensors: to_use, cardTypes: ["overview"], options: {} });
       }
 
@@ -306,8 +329,6 @@
       const last_gen_el = this._("hse_cards_last_gen");
       if (last_gen_el) last_gen_el.textContent = new Date().toLocaleString("fr-FR");
     }
-
-    // ─── Actions utilisateur ──────────────────────────────────────────────────
 
     async copy_yaml() {
       if (!this._yaml) { alert("Générez d'abord le YAML"); return; }
@@ -382,8 +403,6 @@
       }).join("");
     }
 
-    // ─── Attachement des événements ───────────────────────────────────────────
-
     attach_events() {
       const _on = (id, event, fn) => {
         const el = this._(id);
@@ -405,8 +424,6 @@
       _on("hse_cards_pf_add_individual", "click", () => this._add_individual_row());
     }
 
-    // ─── Init ─────────────────────────────────────────────────────────────────
-
     async init() {
       this.attach_events();
       await this.load_sensors();
@@ -422,18 +439,8 @@
     }
   }
 
-  // Alias interne
   CardsController.prototype._ = CardsController.prototype._$;
 
-  /**
-   * Point d'entrée appelé par hse_panel.js — render_cards(container, hass).
-   *
-   * Correctif rerender : sauvegarde et restaure l'état UI complet
-   * (aperçu ouvert, YAML généré, compteur sensors, date génération)
-   * avant/après la réinjection du layout HTML.
-   * Ceci évite que l'aperçu disparaisse lors de tout _render() global
-   * déclenché par Home Assistant (update états, callbacks async).
-   */
   function render_cards(container, hass) {
     if (!window.hse_cards_view || !window.hse_cards_yaml || !window.hse_cards_api) {
       container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Erreur: dépendances cards non chargées.</div></div>';
@@ -442,7 +449,6 @@
 
     const shadow_root = container.getRootNode();
 
-    // ── Sauvegarder l'état UI avant reset DOM ─────────────────────────────────
     let preview_was_open = false;
     let yaml_backup = null;
     let last_gen_backup = null;
@@ -454,46 +460,33 @@
       yaml_backup = _instance._yaml || null;
 
       const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
-      if (last_gen_el && last_gen_el.textContent !== "Jamais") {
-        last_gen_backup = last_gen_el.textContent;
-      }
+      if (last_gen_el && last_gen_el.textContent !== "Jamais") last_gen_backup = last_gen_el.textContent;
 
       const count_el = shadow_root.getElementById("hse_cards_sensor_count");
-      if (count_el && count_el.textContent !== "Chargement\u2026") {
-        sensor_count_backup = count_el.textContent;
-      }
+      if (count_el && count_el.textContent !== "Chargement\u2026") sensor_count_backup = count_el.textContent;
     }
 
-    // ── Réinjecter le layout ──────────────────────────────────────────────────
     container.innerHTML = window.hse_cards_view.render_cards_layout();
 
     if (_instance && shadow_root instanceof ShadowRoot) {
-      // Réutiliser l'instance existante
       _instance._hass = hass;
       _instance._root = shadow_root;
       _instance.attach_events();
       _instance._apply_card_type_visibility();
       _instance._populate_selects();
 
-      // ── Restaurer le YAML généré
       if (yaml_backup) {
         const yaml_el = shadow_root.getElementById("hse_cards_yaml_code");
         if (yaml_el) yaml_el.textContent = yaml_backup;
       }
-
-      // ── Restaurer la date de dernière génération
       if (last_gen_backup) {
         const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
         if (last_gen_el) last_gen_el.textContent = last_gen_backup;
       }
-
-      // ── Restaurer le compteur de sensors
       if (sensor_count_backup) {
         const count_el = shadow_root.getElementById("hse_cards_sensor_count");
         if (count_el) count_el.textContent = sensor_count_backup;
       }
-
-      // ── Restaurer l'état aperçu — correction du bug principal
       if (preview_was_open) {
         const pv = shadow_root.getElementById("hse_cards_preview_container");
         const btn = shadow_root.getElementById("hse_cards_btn_preview");
@@ -501,7 +494,6 @@
         if (btn) btn.textContent = "\u274C Fermer aperçu";
         _instance._render_preview();
       }
-
       return;
     }
 
