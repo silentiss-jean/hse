@@ -350,10 +350,10 @@
       const visible = pv.style.display !== "none";
       if (visible) {
         pv.style.display = "none";
-        if (btn) btn.textContent = "👁️ Aperçu";
+        if (btn) btn.textContent = "\u{1F441}\uFE0F Aperçu";
       } else {
         pv.style.display = "";
-        if (btn) btn.textContent = "❌ Fermer aperçu";
+        if (btn) btn.textContent = "\u274C Fermer aperçu";
         this._render_preview();
       }
     }
@@ -422,13 +422,17 @@
     }
   }
 
-  // Alias interne : raccourci pour _(id)
+  // Alias interne
   CardsController.prototype._ = CardsController.prototype._$;
 
   /**
    * Point d'entrée appelé par hse_panel.js — render_cards(container, hass).
-   * On passe le shadowRoot via container.getRootNode() pour que getElementById
-   * fonctionne correctement dans le shadow DOM.
+   *
+   * Correctif rerender : sauvegarde et restaure l'état UI complet
+   * (aperçu ouvert, YAML généré, compteur sensors, date génération)
+   * avant/après la réinjection du layout HTML.
+   * Ceci évite que l'aperçu disparaisse lors de tout _render() global
+   * déclenché par Home Assistant (update états, callbacks async).
    */
   function render_cards(container, hass) {
     if (!window.hse_cards_view || !window.hse_cards_yaml || !window.hse_cards_api) {
@@ -436,23 +440,68 @@
       return;
     }
 
-    // Récupérer la shadowRoot depuis le container
     const shadow_root = container.getRootNode();
 
-    // Injecter le layout HTML
+    // ── Sauvegarder l'état UI avant reset DOM ─────────────────────────────────
+    let preview_was_open = false;
+    let yaml_backup = null;
+    let last_gen_backup = null;
+    let sensor_count_backup = null;
+
+    if (_instance && shadow_root instanceof ShadowRoot) {
+      const pv = shadow_root.getElementById("hse_cards_preview_container");
+      preview_was_open = pv ? pv.style.display !== "none" : false;
+      yaml_backup = _instance._yaml || null;
+
+      const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
+      if (last_gen_el && last_gen_el.textContent !== "Jamais") {
+        last_gen_backup = last_gen_el.textContent;
+      }
+
+      const count_el = shadow_root.getElementById("hse_cards_sensor_count");
+      if (count_el && count_el.textContent !== "Chargement\u2026") {
+        sensor_count_backup = count_el.textContent;
+      }
+    }
+
+    // ── Réinjecter le layout ──────────────────────────────────────────────────
     container.innerHTML = window.hse_cards_view.render_cards_layout();
 
     if (_instance && shadow_root instanceof ShadowRoot) {
-      // Réutiliser l'instance, mettre à jour root + hass
+      // Réutiliser l'instance existante
       _instance._hass = hass;
       _instance._root = shadow_root;
       _instance.attach_events();
       _instance._apply_card_type_visibility();
       _instance._populate_selects();
-      if (_instance._yaml) {
+
+      // ── Restaurer le YAML généré
+      if (yaml_backup) {
         const yaml_el = shadow_root.getElementById("hse_cards_yaml_code");
-        if (yaml_el) yaml_el.textContent = _instance._yaml;
+        if (yaml_el) yaml_el.textContent = yaml_backup;
       }
+
+      // ── Restaurer la date de dernière génération
+      if (last_gen_backup) {
+        const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
+        if (last_gen_el) last_gen_el.textContent = last_gen_backup;
+      }
+
+      // ── Restaurer le compteur de sensors
+      if (sensor_count_backup) {
+        const count_el = shadow_root.getElementById("hse_cards_sensor_count");
+        if (count_el) count_el.textContent = sensor_count_backup;
+      }
+
+      // ── Restaurer l'état aperçu — correction du bug principal
+      if (preview_was_open) {
+        const pv = shadow_root.getElementById("hse_cards_preview_container");
+        const btn = shadow_root.getElementById("hse_cards_btn_preview");
+        if (pv) pv.style.display = "";
+        if (btn) btn.textContent = "\u274C Fermer aperçu";
+        _instance._render_preview();
+      }
+
       return;
     }
 
