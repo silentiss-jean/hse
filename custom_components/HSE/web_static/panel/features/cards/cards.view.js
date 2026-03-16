@@ -18,6 +18,10 @@
       <span class="hse_label">Dernière génération</span>
       <span id="hse_cards_last_gen" class="hse_badge">Jamais</span>
     </div>
+    <div class="hse_cards_stat">
+      <span class="hse_label">Pièces avec affectations</span>
+      <span id="hse_cards_rooms_count" class="hse_badge">—</span>
+    </div>
   </div>
 </div>
 
@@ -37,12 +41,26 @@
   <div class="hse_cards_field">
     <label class="hse_label">Type de carte</label>
     <select id="hse_cards_card_type" class="hse_select">
+      <option value="by_room">🏠 Par pièce (auto — recommandé)</option>
       <option value="overview">Overview (historique)</option>
       <option value="distribution">Distribution de puissance</option>
       <option value="sensor">Capteur individuel (sensor)</option>
       <option value="multi_sensor">Grille multi-capteurs kWh/jour</option>
       <option value="power_flow_card_plus">Power Flow Card Plus (custom)</option>
     </select>
+  </div>
+
+  <!-- Options Par pièce -->
+  <div id="hse_cards_room_options" style="margin-top:12px;">
+    <div class="hse_cards_field">
+      <label class="hse_label">Filtrer par pièce (optionnel)</label>
+      <input id="hse_cards_room_filter" class="hse_input" type="text"
+        placeholder="cuisine, chambre, buanderie… (vide = toutes les pièces)" />
+    </div>
+    <div class="hse_section_subtitle" style="margin-top:6px;">
+      💡 Laissez vide pour générer un dashboard complet (une vue par pièce).
+      Les affectations pièce/icône se configurent dans l'onglet <strong>Customisation</strong>.
+    </div>
   </div>
 
   <!-- Options capteur individuel -->

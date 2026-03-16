@@ -1,8 +1,13 @@
 (function () {
   "use strict";
 
+  function _yaml_quote(value) {
+    const str = String(value ?? "");
+    return `"${str.replace(/"/g, '\\"')}"`;
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
-  // OVERVIEW (historique) — CORRIGÉ : history-graph entities avec clé "entity:"
+  // OVERVIEW
   // ──────────────────────────────────────────────────────────────────────────
   function _build_overview_yaml(sensors) {
     const lines = [];
@@ -28,7 +33,6 @@
     lines.push("        title: 📈 Consommation 7 derniers jours");
     lines.push("        hours_to_show: 168");
     lines.push("        entities:");
-    // FIX : format objet avec clé "entity:" (requis par HA depuis 2023.4)
     for (const s of sensors.slice(0, Math.min(5, sensors.length))) {
       lines.push(`          - entity: ${s.entity_id}`);
     }
@@ -36,7 +40,7 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // DISTRIBUTION — type: distribution (HA built-in)
+  // DISTRIBUTION
   // ──────────────────────────────────────────────────────────────────────────
   function _build_distribution_yaml(sensors) {
     const power = sensors.filter((s) => {
@@ -63,7 +67,7 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // SENSOR — type: sensor (une entité, graphique courbe)
+  // SENSOR individuel
   // ──────────────────────────────────────────────────────────────────────────
   function _build_sensor_yaml(sensor) {
     if (!sensor) return "# Aucun sensor disponible\n";
@@ -79,7 +83,7 @@
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // MULTI-SENSOR — grille de cartes sensor (une par capteur _kwh_day)
+  // MULTI-SENSOR flat (grille simple)
   // ──────────────────────────────────────────────────────────────────────────
   function _build_multi_sensor_yaml(sensors) {
     const daily = sensors
@@ -102,26 +106,109 @@
     lines.push("    path: daily");
     lines.push("    icon: mdi:lightning-bolt");
     lines.push("    cards:");
+    lines.push("      - type: grid");
+    lines.push("        columns: 3");
+    lines.push("        square: false");
+    lines.push("        cards:");
     for (const s of to_use) {
       const name = s.attributes?.friendly_name || s.entity_id;
-      lines.push("      - type: sensor");
-      lines.push(`        entity: ${s.entity_id}`);
-      lines.push(`        name: ${_yaml_quote(name)}`);
-      lines.push("        graph: line");
-      lines.push("        hours_to_show: 24");
+      lines.push("          - type: sensor");
+      lines.push(`            entity: ${s.entity_id}`);
+      lines.push(`            name: ${_yaml_quote(name)}`);
+      lines.push("            graph: line");
+      lines.push("            hours_to_show: 24");
+    }
+    return lines.join("\n") + "\n";
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // BY ROOM — une view Lovelace par pièce, grille 3 colonnes
+  // Sensors doivent être enrichis via fetch_sensors_enriched()
+  // ──────────────────────────────────────────────────────────────────────────
+  function _build_by_room_yaml(sensors, filter_kw) {
+    const lines = [];
+    const ts = new Date().toLocaleString("fr-FR");
+    lines.push("# ⚡ HSE - Dashboard par pièce (auto-généré)");
+    lines.push(`# Généré le ${ts}`);
+    lines.push("");
+    lines.push("title: ⚡ Home Suivi Elec");
+    lines.push("views:");
+
+    // Filtre les _kwh_day uniquement pour les vues par pièce
+    const daily = sensors.filter((s) => {
+      const eid = String(s.entity_id || "").toLowerCase();
+      return eid.includes("_kwh_day") || eid.includes("_day");
+    });
+
+    // Groupe par room_name (ou "Sans pièce" si non affecté)
+    const groups = new Map();
+    for (const s of daily) {
+      const key = s.room_name || "__none__";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          room_name: s.room_name || "Sans pièce",
+          room_icon: s.room_icon || "mdi:home",
+          lovelace_title: s.lovelace_title || s.room_name || "Sans pièce",
+          sensors: [],
+        });
+      }
+      groups.get(key).sensors.push(s);
+    }
+
+    // Applique le filtre mot-clé si fourni
+    const kw = (filter_kw || "").toLowerCase().trim();
+    const filtered_groups = [...groups.values()].filter((g) => {
+      if (!kw) return g.room_name !== "Sans pièce"; // sans filtre : exclut les non-affectés
+      return g.room_name.toLowerCase().includes(kw)
+          || g.sensors.some((s) => s.entity_id.toLowerCase().includes(kw));
+    });
+
+    if (!filtered_groups.length) {
+      lines.push("  # Aucune pièce trouvée — vérifiez les affectations dans la Customisation");
+      return lines.join("\n") + "\n";
+    }
+
+    // Tri alphabétique des pièces
+    filtered_groups.sort((a, b) => a.room_name.localeCompare(b.room_name, "fr"));
+
+    for (const group of filtered_groups) {
+      const path = group.room_name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "");
+
+      lines.push(`  - title: ${_yaml_quote(group.lovelace_title)}`);
+      lines.push(`    path: ${path}`);
+      lines.push(`    icon: ${group.room_icon}`);
+      lines.push("    cards:");
+      lines.push("      - type: grid");
+      lines.push("        columns: 3");
+      lines.push("        square: false");
+      lines.push("        cards:");
+
+      const sorted = [...group.sensors].sort((a, b) =>
+        parseFloat(b.state || 0) - parseFloat(a.state || 0)
+      );
+
+      for (const s of sorted) {
+        const name = s.attributes?.friendly_name || s.entity_id;
+        lines.push("          - type: sensor");
+        lines.push(`            entity: ${s.entity_id}`);
+        lines.push(`            name: ${_yaml_quote(name)}`);
+        lines.push("            graph: line");
+        lines.push("            hours_to_show: 24");
+      }
       lines.push("");
     }
+
     return lines.join("\n") + "\n";
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // POWER FLOW CARD PLUS
   // ──────────────────────────────────────────────────────────────────────────
-  function _yaml_quote(value) {
-    const str = String(value ?? "");
-    return `"${str.replace(/"/g, '\\"')}"`;
-  }
-
   function _push_cost_secondary_info(lines, indent, entity_id) {
     if (!entity_id) {
       lines.push(`${indent}secondary_info: {}`);
@@ -206,7 +293,6 @@
         return _build_distribution_yaml(sensors || []);
 
       case "sensor": {
-        // Prend le premier sensor sélectionné (options.sensor_entity_id) ou le top 1
         const eid = options?.sensor_entity_id;
         const s = eid ? (sensors || []).find((x) => x.entity_id === eid) : (sensors || [])[0];
         return _build_sensor_yaml(s);
@@ -215,7 +301,10 @@
       case "multi_sensor":
         return _build_multi_sensor_yaml(sensors || []);
 
-      default: // "overview"
+      case "by_room":
+        return _build_by_room_yaml(sensors || [], options?.room_filter || "");
+
+      default:
         return _build_overview_yaml(sensors || []);
     }
   }

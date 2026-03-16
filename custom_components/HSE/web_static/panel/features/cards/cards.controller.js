@@ -8,6 +8,7 @@
       this._hass = hass;
       this._root = root;
       this._sensors = [];
+      this._sensors_enriched = [];
       this._yaml = "";
       this._pf_row_seq = 0;
       this._pf_all_facture_total = [];
@@ -52,12 +53,28 @@
 
     async load_sensors() {
       const count_el = this._("hse_cards_sensor_count");
+      const rooms_count_el = this._("hse_cards_rooms_count");
       try {
-        const sensors = await window.hse_cards_api.fetch_lovelace_sensors(this._hass);
+        // Charge en parallèle sensors bruts + sensors enrichis
+        const [sensors, enriched] = await Promise.all([
+          window.hse_cards_api.fetch_lovelace_sensors(this._hass),
+          window.hse_cards_api.fetch_sensors_enriched(this._hass).catch(() => null),
+        ]);
         this._sensors = sensors;
+        this._sensors_enriched = enriched || sensors;
+
         if (count_el) {
           count_el.textContent = sensors.length > 0 ? sensors.length : "Aucun trouvé";
           count_el.classList.toggle("hse_badge_error", sensors.length === 0);
+        }
+
+        // Compte les pièces distinctes avec affectations
+        if (rooms_count_el) {
+          const rooms = new Set(
+            (this._sensors_enriched || []).map((s) => s.room_name).filter(Boolean)
+          );
+          rooms_count_el.textContent = rooms.size > 0 ? rooms.size : "0 (configurer Customisation)";
+          rooms_count_el.classList.toggle("hse_badge_error", rooms.size === 0);
         }
       } catch (err) {
         console.error("[HSE cards] erreur chargement sensors:", err);
@@ -72,13 +89,15 @@
 
     _apply_card_type_visibility() {
       const type_el = this._("hse_cards_card_type");
-      const card_type = type_el ? type_el.value : "overview";
+      const card_type = type_el ? type_el.value : "by_room";
 
       const pf_el = this._("hse_cards_pf_options");
       const sensor_el = this._("hse_cards_sensor_options");
+      const room_el = this._("hse_cards_room_options");
 
       if (pf_el) pf_el.style.display = card_type === "power_flow_card_plus" ? "" : "none";
       if (sensor_el) sensor_el.style.display = card_type === "sensor" ? "" : "none";
+      if (room_el) room_el.style.display = card_type === "by_room" ? "" : "none";
     }
 
     _populate_selects() {
@@ -95,7 +114,6 @@
       this._render_home_cost_options();
       this._refresh_individual_options();
 
-      // Select pour le type sensor
       const all_sensors_opts = this._sensors
         .map((s) => ({ entity_id: s.entity_id, label: s.attributes?.friendly_name || s.entity_id }))
         .sort((a, b) => a.label.localeCompare(b.label, "fr"));
@@ -262,9 +280,23 @@
       if (!this._sensors.length) { alert("Aucun sensor HSE trouvé. Vérifiez que vos sensors sont créés."); return; }
 
       const type_el = this._("hse_cards_card_type");
-      const card_type = type_el ? type_el.value : "overview";
+      const card_type = type_el ? type_el.value : "by_room";
 
-      if (card_type === "power_flow_card_plus") {
+      if (card_type === "by_room") {
+        const room_filter = String(this._("hse_cards_room_filter")?.value || "").trim();
+        const enriched = this._sensors_enriched.length ? this._sensors_enriched : this._sensors;
+        const rooms_with_assign = enriched.filter((s) => s.room_name);
+        if (!rooms_with_assign.length && !room_filter) {
+          alert("Aucune affectation de pièce trouvée.\n\nConfigurez les pièces dans l'onglet Customisation puis relancez la génération.");
+          return;
+        }
+        this._yaml = window.hse_cards_yaml.generate_dashboard_yaml({
+          sensors: enriched,
+          cardTypes: ["by_room"],
+          options: { room_filter },
+        });
+
+      } else if (card_type === "power_flow_card_plus") {
         const title = String(this._("hse_cards_pf_title")?.value || "").trim();
         const grid_power = String(this._("hse_cards_pf_grid_power")?.value || "").trim();
         const home_power = String(this._("hse_cards_pf_home_power")?.value || "").trim();
@@ -314,7 +346,6 @@
         });
 
       } else {
-        // overview (défaut)
         const daily = this._sensors
           .filter((s) => { const eid = s.entity_id; return eid.includes("_d") || eid.includes("daily") || eid.includes("_day"); })
           .sort((a, b) => parseFloat(b.state || 0) - parseFloat(a.state || 0))
