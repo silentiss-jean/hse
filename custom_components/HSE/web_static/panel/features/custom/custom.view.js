@@ -6,7 +6,7 @@
   // ---------------------------------------------------------------------------
 
   const THEMES = [
-    { key: "ha",      label: "Home Assistant (thème HA)" },
+    { key: "ha",      label: "Home Assistant (th\u00e8me HA)" },
     { key: "dark",    label: "Dark (sobre)" },
     { key: "light",   label: "Light" },
     { key: "ocean",   label: "Ocean" },
@@ -70,20 +70,20 @@
     ballon:         "Eau chaude",
     chauffe_eau:    "Eau chaude",
     cumulus:        "Eau chaude",
-    lave_vaisselle: "Électroménager",
-    lave_linge:     "Électroménager",
-    seche_linge:    "Électroménager",
-    refrigerateur:  "Électroménager",
-    frigo:          "Électroménager",
-    four:           "Électroménager",
-    micro_onde:     "Électroménager",
-    aspirateur:     "Électroménager",
-    lampe:          "Éclairage",
-    lumiere:        "Éclairage",
-    light:          "Éclairage",
-    eclairage:      "Éclairage",
-    led:            "Éclairage",
-    voiture:        "Véhicule",
+    lave_vaisselle: "\u00c9lectrom\u00e9nager",
+    lave_linge:     "\u00c9lectrom\u00e9nager",
+    seche_linge:    "\u00c9lectrom\u00e9nager",
+    refrigerateur:  "\u00c9lectrom\u00e9nager",
+    frigo:          "\u00c9lectrom\u00e9nager",
+    four:           "\u00c9lectrom\u00e9nager",
+    micro_onde:     "\u00c9lectrom\u00e9nager",
+    aspirateur:     "\u00c9lectrom\u00e9nager",
+    lampe:          "\u00c9clairage",
+    lumiere:        "\u00c9clairage",
+    light:          "\u00c9clairage",
+    eclairage:      "\u00c9clairage",
+    led:            "\u00c9clairage",
+    voiture:        "V\u00e9hicule",
     volet:          "Volets",
     shutter:        "Volets",
     prise:          "Prises",
@@ -91,7 +91,9 @@
   };
 
   // ---------------------------------------------------------------------------
-  // UI state — persistant entre renders
+  // UI state — persistant entre renders (local au module, hors store)
+  // Ces valeurs sont purement visuelles (collapse, filtres locaux) :
+  // elles n'ont pas besoin d'être réactives dans le store global.
   // ---------------------------------------------------------------------------
 
   const _collapsed_rooms   = new Map();
@@ -109,8 +111,39 @@
   let _bulk_types_kw       = "";
   let _bulk_types_target   = "";
 
-  // Référence au shadow root courant (pour les modals)
   let _shadow_root         = null;
+
+  // ---------------------------------------------------------------------------
+  // Accès au store
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Lit org_state directement depuis window.hse_store.
+   * Retourne un objet compatible avec l'ancienne API org_state
+   * pour ne pas casser les références internes.
+   *
+   * Si hse_store n'est pas encore chargé (boot en cours),
+   * on accepte le fallback org_state_fallback passé en paramètre.
+   */
+  function _get_org_state(org_state_fallback) {
+    const s = window.hse_store;
+    if (!s) return org_state_fallback || {};
+    return {
+      meta_store:      s.get('org.meta_store') ?? null,
+      meta_draft:      s.get('org.meta_draft') ?? null,
+      dirty:           !!s.get('org.dirty'),
+      saving:          !!s.get('org.saving'),
+      loading:         !!s.get('org.loading'),
+      error:           s.get('org.error') ?? null,
+      message:         s.get('org.message') ?? null,
+      // Champs visuels non migrés dans le store — toujours lus sur le fallback
+      preview_running: org_state_fallback?.preview_running ?? false,
+      apply_running:   org_state_fallback?.apply_running   ?? false,
+      show_raw:        org_state_fallback?.show_raw        ?? false,
+      rooms_filter_q:  org_state_fallback?.rooms_filter_q  ?? "",
+      assignments_filter_q: org_state_fallback?.assignments_filter_q ?? "",
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Normalisation backend
@@ -126,8 +159,6 @@
     return raw;
   }
 
-  // FIX #2 : n'hydrate QUE les entités déjà présentes dans assignments_raw
-  // (ne pas ajouter les capteurs hors-scope comme studio_code_server)
   function _hydrate_assignments(assignments_raw, rooms, snapshot_entities) {
     const out = {};
     Object.entries(assignments_raw || {}).forEach(([eid, a]) => {
@@ -275,7 +306,7 @@
 /* ─── Group body ────────────────────────────────────────────────── */
 .hse_gb { padding: 8px 10px; }
 
-/* ─── FIX #1 : liste capteurs — 1 colonne, nom complet ────────────── */
+/* ─── Liste capteurs — 1 colonne, nom complet ────────────── */
 .hse_sc_col { min-width: 0; }
 .hse_sc_col_title {
   font-size: 10px; font-weight: 700;
@@ -300,7 +331,6 @@
 .hse_sr_click:hover { background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 80%, transparent); }
 .hse_sr_child { margin-left: 16px; color: var(--hse_muted); font-size: 10.5px; }
 .hse_sr_caret { flex-shrink:0; font-size:9px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
-/* FIX #1 : pas de troncature, le nom s’affiche en entier */
 .hse_sr_label {
   flex: 1 1 auto;
   min-width: 0;
@@ -316,7 +346,7 @@
   margin-top: 1px;
 }
 
-/* ─── Grille pièces (multi-colonnes) ────────────────────────────── */
+/* ─── Grille pi\u00e8ces (multi-colonnes) ────────────────────────────── */
 .hse_groups {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -350,7 +380,7 @@
 .hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
 .hse_filter { min-width:180px !important; max-width:260px; }
 
-/* ─── FIX #3 : Modals — attachées au shadow root ─────────────────── */
+/* ─── Modals — attach\u00e9es au shadow root ─────────────────── */
 .hse_modal_ov {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.55); z-index: 9999;
@@ -398,11 +428,9 @@
     s.textContent = STYLE_CSS;
     target.appendChild(s);
 
-    // FIX #3 : mémoriser le shadow root pour les modals
     _shadow_root = root;
   }
 
-  // FIX #3 : helper pour ouvrir une modal dans le bon contexte
   function _modal_root() {
     return _shadow_root || document.body;
   }
@@ -464,7 +492,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal rooms — FIX #3 : append dans le shadow root
+  // Modal rooms
   // ---------------------------------------------------------------------------
 
   function _modal_move(entity_ids, current_room_id, rooms, on_action, redraw) {
@@ -474,8 +502,8 @@
 
     const hd = el("div", "hse_modal_hd");
     hd.appendChild(el("div", "hse_modal_title",
-      entity_ids.length > 1 ? `Déplacer ${entity_ids.length} capteur(s)` : `Déplacer : ${entity_ids[0]}`));
-    hd.appendChild(_btn("×", "hse_modal_close", close));
+      entity_ids.length > 1 ? `D\u00e9placer ${entity_ids.length} capteur(s)` : `D\u00e9placer : ${entity_ids[0]}`));
+    hd.appendChild(_btn("\u00d7", "hse_modal_close", close));
 
     const bd = el("div", "hse_modal_bd");
     const room_opts = _keys_sorted(rooms).map((rid) => ({
@@ -484,16 +512,16 @@
     }));
     const sel = _sel(room_opts, current_room_id || "", "hse_input");
     sel.style.cssText = "width:100%;margin-bottom:10px;";
-    bd.appendChild(el("div", "hse_subtitle", "Choisir une pièce existante :"));
+    bd.appendChild(el("div", "hse_subtitle", "Choisir une pi\u00e8ce existante :"));
     bd.appendChild(sel);
-    bd.appendChild(el("div", "hse_subtitle", "— ou créer une nouvelle pièce :"));
-    const new_inp = _inp("Nom de la nouvelle pièce", "", "hse_input");
+    bd.appendChild(el("div", "hse_subtitle", "\u2014 ou cr\u00e9er une nouvelle pi\u00e8ce :"));
+    const new_inp = _inp("Nom de la nouvelle pi\u00e8ce", "", "hse_input");
     new_inp.style.cssText = "width:100%;margin-top:6px;";
     bd.appendChild(new_inp);
 
     const ft = el("div", "hse_modal_ft");
     ft.appendChild(_btn("Annuler", "hse_button", close));
-    ft.appendChild(_btn("Déplacer", "hse_button hse_button_primary", () => {
+    ft.appendChild(_btn("D\u00e9placer", "hse_button hse_button_primary", () => {
       let target = new_inp.value.trim() || sel.value;
       if (!target) { close(); return; }
       entity_ids.forEach((eid) => {
@@ -509,7 +537,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal types — FIX #3 : append dans le shadow root
+  // Modal types
   // ---------------------------------------------------------------------------
 
   function _modal_type(entity_ids, current_type_id, known_types, on_action, redraw) {
@@ -519,8 +547,8 @@
 
     const hd = el("div", "hse_modal_hd");
     hd.appendChild(el("div", "hse_modal_title",
-      entity_ids.length > 1 ? `Affecter ${entity_ids.length} capteur(s) à un type` : `Type : ${entity_ids[0]}`));
-    hd.appendChild(_btn("×", "hse_modal_close", close));
+      entity_ids.length > 1 ? `Affecter ${entity_ids.length} capteur(s) \u00e0 un type` : `Type : ${entity_ids[0]}`));
+    hd.appendChild(_btn("\u00d7", "hse_modal_close", close));
 
     const bd = el("div", "hse_modal_bd");
     const type_opts = [...known_types].sort().map((t) => ({ value: t, label: t }));
@@ -528,8 +556,8 @@
     sel.style.cssText = "width:100%;margin-bottom:10px;";
     bd.appendChild(el("div", "hse_subtitle", "Choisir un type existant :"));
     bd.appendChild(sel);
-    bd.appendChild(el("div", "hse_subtitle", "— ou créer un nouveau type :"));
-    const new_inp = _inp("Ex: TV, Chauffage…", "", "hse_input");
+    bd.appendChild(el("div", "hse_subtitle", "\u2014 ou cr\u00e9er un nouveau type :"));
+    const new_inp = _inp("Ex: TV, Chauffage\u2026", "", "hse_input");
     new_inp.style.cssText = "width:100%;margin-top:6px;";
     bd.appendChild(new_inp);
 
@@ -574,10 +602,10 @@
         const is_coll = fam_map.get(fkey) === true;
 
         const row = el("div", "hse_sr hse_sr_click");
-        row.title = "Cliquer pour déplacer";
+        row.title = "Cliquer pour d\u00e9placer";
 
         if (fam.children.length) {
-          const caret = el("span", "hse_sr_caret", is_coll ? "▶" : "▼");
+          const caret = el("span", "hse_sr_caret", is_coll ? "\u25b6" : "\u25bc");
           caret.addEventListener("click", (ev) => {
             ev.stopPropagation();
             fam_map.set(fkey, !is_coll);
@@ -585,7 +613,7 @@
           });
           row.appendChild(caret);
         } else {
-          row.appendChild(el("span", "hse_sr_caret", "•"));
+          row.appendChild(el("span", "hse_sr_caret", "\u2022"));
         }
 
         const lbl = el("span", "hse_sr_label", fam.parent || fam.all[0]);
@@ -597,7 +625,7 @@
           const cbox = el("div", "hse_sr_children");
           fam.children.forEach((eid) => {
             const cr = el("div", "hse_sr hse_sr_click hse_sr_child");
-            cr.title = "Cliquer pour déplacer";
+            cr.title = "Cliquer pour d\u00e9placer";
             cr.appendChild(el("span", "hse_sr_label", eid));
             cr.addEventListener("click", () => on_single(eid));
             cbox.appendChild(cr);
@@ -641,18 +669,18 @@
         if (is_open) card.setAttribute("data-open", "1");
 
         const gh = el("div", "hse_gh");
-        const tog = _btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+        const tog = _btn(is_open ? "\u25bc" : "\u25b6", "hse_gh_toggle", (ev) => {
           ev.stopPropagation();
           _collapsed_rooms.set("__none__", is_open);
           on_action("org_rerender");
         });
         gh.appendChild(tog);
-        gh.appendChild(el("span", "hse_gh_icon", "❓"));
+        gh.appendChild(el("span", "hse_gh_icon", "\u2753"));
         const ng = el("div", "hse_gh_namegroup");
-        ng.appendChild(el("span", "hse_gh_name", "Non affectés"));
+        ng.appendChild(el("span", "hse_gh_name", "Non affect\u00e9s"));
         gh.appendChild(ng);
         gh.appendChild(el("div", "hse_gh_spacer"));
-        gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+        gh.appendChild(el("span", "hse_gh_count", `\u2014 ${visible.length} capteur(s)`));
         gh.addEventListener("click", () => {
           _collapsed_rooms.set("__none__", is_open);
           on_action("org_rerender");
@@ -662,7 +690,7 @@
         if (is_open) {
           const body = el("div", "hse_gb");
           body.appendChild(_render_sensor_col(
-            "__none__", "Capteurs sans pièce", "power", visible,
+            "__none__", "Capteurs sans pi\u00e8ce", "power", visible,
             "", _collapsed_rfam,
             (fam) => _modal_move(fam.all, null, rooms, on_action, () => on_action("org_rerender")),
             (eid) => _modal_move([eid], null, rooms, on_action, () => on_action("org_rerender")),
@@ -698,19 +726,19 @@
       if (is_open) card.setAttribute("data-open", "1");
 
       const gh = el("div", "hse_gh");
-      const tog = _btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+      const tog = _btn(is_open ? "\u25bc" : "\u25b6", "hse_gh_toggle", (ev) => {
         ev.stopPropagation();
         _collapsed_rooms.set(room_id, is_open);
         on_action("org_rerender");
       });
       gh.appendChild(tog);
-      gh.appendChild(el("span", "hse_gh_icon", "🏠"));
+      gh.appendChild(el("span", "hse_gh_icon", "\ud83c\udfe0"));
 
       const ng = el("div", "hse_gh_namegroup");
       ng.appendChild(el("span", "hse_gh_name", name));
 
       const acts = el("div", "hse_gh_actions");
-      const rename_btn = _btn("✏️", "hse_gh_ab", (ev) => {
+      const rename_btn = _btn("\u270f\ufe0f", "hse_gh_ab", (ev) => {
         ev.stopPropagation();
         const nv = window.prompt("Nouveau nom :", name);
         if (!nv || nv.trim() === name) return;
@@ -719,9 +747,9 @@
       rename_btn.title = "Renommer";
       acts.appendChild(rename_btn);
 
-      const del_btn = _btn("🗑️", "hse_gh_ab danger", (ev) => {
+      const del_btn = _btn("\ud83d\uddd1\ufe0f", "hse_gh_ab danger", (ev) => {
         ev.stopPropagation();
-        if (!window.confirm(`Supprimer la pièce "${name}" ?`)) return;
+        if (!window.confirm(`Supprimer la pi\u00e8ce "${name}" ?`)) return;
         on_action("org_room_delete", { room_id });
       });
       del_btn.title = "Supprimer";
@@ -760,7 +788,7 @@
           ));
         }
         if (!main_eids.length && !energy_eids.length) {
-          body.appendChild(el("div", "hse_sc_empty", "Aucun capteur affecté à cette pièce."));
+          body.appendChild(el("div", "hse_sc_empty", "Aucun capteur affect\u00e9 \u00e0 cette pi\u00e8ce."));
         }
         card.appendChild(body);
       }
@@ -800,17 +828,17 @@
         if (is_open) card.setAttribute("data-open", "1");
 
         const gh = el("div", "hse_gh");
-        gh.appendChild(_btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+        gh.appendChild(_btn(is_open ? "\u25bc" : "\u25b6", "hse_gh_toggle", (ev) => {
           ev.stopPropagation();
           _collapsed_types.set("__none__", is_open);
           on_action("org_rerender");
         }));
-        gh.appendChild(el("span", "hse_gh_icon", "❓"));
+        gh.appendChild(el("span", "hse_gh_icon", "\u2753"));
         const ng = el("div", "hse_gh_namegroup");
         ng.appendChild(el("span", "hse_gh_name", "Sans type"));
         gh.appendChild(ng);
         gh.appendChild(el("div", "hse_gh_spacer"));
-        gh.appendChild(el("span", "hse_gh_count", `— ${visible.length} capteur(s)`));
+        gh.appendChild(el("span", "hse_gh_count", `\u2014 ${visible.length} capteur(s)`));
         gh.addEventListener("click", () => {
           _collapsed_types.set("__none__", is_open);
           on_action("org_rerender");
@@ -820,7 +848,7 @@
         if (is_open) {
           const body = el("div", "hse_gb");
           body.appendChild(_render_sensor_col(
-            "__none__:t", "Capteurs non typés", "power", visible,
+            "__none__:t", "Capteurs non typ\u00e9s", "power", visible,
             "", _collapsed_tfam,
             (fam) => _modal_type(fam.all, null, known_types, on_action, () => on_action("org_rerender")),
             (eid) => _modal_type([eid], null, known_types, on_action, () => on_action("org_rerender")),
@@ -852,18 +880,18 @@
       if (is_open) card.setAttribute("data-open", "1");
 
       const gh = el("div", "hse_gh");
-      gh.appendChild(_btn(is_open ? "▼" : "▶", "hse_gh_toggle", (ev) => {
+      gh.appendChild(_btn(is_open ? "\u25bc" : "\u25b6", "hse_gh_toggle", (ev) => {
         ev.stopPropagation();
         _collapsed_types.set(type_id, is_open);
         on_action("org_rerender");
       }));
-      gh.appendChild(el("span", "hse_gh_icon", "🏷️"));
+      gh.appendChild(el("span", "hse_gh_icon", "\ud83c\udff7\ufe0f"));
 
       const ng = el("div", "hse_gh_namegroup");
       ng.appendChild(el("span", "hse_gh_name", type_id));
 
       const acts = el("div", "hse_gh_actions");
-      const del_btn = _btn("🗑️", "hse_gh_ab danger", (ev) => {
+      const del_btn = _btn("\ud83d\uddd1\ufe0f", "hse_gh_ab danger", (ev) => {
         ev.stopPropagation();
         if (!window.confirm(`Retirer le type "${type_id}" de tous les capteurs ?`)) return;
         (by_type[type_id] || []).forEach((eid) => {
@@ -917,25 +945,25 @@
     clear(container);
 
     const hbar = el("div", "hse_hbar");
-    hbar.appendChild(el("div", "hse_hbar_title", "Pièces & capteurs"));
+    hbar.appendChild(el("div", "hse_hbar_title", "Pi\u00e8ces & capteurs"));
     hbar.appendChild(el("div", "hse_hbar_spacer"));
 
     const list_ctn = el("div", "hse_groups");
 
-    const fi = _inp("Filtrer les pièces ou capteurs…", _rooms_filter, "hse_input hse_filter");
+    const fi = _inp("Filtrer les pi\u00e8ces ou capteurs\u2026", _rooms_filter, "hse_input hse_filter");
     fi.addEventListener("input", (ev) => {
       _rooms_filter = ev.target.value || "";
       _refresh_rooms_list(list_ctn, rooms, assignments, on_action);
     });
     hbar.appendChild(fi);
 
-    hbar.appendChild(_btn(_rooms_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+    hbar.appendChild(_btn(_rooms_sort_asc ? "Tri A\u2192Z" : "Tri Z\u2192A", "hse_button", () => {
       _rooms_sort_asc = !_rooms_sort_asc;
       on_action("org_rerender");
     }));
 
-    hbar.appendChild(_btn("+ Ajouter une pièce", "hse_button", () => {
-      const name = window.prompt("Nom de la nouvelle pièce :");
+    hbar.appendChild(_btn("+ Ajouter une pi\u00e8ce", "hse_button", () => {
+      const name = window.prompt("Nom de la nouvelle pi\u00e8ce :");
       if (!name) return;
       const trimmed = name.trim();
       const def_id = trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "").slice(0, 60);
@@ -944,9 +972,9 @@
       on_action("org_room_add", { room_id: room_id.trim(), name: trimmed });
     }));
 
-    hbar.appendChild(_btn("Rafraîchir", "hse_button", () => on_action("org_refresh")));
+    hbar.appendChild(_btn("Rafra\u00eechir", "hse_button", () => on_action("org_refresh")));
 
-    hbar.appendChild(_btn("⚡ Auto rooms", "hse_button hse_button_primary", () => {
+    hbar.appendChild(_btn("\u26a1 Auto rooms", "hse_button hse_button_primary", () => {
       let count = 0;
       Object.entries(assignments || {}).forEach(([eid, a]) => {
         if (!a || a.room_id) return;
@@ -959,7 +987,7 @@
           }
         }
       });
-      alert(`Auto rooms : ${count} capteur(s) assigné(s) automatiquement.`);
+      alert(`Auto rooms : ${count} capteur(s) assign\u00e9(s) automatiquement.`);
       on_action("org_rerender");
     }));
 
@@ -967,9 +995,9 @@
     container.appendChild(hbar);
 
     const bulk = el("div", "hse_bulkbar");
-    bulk.appendChild(document.createTextNode("Déplacement en masse :"));
+    bulk.appendChild(document.createTextNode("D\u00e9placement en masse :"));
 
-    const kw_inp = _inp("Mot-clé (ex: emma)…", _bulk_rooms_kw, "hse_input hse_bulkbar_kw");
+    const kw_inp = _inp("Mot-cl\u00e9 (ex: emma)\u2026", _bulk_rooms_kw, "hse_input hse_bulkbar_kw");
     kw_inp.addEventListener("input", (ev) => { _bulk_rooms_kw = ev.target.value || ""; });
     bulk.appendChild(kw_inp);
     bulk.appendChild(document.createTextNode(" vers : "));
@@ -983,11 +1011,11 @@
     tgt_sel.addEventListener("change", (ev) => { _bulk_rooms_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
 
-    bulk.appendChild(_btn("Déplacer en masse", "hse_button hse_button_primary", () => {
+    bulk.appendChild(_btn("D\u00e9placer en masse", "hse_button hse_button_primary", () => {
       const kw = kw_inp.value.trim().toLowerCase();
-      if (!kw) { alert("Saisir un mot-clé."); return; }
+      if (!kw) { alert("Saisir un mot-cl\u00e9."); return; }
       const target_room = tgt_sel.value;
-      if (!target_room) { alert("Choisir une pièce cible."); return; }
+      if (!target_room) { alert("Choisir une pi\u00e8ce cible."); return; }
       let count = 0;
       Object.keys(assignments || {}).forEach((eid) => {
         if (eid.toLowerCase().includes(kw)) {
@@ -998,7 +1026,7 @@
       if (count === 0) {
         alert(`Aucun capteur ne contient "${kw}".`);
       } else {
-        alert(`${count} capteur(s) déplacé(s) vers « ${rooms[target_room]?.name || target_room} ».`);
+        alert(`${count} capteur(s) d\u00e9plac\u00e9(s) vers \u00ab ${rooms[target_room]?.name || target_room} \u00bb.`);
         on_action("org_save");
       }
     }));
@@ -1023,19 +1051,19 @@
     const known_types = _collect_known_types(assignments);
 
     const hbar = el("div", "hse_hbar");
-    hbar.appendChild(el("div", "hse_hbar_title", "Types (catégories)"));
+    hbar.appendChild(el("div", "hse_hbar_title", "Types (cat\u00e9gories)"));
     hbar.appendChild(el("div", "hse_hbar_spacer"));
 
     const list_ctn = el("div", "hse_groups");
 
-    const fi = _inp("Filtrer types ou capteurs…", _types_filter, "hse_input hse_filter");
+    const fi = _inp("Filtrer types ou capteurs\u2026", _types_filter, "hse_input hse_filter");
     fi.addEventListener("input", (ev) => {
       _types_filter = ev.target.value || "";
       _refresh_types_list(list_ctn, assignments, on_action);
     });
     hbar.appendChild(fi);
 
-    hbar.appendChild(_btn(_types_sort_asc ? "Tri A→Z" : "Tri Z→A", "hse_button", () => {
+    hbar.appendChild(_btn(_types_sort_asc ? "Tri A\u2192Z" : "Tri Z\u2192A", "hse_button", () => {
       _types_sort_asc = !_types_sort_asc;
       on_action("org_rerender");
     }));
@@ -1051,7 +1079,7 @@
       on_action("org_type_create", { type_id: n.trim() });
     }));
 
-    hbar.appendChild(_btn("⚡ Auto types", "hse_button hse_button_primary", () => {
+    hbar.appendChild(_btn("\u26a1 Auto types", "hse_button hse_button_primary", () => {
       const energy_index = _build_energy_index(assignments);
       let count = 0;
       Object.entries(assignments || {}).forEach(([eid, a]) => {
@@ -1073,7 +1101,7 @@
           }
         }
       });
-      alert(`Auto types : ${count} capteur(s) typé(s) automatiquement.`);
+      alert(`Auto types : ${count} capteur(s) typ\u00e9(s) automatiquement.`);
       on_action("org_rerender");
     }));
 
@@ -1082,24 +1110,24 @@
     const bulk = el("div", "hse_bulkbar");
     bulk.appendChild(document.createTextNode("Affecter en masse :"));
 
-    const kw_inp = _inp("Mot-clé (ex: tv)…", _bulk_types_kw, "hse_input hse_bulkbar_kw");
+    const kw_inp = _inp("Mot-cl\u00e9 (ex: tv)\u2026", _bulk_types_kw, "hse_input hse_bulkbar_kw");
     kw_inp.addEventListener("input", (ev) => { _bulk_types_kw = ev.target.value || ""; });
     bulk.appendChild(kw_inp);
-    bulk.appendChild(document.createTextNode(" → type : "));
+    bulk.appendChild(document.createTextNode(" \u2192 type : "));
 
     const type_opts_bulk = [...known_types].sort().map((t) => ({ value: t, label: t }));
-    if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type défini)" });
+    if (!type_opts_bulk.length) type_opts_bulk.push({ value: "", label: "(aucun type d\u00e9fini)" });
     const tgt_sel = _sel(type_opts_bulk, _bulk_types_target, "hse_input hse_bulkbar_sel");
     _bulk_types_target = tgt_sel.value;
     tgt_sel.addEventListener("change", (ev) => { _bulk_types_target = ev.target.value || ""; });
     bulk.appendChild(tgt_sel);
 
-    const new_t_inp = _inp("ou nouveau type…", "", "hse_input hse_bulkbar_inp");
+    const new_t_inp = _inp("ou nouveau type\u2026", "", "hse_input hse_bulkbar_inp");
     bulk.appendChild(new_t_inp);
 
     bulk.appendChild(_btn("Appliquer", "hse_button hse_button_primary", () => {
       const kw = kw_inp.value.trim().toLowerCase();
-      if (!kw) { alert("Saisir un mot-clé."); return; }
+      if (!kw) { alert("Saisir un mot-cl\u00e9."); return; }
       const target_type = new_t_inp.value.trim() || tgt_sel.value;
       if (!target_type) { alert("Choisir ou saisir un type cible."); return; }
       let count = 0;
@@ -1111,7 +1139,7 @@
       });
       if (!count) alert(`Aucun capteur ne contient "${kw}".`);
       else {
-        alert(`${count} capteur(s) affecté(s) au type « ${target_type} ».`);
+        alert(`${count} capteur(s) affect\u00e9(s) au type \u00ab ${target_type} \u00bb.`);
         on_action("org_rerender");
       }
     }));
@@ -1131,7 +1159,7 @@
 
     const add_table = (title, headers, rows) => {
       card.appendChild(el("div", "hse_subtitle", title));
-      if (!rows.length) { card.appendChild(el("div", "hse_subtitle", "—")); return; }
+      if (!rows.length) { card.appendChild(el("div", "hse_subtitle", "\u2014")); return; }
       const wrap = el("div", "hse_scroll_area");
       const table = el("table", "hse_table");
       const thead = el("thead"); const trh = el("tr");
@@ -1150,24 +1178,33 @@
     const rr = Array.isArray(rooms.rename) ? rooms.rename : [];
     const sr = Array.isArray(assignments.suggest_room) ? assignments.suggest_room : [];
 
-    add_table("Créations de pièces", ["Nom","room_id","ha_area_id"],
+    add_table("Cr\u00e9ations de pi\u00e8ces", ["Nom","room_id","ha_area_id"],
       cr.map((x) => [x?.name, x?.room_id, x?.ha_area_id]));
     add_table("Renommages", ["room_id","De","Vers","Eligible"],
       rr.map((x) => [x?.room_id, x?.from, x?.to, x?.eligible ? "oui" : "non"]));
-    add_table("Suggestions (pièce)", ["entity_id","De","Vers","Raison"],
-      sr.map((x) => [x?.entity_id, x?.from_room_id || "—", x?.to_room_id, x?.reason || "—"]));
+    add_table("Suggestions (pi\u00e8ce)", ["entity_id","De","Vers","Raison"],
+      sr.map((x) => [x?.entity_id, x?.from_room_id || "\u2014", x?.to_room_id, x?.reason || "\u2014"]));
   }
 
   // ---------------------------------------------------------------------------
-  // Entrée principale
+  // Entr\u00e9e principale
+  //
+  // Signature conserv\u00e9e pour compatibilit\u00e9 ascendante :
+  //   render_customisation(container, state, org_state_fallback, on_action)
+  //
+  // Depuis la Phase 2, org_state est lu prioritairement depuis window.hse_store.
+  // org_state_fallback n'est utilis\u00e9 que pour les champs purement visuels
+  // (preview_running, apply_running, show_raw) qui ne sont pas encore dans le store.
   // ---------------------------------------------------------------------------
 
-  function render_customisation(container, state, org_state, on_action) {
+  function render_customisation(container, state, org_state_fallback, on_action) {
     _inject_styles(container);
     clear(container);
 
-    const meta_store = org_state?.meta_store || null;
-    const draft      = org_state?.meta_draft || null;
+    // ── Lecture de l'\u00e9tat depuis le store (source de v\u00e9rit\u00e9) ──────────────────
+    const org_state   = _get_org_state(org_state_fallback);
+    const meta_store  = org_state.meta_store;
+    const draft       = org_state.meta_draft;
 
     const rooms_raw        = draft?.rooms || meta_store?.meta?.rooms || {};
     const rooms            = _normalize_rooms(rooms_raw);
@@ -1179,11 +1216,11 @@
     const pending     = sync?.pending_diff || null;
     const has_pending = !!(pending && pending.has_changes);
 
-    // ── Apparence
+    // ── Apparence ────────────────────────────────────────────────────────────
     const theme_card = el("div", "hse_card");
-    theme_card.appendChild(el("div", null, "Apparence & Thème"));
+    theme_card.appendChild(el("div", null, "Apparence & Th\u00e8me"));
     theme_card.appendChild(el("div", "hse_subtitle",
-      "Le thème s'applique à tous les onglets du panel (stocké dans ce navigateur)."));
+      "Le th\u00e8me s'applique \u00e0 tous les onglets du panel (stock\u00e9 dans ce navigateur)."));
     const theme_row = el("div", "hse_toolbar");
     const theme_sel = _sel(THEMES.map((t) => ({ value: t.key, label: t.label })), state?.theme || "ha", "hse_input");
     theme_sel.style.minWidth = "220px";
@@ -1196,17 +1233,25 @@
     theme_card.appendChild(toggles);
     container.appendChild(theme_card);
 
-    // ── Sync HA
+    // ── Sync HA ───────────────────────────────────────────────────────────────
     const org = el("div", "hse_card");
     org.appendChild(el("div", null, "Sync Home Assistant"));
     org.appendChild(el("div", "hse_subtitle",
-      "Prévisualise puis applique des propositions (pièces/affectations) à partir des zones Home Assistant."));
+      "Pr\u00e9visualise puis applique des propositions (pi\u00e8ces/affectations) \u00e0 partir des zones Home Assistant."));
     if (sync?.last_error) org.appendChild(el("pre", "hse_code", String(sync.last_error)));
+
+    // ── Bandeau d'\u00e9tat saving (nouveau : indique que la bo\u00eete de confirmation est ouverte)
+    if (org_state.saving) {
+      const saving_banner = el("div", "hse_subtitle");
+      saving_banner.style.cssText = "color: var(--hse_accent, #3b82f6); font-weight: 600; padding: 4px 0;";
+      saving_banner.textContent = "\u23f3 Sauvegarde en cours\u2026 (confirmation requise)";
+      org.appendChild(saving_banner);
+    }
 
     const summary = [];
     if (has_pending) {
       const st = pending?.stats || {};
-      summary.push(`Pièces: +${st?.create_rooms ?? 0}`);
+      summary.push(`Pi\u00e8ces: +${st?.create_rooms ?? 0}`);
       summary.push(`renommages: ${st?.rename_rooms ?? 0}`);
       summary.push(`suggestions: ${st?.suggest_room ?? 0}`);
     } else {
@@ -1214,43 +1259,43 @@
     }
     if (sync?.pending_generated_at) {
       const ts = _fmt_ts(sync.pending_generated_at);
-      if (ts) summary.push(`Généré: ${ts}`);
+      if (ts) summary.push(`G\u00e9n\u00e9r\u00e9: ${ts}`);
     }
-    if (org_state?.dirty) summary.push("⚠ Brouillon modifié (non sauvegardé)");
+    if (org_state.dirty) summary.push("\u26a0 Brouillon modifi\u00e9 (non sauvegard\u00e9)");
     org.appendChild(el("div", "hse_subtitle", summary.join(", ")));
 
     const tb = el("div", "hse_toolbar");
-    tb.appendChild(_btn("Prévisualiser sync HA", "hse_button", () => on_action("org_preview")));
+    tb.appendChild(_btn("Pr\u00e9visualiser sync HA", "hse_button", () => on_action("org_preview")));
     const btn_auto = _btn("Appliquer sync HA (auto)", "hse_button",
       () => on_action("org_apply", { apply_mode: "auto" }));
-    btn_auto.disabled = !has_pending || !!org_state?.apply_running;
+    btn_auto.disabled = !has_pending || !!org_state.apply_running || !!org_state.saving;
     tb.appendChild(btn_auto);
     const btn_all = _btn("Appliquer sync HA (all)", "hse_button",
       () => on_action("org_apply", { apply_mode: "all" }));
-    btn_all.disabled = !has_pending || !!org_state?.apply_running;
+    btn_all.disabled = !has_pending || !!org_state.apply_running || !!org_state.saving;
     tb.appendChild(btn_all);
-    tb.appendChild(_btn(org_state?.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
+    tb.appendChild(_btn(org_state.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
       () => on_action("org_toggle_raw")));
     org.appendChild(tb);
 
-    if (org_state?.message) org.appendChild(el("div", "hse_subtitle", String(org_state.message)));
-    if (org_state?.error)   org.appendChild(el("pre", "hse_code", String(org_state.error)));
+    if (org_state.message) org.appendChild(el("div", "hse_subtitle", String(org_state.message)));
+    if (org_state.error)   org.appendChild(el("pre", "hse_code", String(org_state.error)));
     if (has_pending) _render_sync_tables(org, pending);
-    if (org_state?.show_raw) {
-      org.appendChild(el("div", "hse_subtitle", "Données brutes"));
+    if (org_state.show_raw) {
+      org.appendChild(el("div", "hse_subtitle", "Donn\u00e9es brutes"));
       org.appendChild(el("pre", "hse_code",
         JSON.stringify({ meta_store, meta_draft: draft }, null, 2)));
     }
     container.appendChild(org);
 
-    // ── Section Rooms
+    // ── Section Rooms ─────────────────────────────────────────────────────────
     const rooms_card = el("div", "hse_card");
     const rooms_sec  = el("div");
     rooms_card.appendChild(rooms_sec);
     container.appendChild(rooms_card);
     _render_rooms_section(rooms_sec, rooms, assignments, on_action);
 
-    // ── Section Types
+    // ── Section Types ─────────────────────────────────────────────────────────
     const types_card = el("div", "hse_card");
     const types_sec  = el("div");
     types_card.appendChild(types_sec);
