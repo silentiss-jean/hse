@@ -1,196 +1,177 @@
 # Architecture actuelle (état courant)
 
-> Document de maintenance mis à jour après l’ajout du suivi de workflow `reference_total` dans l’UI Configuration et après consolidation du flux d’enrichissement helpers.
+> Mis à jour après la Phase 8 — migration complète des états frontend vers `hse_store` et les state files dédiés (`diag.state.js`, `config.state.js`).
 
-## Vue d’ensemble
+## Vue d'ensemble
 
-L’intégration est structurée autour de quatre couches principales :
+L'intégration est structurée autour de quatre couches principales :
 
 1. **Bootstrap / runtime** : `__init__.py`
 2. **Stores partagés** : `catalogue_*`, `meta_*`
 3. **API unifiée** : `api/unified_api.py` + `api/views/*`
 4. **Panel frontend** : `web_static/panel/*`
 
-Le point important n’est plus “un onglet = un backend”, mais bien “un runtime + des stores + une API unifiée + un panel unique”.
+Le point d'organisation n'est plus « un onglet = un état local », mais « un micro-store réactif partagé + des state files par feature + un panel entrypoint léger ».
+
+---
 
 ## 1) Bootstrap / runtime
 
-Le point d’entrée `__init__.py` :
+Le point d'entrée `__init__.py` :
 
-- enregistre l’API unifiée ;
+- enregistre l'API unifiée ;
 - expose les assets statiques du panel ;
 - enregistre un panel HA unique (`hse-panel`) ;
 - charge et persiste les stores `catalogue` et `meta` ;
 - lance les boucles périodiques de refresh catalogue et de synchronisation meta.
 
-Le runtime expose déjà des capacités transverses réelles, mais elles restent concentrées sur **scan / fusion catalogue / sync meta / persistence**.
+---
 
 ## 2) Catalogue
 
-Le refresh catalogue scanne les `sensor.*`, détecte leur nature (`power` / `energy`), ignore les entités HSE générées, puis fusionne le résultat dans un store persistant.
+Le catalogue est un **registre métier persistant** : identité des items, source observée, santé/escalade, triage, enrichissement.
 
-### Rôle actuel du catalogue
+### Vues exposées
 
-Le catalogue est un **registre métier persistant** :
+- `CatalogueGetView` / `CatalogueRefreshView`
+- `CatalogueItemTriageView` / `CatalogueTriageBulkView`
+- `CatalogueReferenceTotalView`
 
-- identité stable des items ;
-- source observée actuelle (`entity_id`, `kind`, `unit`, `device_class`, `integration_domain`, `status`, etc.) ;
-- santé / indisponibilité / escalade ;
-- triage (`policy`, `mute_until`, `note`) ;
-- enrichissement / règles de référence totale.
-
-### Vues catalogue exposées
-
-- `CatalogueGetView` renvoie le store partagé `catalogue`.
-- `CatalogueRefreshView` délègue à `catalogue_refresh`.
-- `CatalogueItemTriageView` met à jour le triage d’un item.
-- `CatalogueTriageBulkView` applique le triage en lot.
-- `CatalogueReferenceTotalView` gère le capteur de référence totale et impose `enrichment.include = False`.
-
-### Point important
-
-Le catalogue n’est pas une simple liste brute de détection. C’est la **source métier partagée** consommée par plusieurs vues et plusieurs écrans.
+---
 
 ## 3) Meta
 
-Le bloc `meta` constitue un second store partagé, distinct du catalogue. Il sert à suivre la structure HA (areas, entités, affectations) et à produire des suggestions d’alignement sans écraser brutalement les choix manuels.
+Store distinct du catalogue. Suit la structure HA (areas, entités, affectations) et produit des suggestions d'alignement.
 
-### Ce que fait `meta_sync`
+### Cycle
 
-`async_build_ha_snapshot` extrait un snapshot des areas et des `sensor.*` présents dans l’entity registry. `compute_pending_diff` produit ensuite les créations / renommages / suggestions nécessaires.
+`preview` → validation UI → `apply` (`auto` ou `all`) → persistance.
 
-### Cycle actuel
-
-Le flux est maintenant clairement :
-
-- `preview` ;
-- validation / inspection UI ;
-- `apply` (`auto` ou `all`) ;
-- persistance.
-
-Le store `meta` est donc un **modèle métier éditable**, pas seulement une projection calculée.
+---
 
 ## 4) Pricing
 
-La configuration tarifaire est portée par `settings/pricing` et stockée dans `catalogue.settings.pricing`.
+Stocké dans `catalogue.settings.pricing`. Contient `contract_type`, `cost_entity_ids`, prix énergie, etc.
 
-### Modèle actuel
+**Invariants** : `reference_total` ne peut jamais figurer dans `cost_entity_ids` (garde-fou frontend + backend).
 
-Le backend stocke notamment :
-
-- `contract_type` ;
-- `display_mode` ;
-- `subscription_monthly` ;
-- `cost_entity_ids` ;
-- les prix énergie selon le contrat ;
-- `updated_at`.
-
-### Invariants métier
-
-- la TVA n’est jamais déduite implicitement ;
-- le capteur `reference_total` ne peut jamais apparaître dans `cost_entity_ids` ;
-- le pricing est validé et persisté côté backend.
+---
 
 ## 5) API unifiée
 
-`api/unified_api.py` est le registre central des endpoints exposés par l’intégration.
+`api/unified_api.py` est le registre central. Familles : scan/catalogue, pricing, meta, enrichissement, migration, overview.
 
-### Familles de vues
-
-- Base panel / disponibilité
-- Scan / catalogue
-- Pricing
-- Meta
-- Enrichissement
-- Migration / export
-- Overview / dashboard
-
-### Lecture fonctionnelle
-
-La bonne direction n’est pas de recréer des backends parallèles, mais d’augmenter la cohérence de cette couche unique.
+---
 
 ## 6) Overview
 
-`dashboard_overview.py` est un endpoint d’agrégation et de tolérance, pas encore un moteur de coût complet.
+`dashboard_overview.py` agrège puissance live, `reference_total`, delta, résumé `meta_sync` et warnings.
 
-### Ce qu’il calcule vraiment
-
-- relit `catalogue.settings.pricing` ;
-- relit `cost_entity_ids` ;
-- reconstruit la sélection et la puissance live ;
-- somme la puissance live ;
-- relit le capteur `reference_total` ;
-- calcule un `delta.power_w` si la référence est disponible ;
-- remonte un résumé `meta_sync` et des warnings.
-
-### Ce qui reste vide
-
-Les structures de coûts et de tableaux existent déjà, mais beaucoup de champs restent à `None`.
+---
 
 ## 7) Enrichissement / migration
 
-Les vues d’enrichissement et d’export montrent qu’une partie importante de la logique métier vise déjà à standardiser les entités dérivées.
+`EnrichApplyView` crée les helpers HA via config flows (`utility_meter`), avec preview/diagnose/rollback.
 
-### Enrichissement helpers
+Convention : `sensor.<base>_kwh_total`, `_day`, `_week`, `_month`, `_year`.
 
-`EnrichPreviewView` et `EnrichApplyView` partent par défaut de `pricing.cost_entity_ids`, filtrent les capteurs `power`, dérivent un `base slug`, puis construisent une convention commune :
+---
 
-- `sensor.<base>_kwh_total`
-- `sensor.<base>_kwh_day`
-- `sensor.<base>_kwh_week`
-- `sensor.<base>_kwh_month`
-- `sensor.<base>_kwh_year`
+## 8) Référence totale
 
-`EnrichApplyView` sait déjà créer réellement les helpers Home Assistant via config flows `integration` puis `utility_meter`, avec preview, diagnose, cleanup et rollback/safe mode autour du même modèle.
+Flux UI dédié dans l'onglet Configuration : `get_reference_total_status()`, polling frontend, bloc de progression workflow, snapshot persistant `item.workflow.reference_enrichment`.
 
-### Conséquence importante
+---
 
-Le **mécanisme de création des helpers** est donc déjà générique pour les capteurs de puissance sélectionnés. Ce n’est pas un mécanisme réservé au capteur de référence totale.
+## 9) Frontend — Architecture micro-store (Phases 1 → 8)
 
-## 8) Référence totale : état courant
+### 9.1) `hse.store.js` — micro-store réactif (Phase 1)
 
-Le flux `reference_total` possède désormais une couche UI dédiée dans l’onglet Configuration.
+Instance globale `window.hse_store` partagée entre tous les modules.
 
-### Ce qui existe maintenant
+| Méthode | Rôle |
+|---|---|
+| `store.get(key)` | Lire une valeur |
+| `store.set(key, value)` | Écrire + notifier |
+| `store.patch(key, partial)` | Merge shallow + notifier |
+| `store.subscribe(key, fn)` | S'abonner aux changements |
+| `store.freeze(key)` | Geler (immunise contre `set()` concurrent pendant `confirm()`) |
+| `store.unfreeze(key)` | Dégeler |
+| `store.snapshot(key)` | Deep clone sûr |
 
-- endpoint frontend `get_reference_total_status()` ;
-- endpoint backend `GET hse/unified/catalogue/reference_total/status` ;
-- bloc visuel de progression du workflow dans la vue Configuration ;
-- réutilisation d’un snapshot persistant `item.workflow.reference_enrichment` quand disponible ;
-- polling frontend pour suivre l’état courant ;
-- garde-fou pour éviter l’affichage d’un statut périmé lors des changements rapides de référence.
+**Race condition corrigée** (Phase 1) : `freeze('org.meta_draft')` + `set('org.saving', true)` avant `window.confirm()` dans `_org_save_meta` et `_org_apply` empêche le polling HA d'écraser le draft.
 
-### Lecture fonctionnelle
+### 9.2) State files par feature
 
-Le **contrat de statut de workflow** n’est pas encore générique. Aujourd’hui, cette brique de suivi d’état est spécifique à `reference_total`, alors que le **mécanisme de création des helpers** est déjà plus général côté enrichissement.
+Chaque onglet complexe possède un state file dédié chargé juste après le store au boot :
 
-## 9) Frontend / thème
+#### `config.state.js` (Phase 7)
 
-La couche UI est compatible avec une évolution par tokens CSS et variables HSE.
+Expose `window.hse_config_state`. Préfixe store : `config.*`.
 
-La bonne pratique reste :
+- Gère toutes les clés de l'onglet Configuration (`catalogue`, `pricing_draft`, `reference_status`, `cost_filter_q`, etc.).
+- **Persistance localStorage** : subscriber `config.cost_filter_q` → `hse_config_cost_filter_q`.
+- Restauration au boot depuis localStorage.
+- Expose `get_model({})`, `begin_loading`, `end_loading`, `begin_saving`, `end_saving`, etc.
 
-- ajouter des variables HSE quand un besoin visuel est récurrent ;
-- brancher ces variables dans la couche d’alias/tokens ;
-- éviter les styles locaux non tokenisés.
+#### `diag.state.js` (Phase 7 → 8)
 
-## 10) Implication pour l’unification
+Expose `window.hse_diag_state`. Préfixe store : `diag.*`.
 
-L’état actuel montre déjà :
+- Gère toutes les clés de l'onglet Diagnostic (`data`, `loading`, `error`, `filter_q`, `selected`, `advanced`, `check_result`, etc.).
+- **Persistance localStorage** : subscribers `filter_q` → `hse_diag_filter_q`, `advanced` → `hse_diag_advanced`, `selected` → `hse_diag_selected`.
+- Restauration au boot depuis localStorage.
+- **Phase 8** : `data` / `loading` / `error` migrés dans le store — exposés via `begin_fetch()` / `end_fetch(data, error)`.
+- Expose `get_state({})`, `begin_fetch`, `end_fetch`, `begin_check`, `end_check`, `set_selected`, `clear_selected`.
 
-- un runtime central ;
-- des stores partagés ;
-- une API unifiée ;
-- un panel unique ;
-- un pricing centralisé ;
-- une convention enrichissement helpers déjà stable ;
-- un flux UI spécifique de suivi `reference_total` ;
-- une base saine pour factoriser ensuite un contrat de statut de workflow plus générique.
+### 9.3) `hse_panel.js` — entrypoint allégé (Phase 8)
 
-## 11) Décision recommandée
+`build_signature: 2026-03-17_refonte_store_phase8` — `ASSET_V: 0.1.37`
 
-La prochaine étape n’est pas de recopier le flux `reference_total` partout, mais de faire émerger une **couche commune de statut de workflow** réutilisable :
+**Ce qui a été retiré de `hse_panel.js`** :
 
-- pour `reference_total` ;
-- pour les créations de helpers enrichissement quand un suivi d’état utilisateur est utile ;
-- sans dupliquer le polling et le rendu capteur par capteur.
+- `this._diag_state` (objet local `{ loading, data, error }`) → **supprimé** ; tout passe par `_dg()` / `_ds()` via `window.hse_diag_state`.
+- `this._config_state` → **supprimé** dès Phase 6 ; tout passe par `_cg()` / `_cs()` via `window.hse_config_state`.
+- Tous les `_storage_set(...)` redondants pour `filter_q`, `advanced`, `selected` (diag) et `cost_filter_q` (config) → **supprimés** ; délégués aux subscribers des state files.
+- Restauration localStorage dans `connectedCallback` pour les clés diag/config → **supprimée** ; gérée par les state files au boot.
+
+**Ce qui reste dans `hse_panel.js`** :
+
+- État local légitime : `_active_tab`, `_overview_data`, `_scan_state`, `_migration_state`, `_custom_state`, `_org_state` (bridge store).
+- Orchestration du routing (`_render()` → `switch(active_tab)`).
+- Gestion `_user_interacting` / `_render_for_active_tab` / guards.
+- Boot sequence (chargement séquentiel des scripts + CSS).
+
+### 9.4) Ordre de chargement au boot
+
+```
+dom.js → table.js → hse.store.js
+  → config.state.js → diag.state.js
+  → shell.js
+  → [feature scripts : overview, costs, scan, custom, diagnostic, enrich, migration, config, cards]
+  → [CSS tokens + themes + alias + panel + cards]
+```
+
+Le store et les state files sont **toujours chargés avant** les vues features.
+
+### 9.5) Thème / tokens CSS
+
+Variables HSE tokenisées dans `hse_tokens.shadow.css`, thèmes dans `hse_themes.shadow.css`, aliases dans `hse_alias.v2.css`. Ne pas ajouter de styles locaux non tokenisés.
+
+---
+
+## 10) État d'ensemble
+
+- Runtime central + stores backend partagés
+- API unifiée, panel unique
+- Pricing centralisé avec garde-fous
+- Convention enrichissement helpers stable
+- Micro-store frontend réactif (`hse_store`) avec freeze/unfreeze
+- State files dédiés par feature (`config.state.js`, `diag.state.js`) avec persistance localStorage déléguée
+- `hse_panel.js` réduit à l'orchestration pure
+
+## 11) Prochaines étapes potentielles
+
+- Généraliser le contrat de statut de workflow (aujourd'hui spécifique à `reference_total`) pour couvrir d'autres opérations longues.
+- Compléter les champs de coûts dans `dashboard_overview.py` (actuellement à `None`).
+- Envisager un state file pour `org` / `migration` si leur complexité augmente.
