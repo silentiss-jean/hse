@@ -54,7 +54,7 @@
   async function fetch_sensors_enriched(hass) {
     const [sensors, org_resp] = await Promise.all([
       fetch_lovelace_sensors(hass),
-      hass.callApi("GET", "hse/org/state").catch(() => null),
+      hass.callApi("GET", "hse/unified/meta").catch(() => null),
     ]);
 
     const meta = org_resp?.meta_store?.meta || {};
