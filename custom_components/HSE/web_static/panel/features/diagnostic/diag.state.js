@@ -1,29 +1,33 @@
 (function () {
   /**
-   * diag.state.js — Phase 7
+   * diag.state.js — Phase 8
    *
    * Expose window.hse_diag_state : helpers de lecture/écriture
    * de l'état de l'onglet Diagnostic dans window.hse_store.
    *
    * Phase 7 : persistance localStorage gérée ici via des subscribers.
-   * hse_panel.js n'a plus besoin de faire de _storage_set/get pour le diag.
+   * Phase 8 : data/loading/error diag migrés dans le store.
    *
    * Clés du store (préfixe "diag.") :
    *
-   *   diag.filter_q       — filtre texte (string)
-   *   diag.selected       — map item_id → bool des items cochés (objet)
-   *   diag.advanced       — mode debug activé (bool)
-   *   diag.check_loading  — analyse de cohérence en cours (bool)
-   *   diag.check_error    — dernière erreur de check (string|null)
-   *   diag.check_result   — résultat du contrôle de cohérence (objet|null)
-   *   diag.last_action    — dernière action effectuée (string|null)  [debug]
-   *   diag.last_request   — dernière requête envoyée (objet|null)    [debug]
-   *   diag.last_response  — dernière réponse reçue (objet|null)      [debug]
+   *   diag.data         — catalogue complet (objet|null)
+   *   diag.loading      — fetch catalogue en cours (bool)
+   *   diag.error        — dernière erreur fetch (string|null)
+   *   diag.filter_q     — filtre texte (string)
+   *   diag.selected     — map item_id → bool (objet)
+   *   diag.advanced     — mode debug activé (bool)
+   *   diag.check_loading — analyse de cohérence en cours (bool)
+   *   diag.check_error  — dernière erreur de check (string|null)
+   *   diag.check_result — résultat du contrôle de cohérence (objet|null)
+   *   diag.last_action  — dernière action effectuée (string|null)  [debug]
+   *   diag.last_request — dernière requête envoyée (objet|null)    [debug]
+   *   diag.last_response — dernière réponse reçue (objet|null)     [debug]
    *
    * Clés localStorage persistées :
-   *   hse_diag_filter_q   → diag.filter_q
-   *   hse_diag_advanced   → diag.advanced
-   *   hse_diag_selected   → diag.selected
+   *   hse_diag_filter_q  → diag.filter_q
+   *   hse_diag_advanced  → diag.advanced
+   *   hse_diag_selected  → diag.selected
+   *   (data/loading/error ne sont PAS persistées)
    */
 
   const PREFIX = 'diag.';
@@ -53,7 +57,6 @@
   }
 
   // ── Restauration initiale depuis localStorage ───────────────────────────────
-  // Appelée une fois au chargement du module, avant que hse_panel ne démarre.
   function _restore_from_storage() {
     const filter_q = _ls_get('hse_diag_filter_q') || '';
     const advanced = (_ls_get('hse_diag_advanced') || '0') === '1';
@@ -66,10 +69,13 @@
     _set('filter_q', filter_q);
     _set('advanced', advanced);
     _set('selected', selected);
+    // data/loading/error initialisés à leurs valeurs neutres
+    _set('data',    null);
+    _set('loading', false);
+    _set('error',   null);
   }
 
   // ── Abonnements store → localStorage ───────────────────────────────────────
-  // Appelé une fois que le store est prêt (juste après _restore_from_storage).
   function _subscribe_persistence() {
     const s = _s();
     if (!s || typeof s.subscribe !== 'function') return;
@@ -85,6 +91,18 @@
     });
   }
 
+  // ── Fetch catalogue helpers (Phase 8) ───────────────────────────────────────
+  function begin_fetch() {
+    _set('loading', true);
+    _set('error',   null);
+  }
+
+  function end_fetch(data, error) {
+    _set('loading', false);
+    _set('data',    error ? null : (data ?? null));
+    _set('error',   error ?? null);
+  }
+
   /**
    * Construit l'objet `state` attendu par diagnostic.view.js → render_diagnostic().
    * Fallback transparent si le store n'est pas encore chargé.
@@ -95,6 +113,9 @@
     if (!s) return fb;
 
     return {
+      data:          _get('data',          fb.data          ?? null),
+      loading:       !!_get('loading',     fb.loading),
+      error:         _get('error',         fb.error         ?? null),
       filter_q:      _get('filter_q',      fb.filter_q      ?? ''),
       selected:      _get('selected',      fb.selected      ?? {}),
       advanced:      !!_get('advanced',    fb.advanced),
@@ -139,6 +160,8 @@
     clear_selected,
     begin_check,
     end_check,
+    begin_fetch,
+    end_fetch,
     // Accès direct
     get: _get,
     set: _set,
