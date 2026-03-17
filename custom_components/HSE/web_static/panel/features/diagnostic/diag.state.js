@@ -1,9 +1,12 @@
 (function () {
   /**
-   * diag.state.js — Phase 3
+   * diag.state.js — Phase 7
    *
    * Expose window.hse_diag_state : helpers de lecture/écriture
    * de l'état de l'onglet Diagnostic dans window.hse_store.
+   *
+   * Phase 7 : persistance localStorage gérée ici via des subscribers.
+   * hse_panel.js n'a plus besoin de faire de _storage_set/get pour le diag.
    *
    * Clés du store (préfixe "diag.") :
    *
@@ -16,9 +19,22 @@
    *   diag.last_action    — dernière action effectuée (string|null)  [debug]
    *   diag.last_request   — dernière requête envoyée (objet|null)    [debug]
    *   diag.last_response  — dernière réponse reçue (objet|null)      [debug]
+   *
+   * Clés localStorage persistées :
+   *   hse_diag_filter_q   → diag.filter_q
+   *   hse_diag_advanced   → diag.advanced
+   *   hse_diag_selected   → diag.selected
    */
 
   const PREFIX = 'diag.';
+
+  // ── localStorage helpers ────────────────────────────────────────────────────
+  function _ls_get(key) {
+    try { return window.localStorage.getItem(key); } catch (_) { return null; }
+  }
+  function _ls_set(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (_) {}
+  }
 
   function _s() {
     return window.hse_store || null;
@@ -34,6 +50,39 @@
   function _set(key, value) {
     const s = _s();
     if (s) s.set(PREFIX + key, value);
+  }
+
+  // ── Restauration initiale depuis localStorage ───────────────────────────────
+  // Appelée une fois au chargement du module, avant que hse_panel ne démarre.
+  function _restore_from_storage() {
+    const filter_q = _ls_get('hse_diag_filter_q') || '';
+    const advanced = (_ls_get('hse_diag_advanced') || '0') === '1';
+    let selected = {};
+    try {
+      const raw = _ls_get('hse_diag_selected');
+      if (raw) selected = JSON.parse(raw) || {};
+    } catch (_) {}
+
+    _set('filter_q', filter_q);
+    _set('advanced', advanced);
+    _set('selected', selected);
+  }
+
+  // ── Abonnements store → localStorage ───────────────────────────────────────
+  // Appelé une fois que le store est prêt (juste après _restore_from_storage).
+  function _subscribe_persistence() {
+    const s = _s();
+    if (!s || typeof s.subscribe !== 'function') return;
+
+    s.subscribe(PREFIX + 'filter_q', (v) => {
+      _ls_set('hse_diag_filter_q', v ?? '');
+    });
+    s.subscribe(PREFIX + 'advanced', (v) => {
+      _ls_set('hse_diag_advanced', v ? '1' : '0');
+    });
+    s.subscribe(PREFIX + 'selected', (v) => {
+      try { _ls_set('hse_diag_selected', JSON.stringify(v || {})); } catch (_) {}
+    });
   }
 
   /**
@@ -79,6 +128,10 @@
     _set('check_result',  error ? null : (result ?? null));
     _set('check_error',   error ?? null);
   }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  _restore_from_storage();
+  _subscribe_persistence();
 
   window.hse_diag_state = {
     get_state,

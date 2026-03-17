@@ -1,9 +1,12 @@
 (function () {
   /**
-   * config.state.js — Phase 3
+   * config.state.js — Phase 7
    *
    * Expose window.hse_config_state : helpers de lecture/écriture
    * de l'état de l'onglet Configuration dans window.hse_store.
+   *
+   * Phase 7 : persistance localStorage gérée ici via des subscribers.
+   * hse_panel.js n'a plus besoin de faire de _storage_set/get pour le config.
    *
    * Clés du store (préfixe "config.") :
    *
@@ -24,9 +27,20 @@
    *   config.pricing_message              — feedback spécifique tarifs (string|null)
    *   config.pricing_error                — erreur spécifique tarifs (string|null)
    *   config.cost_filter_q                — filtre texte capteurs de calcul (string)
+   *
+   * Clés localStorage persistées :
+   *   hse_config_cost_filter_q  → config.cost_filter_q
    */
 
   const PREFIX = 'config.';
+
+  // ── localStorage helpers ────────────────────────────────────────────────────
+  function _ls_get(key) {
+    try { return window.localStorage.getItem(key); } catch (_) { return null; }
+  }
+  function _ls_set(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (_) {}
+  }
 
   function _s() {
     return window.hse_store || null;
@@ -47,6 +61,22 @@
   function _patch(key, partial) {
     const s = _s();
     if (s) s.patch(PREFIX + key, partial);
+  }
+
+  // ── Restauration initiale depuis localStorage ───────────────────────────────
+  function _restore_from_storage() {
+    const cost_filter_q = _ls_get('hse_config_cost_filter_q') || '';
+    _set('cost_filter_q', cost_filter_q);
+  }
+
+  // ── Abonnements store → localStorage ───────────────────────────────────────
+  function _subscribe_persistence() {
+    const s = _s();
+    if (!s || typeof s.subscribe !== 'function') return;
+
+    s.subscribe(PREFIX + 'cost_filter_q', (v) => {
+      _ls_set('hse_config_cost_filter_q', v ?? '');
+    });
   }
 
   /**
@@ -99,6 +129,10 @@
   /** Démarre / termine une sauvegarde tarifs. */
   function begin_pricing_save()  { _set('pricing_saving', true); }
   function end_pricing_save()    { _set('pricing_saving', false); }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  _restore_from_storage();
+  _subscribe_persistence();
 
   window.hse_config_state = {
     get_model,
