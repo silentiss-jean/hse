@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-16_refonte_store_phase1";
+const build_signature = "2026-03-17_refonte_store_phase4";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
@@ -44,19 +44,32 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         open_all: false,
       };
 
+      // ── _diag_state : bridge de compatibilité vers hse_store via hse_diag_state ─
+      // Les clés persistées/partagées sont lues/écrites dans le store.
+      // Les clés purement locales (loading, data, error) restent dans l'objet.
       this._diag_state = {
         loading: false,
         data: null,
         error: null,
-        filter_q: "",
-        selected: {},
-        advanced: false,
-        last_request: null,
-        last_response: null,
-        last_action: null,
-        check_loading: false,
-        check_error: null,
-        check_result: null,
+        // Clés bridgées → store via hse_diag_state
+        get filter_q()      { return window.hse_diag_state?.get('filter_q',      '') ?? ''; },
+        set filter_q(v)     { window.hse_diag_state?.set('filter_q',      v ?? ''); },
+        get selected()      { return window.hse_diag_state?.get('selected',      {}) ?? {}; },
+        set selected(v)     { window.hse_diag_state?.set('selected',      v ?? {}); },
+        get advanced()      { return !!window.hse_diag_state?.get('advanced',    false); },
+        set advanced(v)     { window.hse_diag_state?.set('advanced',      !!v); },
+        get check_loading() { return !!window.hse_diag_state?.get('check_loading',false); },
+        set check_loading(v){ window.hse_diag_state?.set('check_loading', !!v); },
+        get check_error()   { return window.hse_diag_state?.get('check_error',   null) ?? null; },
+        set check_error(v)  { window.hse_diag_state?.set('check_error',   v ?? null); },
+        get check_result()  { return window.hse_diag_state?.get('check_result',  null) ?? null; },
+        set check_result(v) { window.hse_diag_state?.set('check_result',  v ?? null); },
+        get last_request()  { return window.hse_diag_state?.get('last_request',  null) ?? null; },
+        set last_request(v) { window.hse_diag_state?.set('last_request',  v ?? null); },
+        get last_response() { return window.hse_diag_state?.get('last_response', null) ?? null; },
+        set last_response(v){ window.hse_diag_state?.set('last_response', v ?? null); },
+        get last_action()   { return window.hse_diag_state?.get('last_action',   null) ?? null; },
+        set last_action(v)  { window.hse_diag_state?.set('last_action',   v ?? null); },
       };
 
       this._migration_state = {
@@ -66,24 +79,49 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         active_yaml: "",
       };
 
+      // ── _config_state : bridge de compatibilité vers hse_store via hse_config_state
+      // Les clés volatiles (flags, feedbacks, filtre) sont bridgées.
+      // Les objets lourds (catalogue, pricing_draft, scan_result…) restent locaux
+      // ET sont aussi écrits dans le store via les setters, pour que get_model()
+      // puisse les lire en Phase 5+.
       this._config_state = {
-        loading: false,
-        saving: false,
-        error: null,
-        message: null,
-        pricing_saving: false,
-        pricing_error: null,
-        pricing_message: null,
-        scan_result: { integrations: [], candidates: [] },
-        catalogue: null,
-        current_reference_entity_id: null,
-        selected_reference_entity_id: null,
-        reference_status: null,
-        reference_status_error: null,
-        pricing: null,
-        pricing_defaults: null,
-        pricing_draft: null,
-        cost_filter_q: "",
+        // Objets lourds — locaux + sync store
+        get scan_result()                  { return window.hse_config_state?.get('scan_result',                  { integrations: [], candidates: [] }) ?? { integrations: [], candidates: [] }; },
+        set scan_result(v)                 { window.hse_config_state?.set('scan_result',                  v); },
+        get catalogue()                    { return window.hse_config_state?.get('catalogue',                    null) ?? null; },
+        set catalogue(v)                   { window.hse_config_state?.set('catalogue',                    v); },
+        get pricing()                      { return window.hse_config_state?.get('pricing',                      null) ?? null; },
+        set pricing(v)                     { window.hse_config_state?.set('pricing',                      v); },
+        get pricing_draft()                { return window.hse_config_state?.get('pricing_draft',                null) ?? null; },
+        set pricing_draft(v)               { window.hse_config_state?.set('pricing_draft',                v); },
+        get pricing_defaults()             { return window.hse_config_state?.get('pricing_defaults',             null) ?? null; },
+        set pricing_defaults(v)            { window.hse_config_state?.set('pricing_defaults',             v); },
+        get selected_reference_entity_id() { return window.hse_config_state?.get('selected_reference_entity_id',null) ?? null; },
+        set selected_reference_entity_id(v){ window.hse_config_state?.set('selected_reference_entity_id',v ?? null); },
+        get current_reference_entity_id()  { return window.hse_config_state?.get('current_reference_entity_id', null) ?? null; },
+        set current_reference_entity_id(v) { window.hse_config_state?.set('current_reference_entity_id',  v ?? null); },
+        get reference_status()             { return window.hse_config_state?.get('reference_status',             null) ?? null; },
+        set reference_status(v)            { window.hse_config_state?.set('reference_status',             v ?? null); },
+        get reference_status_error()       { return window.hse_config_state?.get('reference_status_error',       null) ?? null; },
+        set reference_status_error(v)      { window.hse_config_state?.set('reference_status_error',       v ?? null); },
+        // Flags volatiles
+        get loading()        { return !!window.hse_config_state?.get('loading',        false); },
+        set loading(v)       { window.hse_config_state?.set('loading',        !!v); },
+        get saving()         { return !!window.hse_config_state?.get('saving',         false); },
+        set saving(v)        { window.hse_config_state?.set('saving',         !!v); },
+        get pricing_saving() { return !!window.hse_config_state?.get('pricing_saving', false); },
+        set pricing_saving(v){ window.hse_config_state?.set('pricing_saving', !!v); },
+        // Feedbacks
+        get error()           { return window.hse_config_state?.get('error',           null) ?? null; },
+        set error(v)          { window.hse_config_state?.set('error',           v ?? null); },
+        get message()         { return window.hse_config_state?.get('message',         null) ?? null; },
+        set message(v)        { window.hse_config_state?.set('message',         v ?? null); },
+        get pricing_error()   { return window.hse_config_state?.get('pricing_error',   null) ?? null; },
+        set pricing_error(v)  { window.hse_config_state?.set('pricing_error',   v ?? null); },
+        get pricing_message() { return window.hse_config_state?.get('pricing_message', null) ?? null; },
+        set pricing_message(v){ window.hse_config_state?.set('pricing_message', v ?? null); },
+        get cost_filter_q()   { return window.hse_config_state?.get('cost_filter_q',   '') ?? ''; },
+        set cost_filter_q(v)  { window.hse_config_state?.set('cost_filter_q',   v ?? ''); },
       };
 
       this._boot_done = false;
@@ -172,8 +210,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
     _render_for_active_tab(tab_id) {
       if (this._active_tab !== tab_id) return;
       // ── GUARD : ne pas rerender si un save org est en cours ────────────────────
-      // Ceci évite qu'un polling (hass update) déclenche _render() →
-      // _render_custom() → _do_render() pendant que le confirm() est ouvert.
       if (tab_id === 'custom' && window.hse_store?.get('org.saving')) return;
       if (this._user_interacting) return;
       this._render();
@@ -221,6 +257,9 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       } catch (_) {}
       this._scan_state.open_all = (this._storage_get("hse_scan_open_all") || "0") === "1";
 
+      // ── Restauration état diag depuis localStorage ────────────────────────────
+      // Sera écrasé par les valeurs du store dès que hse_diag_state est chargé,
+      // mais on garde la compat pour le cas où le store n'est pas encore prêt.
       this._diag_state.filter_q = this._storage_get("hse_diag_filter_q") || "";
       this._diag_state.advanced = (this._storage_get("hse_diag_advanced") || "0") === "1";
       try {
@@ -391,7 +430,11 @@ const build_signature = "2026-03-16_refonte_store_phase1";
             const container = this._ui?.content;
             if (container && window.hse_config_view?.render_config) {
               if (container.hasAttribute("data-hse-config-built")) {
-                window.hse_config_view.render_config(container, this._config_state, () => {});
+                // ── Phase 4 : on passe le model issu du store ─────────────────
+                const model = window.hse_config_state
+                  ? window.hse_config_state.get_model(this._config_state)
+                  : this._config_state;
+                window.hse_config_view.render_config(container, model, () => {});
               } else {
                 this._render();
               }
@@ -454,10 +497,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
     }
 
     _org_reset_draft_from_store() {
-      // ── GUARD : ne pas écraser le draft si un save est en cours ──────────────────
-      // Si org.saving=true, le store a gelé la clé meta_draft — le set() ci-dessous
-      // sera ignoré automatiquement par HseStore.freeze(). Mais on s'arrête tôt
-      // pour ne pas non plus toucher dirty.
       if (window.hse_store?.get('org.saving')) return;
 
       const m = this._org_state.meta_store?.meta || null;
@@ -511,12 +550,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
       this._org_ensure_draft();
 
-      // ── CORRECTIF RACE CONDITION ─────────────────────────────────────────────────
-      // 1. Snapshot du draft AVANT window.confirm() pour immuniser contre
-      //    tout polling concurrent qui s'intercalerait pendant la pause JS.
-      // 2. Gel de la clé dans le store : tout set('org.meta_draft') sera
-      //    ignoré jusqu'à end_save() ou l'annulation.
-      // -------------------------------------------------------------------
       let draft_snapshot;
       try {
         draft_snapshot = JSON.parse(JSON.stringify(this._org_state.meta_draft));
@@ -529,7 +562,7 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         window.hse_store.set('org.saving', true);
       }
       this._org_state.error = null;
-      this._org_state.message = "Sauvegarde en préparation…";
+      this._org_state.message = "Sauvegarde en pr\u00e9paration\u2026";
 
       const ok = window.confirm("Sauvegarder l'organisation (meta: rooms/types/assignments) ?");
       if (!ok) {
@@ -605,7 +638,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
           ? "Appliquer les changements propos\u00e9s (mode ALL) ?\nCe mode peut \u00e9craser des choix manuels."
           : "Appliquer les changements propos\u00e9s (mode auto) ?\nAucun champ manuel ne sera \u00e9cras\u00e9.";
 
-      // ── CORRECTIF : gel du draft AVANT confirm() ──────────────────────────────
       if (window.hse_store) {
         window.hse_store.freeze('org.meta_draft');
         window.hse_store.set('org.saving', true);
@@ -676,6 +708,10 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
         // ── Store chargé en premier, avant tous les autres modules ────────────────
         await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
+
+        // ── State files chargés juste après le store ──────────────────────────────
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
 
@@ -1079,7 +1115,12 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
       this._ensure_reference_status_polling();
 
-      window.hse_config_view.render_config(container, this._config_state, async (action, value) => {
+      // ── Phase 4 : on passe le model issu du store comme source de vérité ────────
+      const config_model = window.hse_config_state
+        ? window.hse_config_state.get_model(this._config_state)
+        : this._config_state;
+
+      window.hse_config_view.render_config(container, config_model, async (action, value) => {
         const _deep_set = (obj, path, v) => {
           if (!obj || typeof obj !== "object") return;
           const parts = String(path || "").split(".").filter(Boolean);
@@ -1473,7 +1514,12 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         return Array.from(new Set(Object.values(items).map((x) => x?.source?.entity_id).filter(Boolean))).sort();
       };
 
-      window.hse_diag_view.render_diagnostic(container, this._diag_state.data, this._diag_state, async (action, payload) => {
+      // ── Phase 4 : on passe le state issu du store comme source de vérité ─────────
+      const diag_state_model = window.hse_diag_state
+        ? window.hse_diag_state.get_state(this._diag_state)
+        : this._diag_state;
+
+      window.hse_diag_view.render_diagnostic(container, this._diag_state.data, diag_state_model, async (action, payload) => {
         if (action === "toggle_advanced") {
           this._diag_state.advanced = !this._diag_state.advanced;
           this._storage_set("hse_diag_advanced", this._diag_state.advanced ? "1" : "0");
@@ -1504,7 +1550,10 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         }
         if (action === "select_all_filtered") {
           const ids = _filtered_ids();
-          for (const id of ids) this._diag_state.selected[id] = true;
+          // ── lecture puis réécriture atomique pour passer par le setter ──────────
+          const sel = Object.assign({}, this._diag_state.selected);
+          for (const id of ids) sel[id] = true;
+          this._diag_state.selected = sel;
           this._storage_set("hse_diag_selected", JSON.stringify(this._diag_state.selected));
           this._render();
           return;
