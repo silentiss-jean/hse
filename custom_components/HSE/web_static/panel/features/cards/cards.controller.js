@@ -55,7 +55,6 @@
       const count_el = this._("hse_cards_sensor_count");
       const rooms_count_el = this._("hse_cards_rooms_count");
       try {
-        // Charge en parallèle sensors bruts + sensors enrichis
         const [sensors, enriched] = await Promise.all([
           window.hse_cards_api.fetch_lovelace_sensors(this._hass),
           window.hse_cards_api.fetch_sensors_enriched(this._hass).catch(() => null),
@@ -68,7 +67,6 @@
           count_el.classList.toggle("hse_badge_error", sensors.length === 0);
         }
 
-        // Compte les pièces distinctes avec affectations
         if (rooms_count_el) {
           const rooms = new Set(
             (this._sensors_enriched || []).map((s) => s.room_name).filter(Boolean)
@@ -84,8 +82,6 @@
         }
       }
     }
-
-    // ─── Visibilité des options selon le type de carte ────────────────────────
 
     _apply_card_type_visibility() {
       const type_el = this._("hse_cards_card_type");
@@ -480,51 +476,12 @@
 
     const shadow_root = container.getRootNode();
 
-    let preview_was_open = false;
-    let yaml_backup = null;
-    let last_gen_backup = null;
-    let sensor_count_backup = null;
-
-    if (_instance && shadow_root instanceof ShadowRoot) {
-      const pv = shadow_root.getElementById("hse_cards_preview_container");
-      preview_was_open = pv ? pv.style.display !== "none" : false;
-      yaml_backup = _instance._yaml || null;
-
-      const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
-      if (last_gen_el && last_gen_el.textContent !== "Jamais") last_gen_backup = last_gen_el.textContent;
-
-      const count_el = shadow_root.getElementById("hse_cards_sensor_count");
-      if (count_el && count_el.textContent !== "Chargement\u2026") sensor_count_backup = count_el.textContent;
-    }
-
-    container.innerHTML = window.hse_cards_view.render_cards_layout();
-
-    if (_instance && shadow_root instanceof ShadowRoot) {
+    // ── GUARD PRINCIPAL : si l'instance existe ET que le DOM est déjà construit,
+    // on se contente de mettre à jour _hass sans rien reconstruire.
+    // Cela empêche tout rechargement intempestif des champs lors des
+    // mises à jour périodiques de hass (set hass → _render → render_cards).
+    if (_instance && container.hasAttribute("data-hse-cards-dom-ready")) {
       _instance._hass = hass;
-      _instance._root = shadow_root;
-      _instance.attach_events();
-      _instance._apply_card_type_visibility();
-      _instance._populate_selects();
-
-      if (yaml_backup) {
-        const yaml_el = shadow_root.getElementById("hse_cards_yaml_code");
-        if (yaml_el) yaml_el.textContent = yaml_backup;
-      }
-      if (last_gen_backup) {
-        const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
-        if (last_gen_el) last_gen_el.textContent = last_gen_backup;
-      }
-      if (sensor_count_backup) {
-        const count_el = shadow_root.getElementById("hse_cards_sensor_count");
-        if (count_el) count_el.textContent = sensor_count_backup;
-      }
-      if (preview_was_open) {
-        const pv = shadow_root.getElementById("hse_cards_preview_container");
-        const btn = shadow_root.getElementById("hse_cards_btn_preview");
-        if (pv) pv.style.display = "";
-        if (btn) btn.textContent = "\u274C Fermer aperçu";
-        _instance._render_preview();
-      }
       return;
     }
 
@@ -533,7 +490,63 @@
       return;
     }
 
+    container.innerHTML = window.hse_cards_view.render_cards_layout();
+    container.setAttribute("data-hse-cards-dom-ready", "1");
+
+    if (_instance) {
+      // Instance existante mais DOM détruit (changement d'onglet) : on réattache
+      _instance._hass = hass;
+      _instance._root = shadow_root;
+      _instance.attach_events();
+      _instance._apply_card_type_visibility();
+      _instance._populate_selects();
+
+      const yaml_el = shadow_root.getElementById("hse_cards_yaml_code");
+      if (yaml_el && _instance._yaml) yaml_el.textContent = _instance._yaml;
+
+      const last_gen_el = shadow_root.getElementById("hse_cards_last_gen");
+      if (last_gen_el && _instance._last_gen) last_gen_el.textContent = _instance._last_gen;
+
+      const count_el = shadow_root.getElementById("hse_cards_sensor_count");
+      if (count_el && _instance._sensors.length) count_el.textContent = _instance._sensors.length;
+
+      const rooms_count_el = shadow_root.getElementById("hse_cards_rooms_count");
+      if (rooms_count_el && _instance._sensors_enriched.length) {
+        const rooms = new Set((_instance._sensors_enriched || []).map((s) => s.room_name).filter(Boolean));
+        rooms_count_el.textContent = rooms.size > 0 ? rooms.size : "0 (configurer Customisation)";
+      }
+
+      const pv = shadow_root.getElementById("hse_cards_preview_container");
+      if (pv && _instance._preview_open) {
+        pv.style.display = "";
+        const btn = shadow_root.getElementById("hse_cards_btn_preview");
+        if (btn) btn.textContent = "\u274C Fermer aperçu";
+        _instance._render_preview();
+      }
+      return;
+    }
+
     const ctrl = new CardsController(hass, shadow_root);
+
+    // Sauvegarde de l'état de prévisualisation sur l'instance pour restauration
+    Object.defineProperty(ctrl, "_preview_open", {
+      get() {
+        const pv = this._root?.getElementById("hse_cards_preview_container");
+        return pv ? pv.style.display !== "none" : false;
+      },
+      enumerable: false,
+    });
+
+    // Sauvegarde de la date de dernière génération
+    const _orig_generate = ctrl.generate_yaml.bind(ctrl);
+    ctrl.generate_yaml = function () {
+      _orig_generate();
+      const last_gen_el = this._("hse_cards_last_gen");
+      if (last_gen_el && last_gen_el.textContent !== "Jamais") {
+        this._last_gen = last_gen_el.textContent;
+      }
+    };
+
     _instance = ctrl;
     ctrl.init().catch((err) => console.error("[HSE cards] init error:", err));
   }
