@@ -1,12 +1,12 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-17_refonte_store_phase5";
+const build_signature = "2026-03-17_refonte_store_phase6";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
 
   // IMPORTANT: must match const.py PANEL_JS_URL
-  const ASSET_V = "0.1.35";
+  const ASSET_V = "0.1.36";
 
   const NAV_ITEMS_FALLBACK = [
     { id: "overview", label: "Accueil" },
@@ -44,32 +44,12 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         open_all: false,
       };
 
-      // ── _diag_state : bridge de compatibilité vers hse_store via hse_diag_state ─
-      // Les clés persistées/partagées sont lues/écrites dans le store.
-      // Les clés purement locales (loading, data, error) restent dans l'objet.
+      // ── _diag_state : clés locales uniquement (loading, data, error)
+      // Toutes les autres clés sont lues/écrites directement via window.hse_diag_state
       this._diag_state = {
         loading: false,
         data: null,
         error: null,
-        // Clés bridgées → store via hse_diag_state
-        get filter_q()      { return window.hse_diag_state?.get('filter_q',      '') ?? ''; },
-        set filter_q(v)     { window.hse_diag_state?.set('filter_q',      v ?? ''); },
-        get selected()      { return window.hse_diag_state?.get('selected',      {}) ?? {}; },
-        set selected(v)     { window.hse_diag_state?.set('selected',      v ?? {}); },
-        get advanced()      { return !!window.hse_diag_state?.get('advanced',    false); },
-        set advanced(v)     { window.hse_diag_state?.set('advanced',      !!v); },
-        get check_loading() { return !!window.hse_diag_state?.get('check_loading',false); },
-        set check_loading(v){ window.hse_diag_state?.set('check_loading', !!v); },
-        get check_error()   { return window.hse_diag_state?.get('check_error',   null) ?? null; },
-        set check_error(v)  { window.hse_diag_state?.set('check_error',   v ?? null); },
-        get check_result()  { return window.hse_diag_state?.get('check_result',  null) ?? null; },
-        set check_result(v) { window.hse_diag_state?.set('check_result',  v ?? null); },
-        get last_request()  { return window.hse_diag_state?.get('last_request',  null) ?? null; },
-        set last_request(v) { window.hse_diag_state?.set('last_request',  v ?? null); },
-        get last_response() { return window.hse_diag_state?.get('last_response', null) ?? null; },
-        set last_response(v){ window.hse_diag_state?.set('last_response', v ?? null); },
-        get last_action()   { return window.hse_diag_state?.get('last_action',   null) ?? null; },
-        set last_action(v)  { window.hse_diag_state?.set('last_action',   v ?? null); },
       };
 
       this._migration_state = {
@@ -79,43 +59,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         active_yaml: "",
       };
 
-      // ── _config_state : bridge de compatibilité vers hse_store via hse_config_state
-      this._config_state = {
-        get scan_result()                  { return window.hse_config_state?.get('scan_result',                  { integrations: [], candidates: [] }) ?? { integrations: [], candidates: [] }; },
-        set scan_result(v)                 { window.hse_config_state?.set('scan_result',                  v); },
-        get catalogue()                    { return window.hse_config_state?.get('catalogue',                    null) ?? null; },
-        set catalogue(v)                   { window.hse_config_state?.set('catalogue',                    v); },
-        get pricing()                      { return window.hse_config_state?.get('pricing',                      null) ?? null; },
-        set pricing(v)                     { window.hse_config_state?.set('pricing',                      v); },
-        get pricing_draft()                { return window.hse_config_state?.get('pricing_draft',                null) ?? null; },
-        set pricing_draft(v)               { window.hse_config_state?.set('pricing_draft',                v); },
-        get pricing_defaults()             { return window.hse_config_state?.get('pricing_defaults',             null) ?? null; },
-        set pricing_defaults(v)            { window.hse_config_state?.set('pricing_defaults',             v); },
-        get selected_reference_entity_id() { return window.hse_config_state?.get('selected_reference_entity_id',null) ?? null; },
-        set selected_reference_entity_id(v){ window.hse_config_state?.set('selected_reference_entity_id',v ?? null); },
-        get current_reference_entity_id()  { return window.hse_config_state?.get('current_reference_entity_id', null) ?? null; },
-        set current_reference_entity_id(v) { window.hse_config_state?.set('current_reference_entity_id',  v ?? null); },
-        get reference_status()             { return window.hse_config_state?.get('reference_status',             null) ?? null; },
-        set reference_status(v)            { window.hse_config_state?.set('reference_status',             v ?? null); },
-        get reference_status_error()       { return window.hse_config_state?.get('reference_status_error',       null) ?? null; },
-        set reference_status_error(v)      { window.hse_config_state?.set('reference_status_error',       v ?? null); },
-        get loading()        { return !!window.hse_config_state?.get('loading',        false); },
-        set loading(v)       { window.hse_config_state?.set('loading',        !!v); },
-        get saving()         { return !!window.hse_config_state?.get('saving',         false); },
-        set saving(v)        { window.hse_config_state?.set('saving',         !!v); },
-        get pricing_saving() { return !!window.hse_config_state?.get('pricing_saving', false); },
-        set pricing_saving(v){ window.hse_config_state?.set('pricing_saving', !!v); },
-        get error()           { return window.hse_config_state?.get('error',           null) ?? null; },
-        set error(v)          { window.hse_config_state?.set('error',           v ?? null); },
-        get message()         { return window.hse_config_state?.get('message',         null) ?? null; },
-        set message(v)        { window.hse_config_state?.set('message',         v ?? null); },
-        get pricing_error()   { return window.hse_config_state?.get('pricing_error',   null) ?? null; },
-        set pricing_error(v)  { window.hse_config_state?.set('pricing_error',   v ?? null); },
-        get pricing_message() { return window.hse_config_state?.get('pricing_message', null) ?? null; },
-        set pricing_message(v){ window.hse_config_state?.set('pricing_message', v ?? null); },
-        get cost_filter_q()   { return window.hse_config_state?.get('cost_filter_q',   '') ?? ''; },
-        set cost_filter_q(v)  { window.hse_config_state?.set('cost_filter_q',   v ?? ''); },
-      };
+      // ── _config_state supprimé : toutes les clés passent par window.hse_config_state
 
       this._boot_done = false;
       this._boot_error = null;
@@ -165,6 +109,12 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         }
       };
     }
+
+    // ── helpers store diag/config ────────────────────────────────────────────────
+    _dg(key, def) { return window.hse_diag_state?.get(key, def) ?? def; }
+    _ds(key, v)   { window.hse_diag_state?.set(key, v); }
+    _cg(key, def) { return window.hse_config_state?.get(key, def) ?? def; }
+    _cs(key, v)   { window.hse_config_state?.set(key, v); }
 
     _mark_user_interacting() {
       this._user_interacting = true;
@@ -246,15 +196,16 @@ const build_signature = "2026-03-17_refonte_store_phase5";
       } catch (_) {}
       this._scan_state.open_all = (this._storage_get("hse_scan_open_all") || "0") === "1";
 
-      // Restauration état diag depuis localStorage (fallback si store pas encore prêt)
-      this._diag_state.filter_q = this._storage_get("hse_diag_filter_q") || "";
-      this._diag_state.advanced = (this._storage_get("hse_diag_advanced") || "0") === "1";
+      // Restauration état diag depuis localStorage → store
+      // (sera écrasé par le store si celui-ci est déjà initialisé)
+      this._ds('filter_q',  this._storage_get("hse_diag_filter_q") || "");
+      this._ds('advanced',  (this._storage_get("hse_diag_advanced") || "0") === "1");
       try {
         const rawSel = this._storage_get("hse_diag_selected");
-        if (rawSel) this._diag_state.selected = JSON.parse(rawSel) || {};
+        if (rawSel) this._ds('selected', JSON.parse(rawSel) || {});
       } catch (_) {}
 
-      this._config_state.cost_filter_q = this._storage_get("hse_config_cost_filter_q") || "";
+      this._cs('cost_filter_q', this._storage_get("hse_config_cost_filter_q") || "");
 
       this._root = this.attachShadow({ mode: "open" });
 
@@ -359,7 +310,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
     }
 
     _reference_effective_entity_id() {
-      return this._config_state.selected_reference_entity_id || this._config_state.current_reference_entity_id || null;
+      return this._cg('selected_reference_entity_id', null) || this._cg('current_reference_entity_id', null) || null;
     }
 
     _clear_reference_status_polling() {
@@ -386,7 +337,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
       const requested_entity_id = for_entity_id === undefined ? this._reference_effective_entity_id() : for_entity_id;
       this._reference_status_target_entity_id = requested_entity_id;
 
-      if (this._reference_status_polling) return this._config_state.reference_status;
+      if (this._reference_status_polling) return this._cg('reference_status', null);
 
       this._reference_status_polling = true;
       try {
@@ -402,12 +353,12 @@ const build_signature = "2026-03-17_refonte_store_phase5";
             continue;
           }
 
-          window.hse_config_state?.set('reference_status', resp || null);
-          window.hse_config_state?.set('reference_status_error', null);
+          this._cs('reference_status', resp || null);
+          this._cs('reference_status_error', null);
           return resp || null;
         }
       } catch (err) {
-        window.hse_config_state?.set('reference_status_error', this._err_msg(err));
+        this._cs('reference_status_error', this._err_msg(err));
         return null;
       } finally {
         this._reference_status_polling = false;
@@ -418,8 +369,8 @@ const build_signature = "2026-03-17_refonte_store_phase5";
             if (container && window.hse_config_view?.render_config) {
               if (container.hasAttribute("data-hse-config-built")) {
                 const model = window.hse_config_state
-                  ? window.hse_config_state.get_model(this._config_state)
-                  : this._config_state;
+                  ? window.hse_config_state.get_model({})
+                  : {};
                 window.hse_config_view.render_config(container, model, () => {});
               } else {
                 this._render();
@@ -948,7 +899,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         return;
       }
 
-      if (this._config_state.loading) {
+      if (this._cg('loading', false)) {
         const { el } = window.hse_dom;
         const card = el("div", "hse_card");
         card.appendChild(el("div", null, "Configuration"));
@@ -957,24 +908,24 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         return;
       }
 
-      const _effective_ref = () => this._config_state.selected_reference_entity_id || this._config_state.current_reference_entity_id || null;
+      const _effective_ref = () => this._cg('selected_reference_entity_id', null) || this._cg('current_reference_entity_id', null) || null;
 
       const _ensure_pricing_draft = () => {
-        if (!this._config_state.pricing_draft) {
-          const base = JSON.parse(JSON.stringify(this._config_state.pricing_defaults || {}));
-          const pr = JSON.parse(JSON.stringify(this._config_state.pricing || {}));
+        if (!this._cg('pricing_draft', null)) {
+          const base = JSON.parse(JSON.stringify(this._cg('pricing_defaults', {}) || {}));
+          const pr = JSON.parse(JSON.stringify(this._cg('pricing', {}) || {}));
           this._deep_fill_missing(pr, base);
-          window.hse_config_state?.set('pricing_draft', pr);
+          this._cs('pricing_draft', pr);
         } else {
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft));
-          this._deep_fill_missing(draft, this._config_state.pricing_defaults || {});
-          window.hse_config_state?.set('pricing_draft', draft);
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {})));
+          this._deep_fill_missing(draft, this._cg('pricing_defaults', {}) || {});
+          this._cs('pricing_draft', draft);
         }
       };
 
       const _cost_ids = () => {
         _ensure_pricing_draft();
-        const arr = this._config_state.pricing_draft?.cost_entity_ids;
+        const arr = this._cg('pricing_draft', null)?.cost_entity_ids;
         return Array.isArray(arr) ? arr : [];
       };
 
@@ -983,56 +934,56 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         if (!ref) return false;
         const ids = _cost_ids();
         if (!ids.includes(ref)) return false;
-        const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft));
+        const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {})));
         draft.cost_entity_ids = ids.filter((x) => x !== ref);
-        window.hse_config_state?.set('pricing_draft', draft);
+        this._cs('pricing_draft', draft);
         return true;
       };
 
       const _update_from_catalogue = (cat) => {
-        window.hse_config_state?.set('catalogue', cat);
+        this._cs('catalogue', cat);
         const cur = window.hse_config_view._current_reference_entity_id(cat);
-        window.hse_config_state?.set('current_reference_entity_id', cur);
-        if (this._config_state.selected_reference_entity_id == null) {
-          window.hse_config_state?.set('selected_reference_entity_id', cur);
+        this._cs('current_reference_entity_id', cur);
+        if (this._cg('selected_reference_entity_id', null) == null) {
+          this._cs('selected_reference_entity_id', cur);
         }
 
         const snapshot = window.hse_config_view._reference_status_from_catalogue?.(
           cat,
-          this._config_state.selected_reference_entity_id || cur || null
+          this._cg('selected_reference_entity_id', null) || cur || null
         );
         if (snapshot && typeof snapshot === "object") {
-          window.hse_config_state?.set('reference_status', {
-            ...(this._config_state.reference_status || {}),
+          this._cs('reference_status', {
+            ...(this._cg('reference_status', null) || {}),
             ...snapshot,
-            entity_id: snapshot.entity_id || cur || this._config_state.selected_reference_entity_id || null,
+            entity_id: snapshot.entity_id || cur || this._cg('selected_reference_entity_id', null) || null,
           });
         }
 
-        if (this._config_state.pricing_draft && _remove_ref_from_cost()) {
-          window.hse_config_state?.set('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
+        if (this._cg('pricing_draft', null) && _remove_ref_from_cost()) {
+          this._cs('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
         }
       };
 
       const _update_from_pricing = (resp) => {
         const pr = resp?.pricing || null;
         const defs = resp?.defaults || null;
-        window.hse_config_state?.set('pricing', pr);
-        window.hse_config_state?.set('pricing_defaults', defs);
+        this._cs('pricing', pr);
+        this._cs('pricing_defaults', defs);
 
-        if (this._config_state.pricing_draft == null) {
+        if (this._cg('pricing_draft', null) == null) {
           const base = JSON.parse(JSON.stringify(defs || {}));
           const cur = JSON.parse(JSON.stringify(pr || {}));
           this._deep_fill_missing(cur, base);
-          window.hse_config_state?.set('pricing_draft', cur);
+          this._cs('pricing_draft', cur);
         } else {
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft));
-          this._deep_fill_missing(draft, this._config_state.pricing_defaults || {});
-          window.hse_config_state?.set('pricing_draft', draft);
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {})));
+          this._deep_fill_missing(draft, this._cg('pricing_defaults', {}) || {});
+          this._cs('pricing_draft', draft);
         }
 
         if (_remove_ref_from_cost()) {
-          window.hse_config_state?.set('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
+          this._cs('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
         }
       };
 
@@ -1042,7 +993,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
       };
 
       const _candidate_index = () => {
-        const items = Array.isArray(this._config_state.scan_result?.candidates) ? this._config_state.scan_result.candidates : [];
+        const items = Array.isArray(this._cg('scan_result', null)?.candidates) ? this._cg('scan_result', null).candidates : [];
         const map = new Map();
         for (const c of items) {
           if (!c || !c.entity_id) continue;
@@ -1075,16 +1026,16 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         return lines.join("\n");
       };
 
-      if (!this._config_state.catalogue && !this._config_state.loading) {
-        window.hse_config_state?.set('loading', true);
-        window.hse_config_state?.set('error', null);
-        window.hse_config_state?.set('message', null);
-        window.hse_config_state?.set('pricing_error', null);
-        window.hse_config_state?.set('pricing_message', null);
+      if (!this._cg('catalogue', null) && !this._cg('loading', false)) {
+        this._cs('loading', true);
+        this._cs('error', null);
+        this._cs('message', null);
+        this._cs('pricing_error', null);
+        this._cs('pricing_message', null);
         this._render();
 
         try {
-          window.hse_config_state?.set('scan_result', await window.hse_scan_api.fetch_scan(this._hass, {
+          this._cs('scan_result', await window.hse_scan_api.fetch_scan(this._hass, {
             include_disabled: false,
             exclude_hse: true,
           }));
@@ -1097,9 +1048,9 @@ const build_signature = "2026-03-17_refonte_store_phase5";
 
           await this._fetch_reference_status();
         } catch (err) {
-          window.hse_config_state?.set('error', this._err_msg(err));
+          this._cs('error', this._err_msg(err));
         } finally {
-          window.hse_config_state?.set('loading', false);
+          this._cs('loading', false);
           this._render();
         }
         return;
@@ -1107,20 +1058,19 @@ const build_signature = "2026-03-17_refonte_store_phase5";
 
       this._ensure_reference_status_polling();
 
-      // ── Phase 5 : model issu du store comme source de vérité ────────────────────
       const config_model = window.hse_config_state
-        ? window.hse_config_state.get_model(this._config_state)
-        : this._config_state;
+        ? window.hse_config_state.get_model({})
+        : {};
 
       window.hse_config_view.render_config(container, config_model, async (action, value) => {
         const _deep_set_draft = (path, v) => {
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
           this._deep_set(draft, path, v);
-          window.hse_config_state?.set('pricing_draft', draft);
+          this._cs('pricing_draft', draft);
         };
 
         if (action === "cost_filter") {
-          window.hse_config_state?.set('cost_filter_q', value || "");
+          this._cs('cost_filter_q', value || "");
           this._storage_set("hse_config_cost_filter_q", value || "");
           this._render();
           return;
@@ -1129,15 +1079,15 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         if (action === "cost_auto_select") {
           const entity_ids = Array.isArray(value?.entity_ids) ? value.entity_ids : [];
           _ensure_pricing_draft();
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
           draft.cost_entity_ids = entity_ids;
-          window.hse_config_state?.set('pricing_draft', draft);
+          this._cs('pricing_draft', draft);
           if (_remove_ref_from_cost()) {
-            window.hse_config_state?.set('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
+            this._cs('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
           } else {
-            window.hse_config_state?.set('pricing_message', `Sélection automatique appliquée (${entity_ids.length} capteurs).`);
+            this._cs('pricing_message', `Sélection automatique appliquée (${entity_ids.length} capteurs).`);
           }
-          window.hse_config_state?.set('pricing_error', null);
+          this._cs('pricing_error', null);
           this._render();
           return;
         }
@@ -1148,22 +1098,22 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           if (!from || !to) return;
           const ids = _cost_ids().filter((x) => x !== from);
           if (!ids.includes(to)) ids.push(to);
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
           draft.cost_entity_ids = ids;
-          window.hse_config_state?.set('pricing_draft', draft);
-          window.hse_config_state?.set('pricing_message', `Remplacement: ${from} → ${to}`);
-          window.hse_config_state?.set('pricing_error', null);
+          this._cs('pricing_draft', draft);
+          this._cs('pricing_message', `Remplacement: ${from} → ${to}`);
+          this._cs('pricing_error', null);
           this._render();
           return;
         }
 
         if (action === "select_reference") {
-          window.hse_config_state?.set('selected_reference_entity_id', value);
-          window.hse_config_state?.set('message', null);
-          window.hse_config_state?.set('reference_status_error', null);
-          const next_effective_entity_id = value || this._config_state.current_reference_entity_id || null;
-          if ((this._config_state.reference_status?.entity_id || null) !== next_effective_entity_id) {
-            window.hse_config_state?.set('reference_status', null);
+          this._cs('selected_reference_entity_id', value);
+          this._cs('message', null);
+          this._cs('reference_status_error', null);
+          const next_effective_entity_id = value || this._cg('current_reference_entity_id', null) || null;
+          if ((this._cg('reference_status', null)?.entity_id || null) !== next_effective_entity_id) {
+            this._cs('reference_status', null);
           }
           this._render();
           await this._fetch_reference_status(value || undefined);
@@ -1177,12 +1127,12 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           _ensure_pricing_draft();
           _deep_set_draft(path, v);
           if (path === "contract_type") {
-            const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
-            this._deep_fill_missing(draft, this._config_state.pricing_defaults || {});
-            window.hse_config_state?.set('pricing_draft', draft);
+            const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
+            this._deep_fill_missing(draft, this._cg('pricing_defaults', {}) || {});
+            this._cs('pricing_draft', draft);
           }
-          window.hse_config_state?.set('pricing_message', null);
-          window.hse_config_state?.set('pricing_error', null);
+          this._cs('pricing_message', null);
+          this._cs('pricing_error', null);
           if (!no_render) this._render();
           return;
         }
@@ -1192,8 +1142,8 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           if (!eid) return;
           const ref = _effective_ref();
           if (ref && eid === ref) {
-            window.hse_config_state?.set('pricing_message', "Impossible: le capteur de référence ne peut pas être inclus dans les capteurs de calcul.");
-            window.hse_config_state?.set('pricing_error', null);
+            this._cs('pricing_message', "Impossible: le capteur de référence ne peut pas être inclus dans les capteurs de calcul.");
+            this._cs('pricing_error', null);
             this._render();
             return;
           }
@@ -1207,19 +1157,19 @@ const build_signature = "2026-03-17_refonte_store_phase5";
               if (!cc) continue;
               const gg = _group_key_for_candidate(cc);
               if (gg && gg === gk && existing !== eid) {
-                window.hse_config_state?.set('pricing_message', `Doublon interdit: ${eid} est équivalent à ${existing} (même appareil). Utilise Remplacer.`);
-                window.hse_config_state?.set('pricing_error', null);
+                this._cs('pricing_message', `Doublon interdit: ${eid} est équivalent à ${existing} (même appareil). Utilise Remplacer.`);
+                this._cs('pricing_error', null);
                 this._render();
                 return;
               }
             }
           }
           if (!ids.includes(eid)) ids.push(eid);
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
           draft.cost_entity_ids = ids;
-          window.hse_config_state?.set('pricing_draft', draft);
-          window.hse_config_state?.set('pricing_message', null);
-          window.hse_config_state?.set('pricing_error', null);
+          this._cs('pricing_draft', draft);
+          this._cs('pricing_message', null);
+          this._cs('pricing_error', null);
           this._render();
           return;
         }
@@ -1228,11 +1178,11 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           const eid = value?.entity_id;
           if (!eid) return;
           const ids = _cost_ids().filter((x) => x !== eid);
-          const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+          const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
           draft.cost_entity_ids = ids;
-          window.hse_config_state?.set('pricing_draft', draft);
-          window.hse_config_state?.set('pricing_message', null);
-          window.hse_config_state?.set('pricing_error', null);
+          this._cs('pricing_draft', draft);
+          this._cs('pricing_message', null);
+          this._cs('pricing_error', null);
           this._render();
           return;
         }
@@ -1240,20 +1190,20 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         if (action === "pricing_clear") {
           const ok = window.confirm("Effacer les tarifs enregistrés ?");
           if (!ok) return;
-          window.hse_config_state?.set('pricing_saving', true);
-          window.hse_config_state?.set('pricing_error', null);
-          window.hse_config_state?.set('pricing_message', "Suppression…");
+          this._cs('pricing_saving', true);
+          this._cs('pricing_error', null);
+          this._cs('pricing_message', "Suppression…");
           this._render();
           try {
             await window.hse_config_api.clear_pricing(this._hass);
             const pricingResp = await window.hse_config_api.fetch_pricing(this._hass);
-            window.hse_config_state?.set('pricing_draft', null);
+            this._cs('pricing_draft', null);
             _update_from_pricing(pricingResp);
-            window.hse_config_state?.set('pricing_message', "Tarifs effacés.");
+            this._cs('pricing_message', "Tarifs effacés.");
           } catch (err) {
-            window.hse_config_state?.set('pricing_error', this._err_msg(err));
+            this._cs('pricing_error', this._err_msg(err));
           } finally {
-            window.hse_config_state?.set('pricing_saving', false);
+            this._cs('pricing_saving', false);
             this._render();
           }
           return;
@@ -1261,22 +1211,22 @@ const build_signature = "2026-03-17_refonte_store_phase5";
 
         if (action === "pricing_save") {
           _ensure_pricing_draft();
-          const draft_pre = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
-          this._deep_fill_missing(draft_pre, this._config_state.pricing_defaults || {});
-          window.hse_config_state?.set('pricing_draft', draft_pre);
+          const draft_pre = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
+          this._deep_fill_missing(draft_pre, this._cg('pricing_defaults', {}) || {});
+          this._cs('pricing_draft', draft_pre);
           if (_remove_ref_from_cost()) {
-            window.hse_config_state?.set('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
+            this._cs('pricing_message', "Garde-fou: le capteur de référence a été retiré des capteurs de calcul.");
           }
           const errDup = _validate_no_duplicate_groups(_cost_ids());
           if (errDup) {
-            window.hse_config_state?.set('pricing_error', errDup);
-            window.hse_config_state?.set('pricing_message', "Impossible de sauvegarder: doublons détectés dans la sélection.");
+            this._cs('pricing_error', errDup);
+            this._cs('pricing_message', "Impossible de sauvegarder: doublons détectés dans la sélection.");
             this._render();
             return;
           }
-          window.hse_config_state?.set('pricing_saving', true);
-          window.hse_config_state?.set('pricing_error', null);
-          window.hse_config_state?.set('pricing_message', "Sauvegarde en préparation…");
+          this._cs('pricing_saving', true);
+          this._cs('pricing_error', null);
+          this._cs('pricing_message', "Sauvegarde en préparation…");
           this._render();
           await new Promise((resolve) => {
             try { window.requestAnimationFrame(() => resolve()); }
@@ -1284,21 +1234,21 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           });
           const ok = window.confirm("Sauvegarder ces tarifs (et la sélection de capteurs) ?\nEnsuite HSE va créer automatiquement les helpers nécessaires.");
           if (!ok) {
-            window.hse_config_state?.set('pricing_saving', false);
-            window.hse_config_state?.set('pricing_message', null);
+            this._cs('pricing_saving', false);
+            this._cs('pricing_message', null);
             this._render();
             return;
           }
           const ids_for_enrich = _cost_ids().slice();
-          window.hse_config_state?.set('pricing_error', null);
-          window.hse_config_state?.set('pricing_message', "Sauvegarde…");
+          this._cs('pricing_error', null);
+          this._cs('pricing_message', "Sauvegarde…");
           this._render();
           try {
-            await window.hse_config_api.set_pricing(this._hass, this._config_state.pricing_draft);
+            await window.hse_config_api.set_pricing(this._hass, this._cg('pricing_draft', null));
             const pricingResp = await window.hse_config_api.fetch_pricing(this._hass);
-            window.hse_config_state?.set('pricing_draft', null);
+            this._cs('pricing_draft', null);
             _update_from_pricing(pricingResp);
-            window.hse_config_state?.set('pricing_message', "Tarifs sauvegardés. Création des capteurs (helpers) en cours… (attends ~30s, ou redémarre HA si certains restent indisponibles).");
+            this._cs('pricing_message', "Tarifs sauvegardés. Création des capteurs (helpers) en cours… (attends ~30s, ou redémarre HA si certains restent indisponibles).");
             this._render();
             if (window.hse_enrich_api?.apply) {
               try {
@@ -1308,45 +1258,45 @@ const build_signature = "2026-03-17_refonte_store_phase5";
                 const skipped = sc.skipped_count ?? (Array.isArray(applied?.skipped) ? applied.skipped.length : 0);
                 const errs = sc.errors_count ?? (Array.isArray(applied?.errors) ? applied.errors.length : 0);
                 if (errs > 0) {
-                  window.hse_config_state?.set('pricing_message', `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}, erreurs ${errs}. Si besoin, utilise l'onglet Migration pour un export YAML.`);
+                  this._cs('pricing_message', `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}, erreurs ${errs}. Si besoin, utilise l'onglet Migration pour un export YAML.`);
                 } else {
-                  window.hse_config_state?.set('pricing_message', `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}. (attends ~30s)`);
+                  this._cs('pricing_message', `Tarifs sauvegardés. Helpers: créés ${created}, ignorés ${skipped}. (attends ~30s)`);
                 }
               } catch (err) {
-                window.hse_config_state?.set('pricing_message', `Tarifs sauvegardés. Création auto des helpers en échec: ${this._err_msg(err)}. Utilise Migration pour exporter le YAML.`);
+                this._cs('pricing_message', `Tarifs sauvegardés. Création auto des helpers en échec: ${this._err_msg(err)}. Utilise Migration pour exporter le YAML.`);
               }
             } else {
-              window.hse_config_state?.set('pricing_message', "Tarifs sauvegardés. Enrich API non disponible pour créer automatiquement les helpers (utilise Migration pour exporter le YAML).");
+              this._cs('pricing_message', "Tarifs sauvegardés. Enrich API non disponible pour créer automatiquement les helpers (utilise Migration pour exporter le YAML).");
             }
           } catch (err) {
-            window.hse_config_state?.set('pricing_error', this._err_msg(err));
+            this._cs('pricing_error', this._err_msg(err));
           } finally {
-            window.hse_config_state?.set('pricing_saving', false);
+            this._cs('pricing_saving', false);
             this._render();
           }
           return;
         }
 
         if (action === "refresh") {
-          window.hse_config_state?.set('loading', true);
-          window.hse_config_state?.set('error', null);
-          window.hse_config_state?.set('message', null);
-          window.hse_config_state?.set('pricing_error', null);
-          window.hse_config_state?.set('pricing_message', null);
-          window.hse_config_state?.set('reference_status_error', null);
+          this._cs('loading', true);
+          this._cs('error', null);
+          this._cs('message', null);
+          this._cs('pricing_error', null);
+          this._cs('pricing_message', null);
+          this._cs('reference_status_error', null);
           this._render();
           try {
             await window.hse_config_api.refresh_catalogue(this._hass);
-            window.hse_config_state?.set('scan_result', await window.hse_scan_api.fetch_scan(this._hass, { include_disabled: false, exclude_hse: true }));
+            this._cs('scan_result', await window.hse_scan_api.fetch_scan(this._hass, { include_disabled: false, exclude_hse: true }));
             const cat = await window.hse_config_api.fetch_catalogue(this._hass);
             _update_from_catalogue(cat);
             const pricingResp = await window.hse_config_api.fetch_pricing(this._hass);
             _update_from_pricing(pricingResp);
             await this._fetch_reference_status();
           } catch (err) {
-            window.hse_config_state?.set('error', this._err_msg(err));
+            this._cs('error', this._err_msg(err));
           } finally {
-            window.hse_config_state?.set('loading', false);
+            this._cs('loading', false);
             this._render();
           }
           return;
@@ -1355,49 +1305,49 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         if (action === "clear_reference") {
           const ok = window.confirm("Supprimer la référence compteur ?");
           if (!ok) return;
-          window.hse_config_state?.set('saving', true);
-          window.hse_config_state?.set('error', null);
-          window.hse_config_state?.set('message', null);
-          window.hse_config_state?.set('reference_status_error', null);
+          this._cs('saving', true);
+          this._cs('error', null);
+          this._cs('message', null);
+          this._cs('reference_status_error', null);
           this._render();
           try {
             await window.hse_config_api.set_reference_total(this._hass, null);
             const cat = await window.hse_config_api.fetch_catalogue(this._hass);
             _update_from_catalogue(cat);
-            window.hse_config_state?.set('selected_reference_entity_id', null);
-            window.hse_config_state?.set('reference_status', null);
+            this._cs('selected_reference_entity_id', null);
+            this._cs('reference_status', null);
             await this._fetch_reference_status(null);
-            window.hse_config_state?.set('message', "Référence supprimée.");
+            this._cs('message', "Référence supprimée.");
           } catch (err) {
-            window.hse_config_state?.set('error', this._err_msg(err));
+            this._cs('error', this._err_msg(err));
           } finally {
-            window.hse_config_state?.set('saving', false);
+            this._cs('saving', false);
             this._render();
           }
           return;
         }
 
         if (action === "save_reference") {
-          const entity_id = this._config_state.selected_reference_entity_id;
+          const entity_id = this._cg('selected_reference_entity_id', null);
           if (!entity_id) {
-            window.hse_config_state?.set('message', "Aucune référence sélectionnée (rien à sauvegarder).");
+            this._cs('message', "Aucune référence sélectionnée (rien à sauvegarder).");
             this._render();
             return;
           }
           _ensure_pricing_draft();
           const ids = _cost_ids();
           if (ids.includes(entity_id)) {
-            const draft = JSON.parse(JSON.stringify(this._config_state.pricing_draft || {}));
+            const draft = JSON.parse(JSON.stringify(this._cg('pricing_draft', {}) || {}));
             draft.cost_entity_ids = ids.filter((x) => x !== entity_id);
-            window.hse_config_state?.set('pricing_draft', draft);
-            window.hse_config_state?.set('pricing_message', "Garde-fou: la référence a été retirée des capteurs de calcul.");
+            this._cs('pricing_draft', draft);
+            this._cs('pricing_message', "Garde-fou: la référence a été retirée des capteurs de calcul.");
           }
           const ok = window.confirm(`Définir la référence compteur sur ${entity_id} ?\n(Elle sera exclue des totaux mesurés)`);
           if (!ok) return;
-          window.hse_config_state?.set('saving', true);
-          window.hse_config_state?.set('error', null);
-          window.hse_config_state?.set('message', null);
-          window.hse_config_state?.set('reference_status_error', null);
+          this._cs('saving', true);
+          this._cs('error', null);
+          this._cs('message', null);
+          this._cs('reference_status_error', null);
           this._render();
           try {
             try {
@@ -1409,11 +1359,11 @@ const build_signature = "2026-03-17_refonte_store_phase5";
             const cat = await window.hse_config_api.fetch_catalogue(this._hass);
             _update_from_catalogue(cat);
             await this._fetch_reference_status(entity_id);
-            window.hse_config_state?.set('message', "Référence sauvegardée.");
+            this._cs('message', "Référence sauvegardée.");
           } catch (err) {
-            window.hse_config_state?.set('error', this._err_msg(err));
+            this._cs('error', this._err_msg(err));
           } finally {
-            window.hse_config_state?.set('saving', false);
+            this._cs('saving', false);
             this._render();
           }
           return;
@@ -1440,13 +1390,13 @@ const build_signature = "2026-03-17_refonte_store_phase5";
 
       const _wrap_last = async (label, fn, request_meta) => {
         try {
-          window.hse_diag_state?.set('last_action', label);
-          window.hse_diag_state?.set('last_request', request_meta || null);
+          this._ds('last_action', label);
+          this._ds('last_request', request_meta || null);
           const resp = await fn();
-          window.hse_diag_state?.set('last_response', resp);
+          this._ds('last_response', resp);
           return resp;
         } catch (err) {
-          window.hse_diag_state?.set('last_response', { error: this._err_msg(err) });
+          this._ds('last_response', { error: this._err_msg(err) });
           throw err;
         }
       };
@@ -1479,7 +1429,7 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         return;
       }
 
-      const _selected_ids = () => Object.keys(this._diag_state.selected || {}).filter((k) => this._diag_state.selected[k]);
+      const _selected_ids = () => Object.keys(this._dg('selected', {}) || {}).filter((k) => this._dg('selected', {})[k]);
 
       const _mute_until_days = (days) => {
         const fn = window.hse_diag_view?._local_iso_days_from_now;
@@ -1499,11 +1449,11 @@ const build_signature = "2026-03-17_refonte_store_phase5";
       const _filtered_ids = () => {
         const fn = window.hse_diag_view?._filtered_escalated_items;
         if (!fn) return [];
-        return fn(this._diag_state.data, this._diag_state.filter_q).map((x) => x.id);
+        return fn(this._diag_state.data, this._dg('filter_q', '')).map((x) => x.id);
       };
 
       const _filtered_entity_ids = () => {
-        const filtered = window.hse_diag_view?._filtered_escalated_items?.(this._diag_state.data, this._diag_state.filter_q) || [];
+        const filtered = window.hse_diag_view?._filtered_escalated_items?.(this._diag_state.data, this._dg('filter_q', '')) || [];
         const grouped = window.hse_diag_view?._group_escalated_items?.(filtered) || [];
         return grouped.map((g) => g.entity_id).filter(Boolean);
       };
@@ -1513,47 +1463,46 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         return Array.from(new Set(Object.values(items).map((x) => x?.source?.entity_id).filter(Boolean))).sort();
       };
 
-      // ── Phase 5 : state issu du store comme source de vérité ─────────────────────
       const diag_state_model = window.hse_diag_state
         ? window.hse_diag_state.get_state(this._diag_state)
         : this._diag_state;
 
       window.hse_diag_view.render_diagnostic(container, this._diag_state.data, diag_state_model, async (action, payload) => {
         if (action === "toggle_advanced") {
-          window.hse_diag_state?.set('advanced', !this._diag_state.advanced);
-          this._storage_set("hse_diag_advanced", this._diag_state.advanced ? "1" : "0");
+          this._ds('advanced', !this._dg('advanced', false));
+          this._storage_set("hse_diag_advanced", this._dg('advanced', false) ? "1" : "0");
           this._render();
           return;
         }
         if (action === "filter") {
-          window.hse_diag_state?.set('filter_q', payload || "");
+          this._ds('filter_q', payload || "");
           this._storage_set("hse_diag_filter_q", payload || "");
-          window.hse_diag_state?.set('selected', {});
+          this._ds('selected', {});
           this._storage_set("hse_diag_selected", "{}");
           this._render();
           return;
         }
         if (action === "select") {
           if (payload && payload.item_id) {
-            const sel = Object.assign({}, this._diag_state.selected);
+            const sel = Object.assign({}, this._dg('selected', {}));
             sel[payload.item_id] = !!payload.checked;
-            window.hse_diag_state?.set('selected', sel);
+            this._ds('selected', sel);
             this._storage_set("hse_diag_selected", JSON.stringify(sel));
           }
           this._render();
           return;
         }
         if (action === "select_none") {
-          window.hse_diag_state?.set('selected', {});
+          this._ds('selected', {});
           this._storage_set("hse_diag_selected", "{}");
           this._render();
           return;
         }
         if (action === "select_all_filtered") {
           const ids = _filtered_ids();
-          const sel = Object.assign({}, this._diag_state.selected);
+          const sel = Object.assign({}, this._dg('selected', {}));
           for (const id of ids) sel[id] = true;
-          window.hse_diag_state?.set('selected', sel);
+          this._ds('selected', sel);
           this._storage_set("hse_diag_selected", JSON.stringify(sel));
           this._render();
           return;
@@ -1561,17 +1510,17 @@ const build_signature = "2026-03-17_refonte_store_phase5";
         if (action === "check_coherence") {
           const entity_ids = _filtered_entity_ids();
           const req = _default_check_request(entity_ids.length ? entity_ids : _all_entity_ids());
-          window.hse_diag_state?.set('check_loading', true);
-          window.hse_diag_state?.set('check_error', null);
+          this._ds('check_loading', true);
+          this._ds('check_error', null);
           this._render();
           try {
             const result = await _wrap_last("diagnostic_check", () => diag_api.check_consistency(req), { method: "post", path: "hse/unified/diagnostic/check", body: req });
-            window.hse_diag_state?.set('check_result', result);
-            window.hse_diag_state?.set('check_error', null);
+            this._ds('check_result', result);
+            this._ds('check_error', null);
           } catch (err) {
-            window.hse_diag_state?.set('check_error', this._err_msg(err));
+            this._ds('check_error', this._err_msg(err));
           } finally {
-            window.hse_diag_state?.set('check_loading', false);
+            this._ds('check_loading', false);
             this._render_for_active_tab("diagnostic");
           }
           return;
@@ -1609,17 +1558,17 @@ const build_signature = "2026-03-17_refonte_store_phase5";
           await _wrap_last("bulk_triage/archived", () => diag_api.bulk_triage(ids, { policy: "archived", note: "auto_consolidated_from_diagnostic" }), { method: "post", path: "hse/unified/catalogue/triage/bulk", body: { item_ids: ids, triage: { policy: "archived", note: "auto_consolidated_from_diagnostic" } } });
           this._diag_state.data = await _wrap_last("fetch_catalogue", () => diag_api.fetch_catalogue(), { method: "get", path: "hse/unified/catalogue", body: null });
           const req = _default_check_request([entity_id]);
-          window.hse_diag_state?.set('check_loading', true);
-          window.hse_diag_state?.set('check_error', null);
+          this._ds('check_loading', true);
+          this._ds('check_error', null);
           this._render_for_active_tab("diagnostic");
           try {
             const result = await _wrap_last("diagnostic_check", () => diag_api.check_consistency(req), { method: "post", path: "hse/unified/diagnostic/check", body: req });
-            window.hse_diag_state?.set('check_result', result);
-            window.hse_diag_state?.set('check_error', null);
+            this._ds('check_result', result);
+            this._ds('check_error', null);
           } catch (err) {
-            window.hse_diag_state?.set('check_error', this._err_msg(err));
+            this._ds('check_error', this._err_msg(err));
           } finally {
-            window.hse_diag_state?.set('check_loading', false);
+            this._ds('check_loading', false);
             this._render_for_active_tab("diagnostic");
           }
           return;
