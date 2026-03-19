@@ -1,12 +1,12 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-16_refonte_store_phase1";
+const build_signature = "2026-03-19_refonte_store_phase2";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
 
   // IMPORTANT: must match const.py PANEL_JS_URL
-  const ASSET_V = "0.1.35";
+  const ASSET_V = "0.1.36";
 
   const NAV_ITEMS_FALLBACK = [
     { id: "overview", label: "Accueil" },
@@ -97,9 +97,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       };
 
       // ── _org_state : bridge de compatibilité vers hse_store ──────────────────────
-      // Les clés lues/écrites ici sont progressivement migrées vers window.hse_store.
-      // Les getters permettent à custom.view.js de continuer à lire this._org_state.xxx
-      // sans modification, pendant la période de transition.
       this._org_state = {
         get loading()        { return !!window.hse_store?.get('org.loading'); },
         set loading(v)       { window.hse_store?.set('org.loading', !!v); },
@@ -171,9 +168,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
     _render_for_active_tab(tab_id) {
       if (this._active_tab !== tab_id) return;
-      // ── GUARD : ne pas rerender si un save org est en cours ────────────────────
-      // Ceci évite qu'un polling (hass update) déclenche _render() →
-      // _render_custom() → _do_render() pendant que le confirm() est ouvert.
       if (tab_id === 'custom' && window.hse_store?.get('org.saving')) return;
       if (this._user_interacting) return;
       this._render();
@@ -192,6 +186,8 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
     set hass(hass) {
       this._hass = hass;
+      // Met à jour hse_overview_state avec le nouveau hass
+      window.hse_overview_state?.update_hass?.(hass);
       if (TABS_STABLE.has(this._active_tab)) return;
       this._render();
     }
@@ -401,6 +397,10 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       }
     }
 
+    // ── Overview autorefresh ──────────────────────────────────────────────────
+    // Le timer écrit dans hse_overview_state (begin_fetch / end_fetch).
+    // Le subscriber dans overview.state.js déclenche patch_live ou render_overview
+    // sans passer par _render() — plus de scroll-jack.
     _ensure_overview_autorefresh() {
       if (this._overview_timer) return;
 
@@ -411,17 +411,36 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         try {
           const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
           if (!fn) throw new Error("overview_api_not_loaded");
-          this._overview_data = await fn(this._hass);
+
+          window.hse_overview_state?.begin_fetch?.();
+
+          const data = await fn(this._hass);
+
+          // end_fetch stocke data + déclenche patch_live via le subscriber
+          // on passe le container courant s'il est déjà construit
+          const container = this._ui?.content ?? null;
+          window.hse_overview_state?.end_fetch?.(data, this._hass, container);
+
+          // Mise à jour du miroir local pour compatibilité _render_costs
+          this._overview_data = data;
         } catch (err) {
-          this._overview_data = { error: this._err_msg(err) };
+          const error_data = { error: this._err_msg(err) };
+          this._overview_data = error_data;
+          window.hse_overview_state?.end_fetch?.(error_data, this._hass, this._ui?.content ?? null);
         } finally {
           this._overview_refreshing = false;
-          this._render_if_not_interacting();
+          // On ne re-render que si l'onglet overview n'est pas encore construit
+          // (premier chargement) — le subscriber gère les mises à jour suivantes.
+          const container = this._ui?.content;
+          const already_built = container?.dataset?.hseOverviewBuilt === '1';
+          if (!already_built) {
+            this._render_if_not_interacting();
+          }
         }
       };
 
       this._overview_timer = window.setInterval(tick, 30000);
-      if (!this._overview_data) tick();
+      if (!window.hse_overview_state?.get('data')) tick();
     }
 
     _org_normalize_dict(raw) {
@@ -454,10 +473,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
     }
 
     _org_reset_draft_from_store() {
-      // ── GUARD : ne pas écraser le draft si un save est en cours ──────────────────
-      // Si org.saving=true, le store a gelé la clé meta_draft — le set() ci-dessous
-      // sera ignoré automatiquement par HseStore.freeze(). Mais on s'arrête tôt
-      // pour ne pas non plus toucher dirty.
       if (window.hse_store?.get('org.saving')) return;
 
       const m = this._org_state.meta_store?.meta || null;
@@ -511,12 +526,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
       this._org_ensure_draft();
 
-      // ── CORRECTIF RACE CONDITION ─────────────────────────────────────────────────
-      // 1. Snapshot du draft AVANT window.confirm() pour immuniser contre
-      //    tout polling concurrent qui s'intercalerait pendant la pause JS.
-      // 2. Gel de la clé dans le store : tout set('org.meta_draft') sera
-      //    ignoré jusqu'à end_save() ou l'annulation.
-      // -------------------------------------------------------------------
       let draft_snapshot;
       try {
         draft_snapshot = JSON.parse(JSON.stringify(this._org_state.meta_draft));
@@ -529,7 +538,7 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         window.hse_store.set('org.saving', true);
       }
       this._org_state.error = null;
-      this._org_state.message = "Sauvegarde en préparation…";
+      this._org_state.message = "Sauvegarde en préparation\u2026";
 
       const ok = window.confirm("Sauvegarder l'organisation (meta: rooms/types/assignments) ?");
       if (!ok) {
@@ -605,7 +614,6 @@ const build_signature = "2026-03-16_refonte_store_phase1";
           ? "Appliquer les changements propos\u00e9s (mode ALL) ?\nCe mode peut \u00e9craser des choix manuels."
           : "Appliquer les changements propos\u00e9s (mode auto) ?\nAucun champ manuel ne sera \u00e9cras\u00e9.";
 
-      // ── CORRECTIF : gel du draft AVANT confirm() ──────────────────────────────
       if (window.hse_store) {
         window.hse_store.freeze('org.meta_draft');
         window.hse_store.set('org.saving', true);
@@ -674,12 +682,16 @@ const build_signature = "2026-03-16_refonte_store_phase1";
         await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
         await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
 
-        // ── Store chargé en premier, avant tous les autres modules ────────────────
+        // ── Store chargé en premier ────────────────────────────────────────────
         await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
+
+        // ── overview.state.js chargé après le store, avant overview.view.js ──
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
+
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.view.js?v=${ASSET_V}`);
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/scan/scan.api.js?v=${ASSET_V}`);
@@ -1546,7 +1558,7 @@ const build_signature = "2026-03-16_refonte_store_phase1";
           const ok = window.confirm(`Appliquer REMOVED sur ${ids.length} item(s) (${mode}) ?`);
           if (!ok) return;
           await _wrap_last("bulk_triage/removed", () => diag_api.bulk_triage(ids, { policy: "removed" }), { method: "post", path: "hse/unified/catalogue/triage/bulk", body: { item_ids: ids, triage: { policy: "removed" } } });
-          this._diag_state.data = await _wrap_last("fetch_catalogue", () => diag_api.fetch_catalogue(), { method: "get", path: "hse/unified/catalogue", body: null });
+          this._diag_state.data = await _wrap_last("fetch_catalogue", () => diag_api.fetch_catalogue(), { method: "get\", path: \"hse/unified/catalogue", body: null });
           this._render_for_active_tab("diagnostic");
           return;
         }
@@ -1745,13 +1757,18 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
       btn.addEventListener("click", async () => {
         this._overview_data = null;
+        window.hse_overview_state?.begin_fetch?.();
         this._render();
         try {
           const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
           if (!fn) throw new Error("overview_api_not_loaded");
-          this._overview_data = await fn(this._hass);
+          const data = await fn(this._hass);
+          this._overview_data = data;
+          window.hse_overview_state?.end_fetch?.(data, this._hass, container);
         } catch (err) {
-          this._overview_data = { error: this._err_msg(err) };
+          const error_data = { error: this._err_msg(err) };
+          this._overview_data = error_data;
+          window.hse_overview_state?.end_fetch?.(error_data, this._hass, container);
         }
         this._render();
       });
@@ -1763,17 +1780,18 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       const body = el("div");
       container.appendChild(body);
 
-      if (!this._overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
-      if (this._overview_data?.error) {
+      const overview_data = window.hse_overview_state?.get('data') ?? this._overview_data;
+      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
+      if (overview_data?.error) {
         const err_card = el("div", "hse_card");
         err_card.appendChild(el("div", null, "Erreur"));
-        err_card.appendChild(el("pre", "hse_code", String(this._overview_data.error)));
+        err_card.appendChild(el("pre", "hse_code", String(overview_data.error)));
         body.appendChild(err_card);
         return;
       }
       clear(body);
       if (!window.hse_costs_view?.render_costs) { this._render_placeholder("Analyse de co\u00fbts", "costs.view.js non charg\u00e9."); return; }
-      window.hse_costs_view.render_costs(body, this._overview_data, this._hass);
+      window.hse_costs_view.render_costs(body, overview_data, this._hass);
     }
 
     async _render_overview() {
@@ -1787,14 +1805,22 @@ const build_signature = "2026-03-16_refonte_store_phase1";
 
       const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
       btn.addEventListener("click", async () => {
+        // Reset état + forcer un fetch immédiat
         this._overview_data = null;
+        window.hse_overview_state?.begin_fetch?.();
+        // Réinitialise le flag "déjà construit" pour forcer render_overview (pas patch_live)
+        delete container.dataset.hseOverviewBuilt;
         this._render();
         try {
           const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
           if (!fn) throw new Error("overview_api_not_loaded");
-          this._overview_data = await fn(this._hass);
+          const data = await fn(this._hass);
+          this._overview_data = data;
+          window.hse_overview_state?.end_fetch?.(data, this._hass, container);
         } catch (err) {
-          this._overview_data = { error: this._err_msg(err) };
+          const error_data = { error: this._err_msg(err) };
+          this._overview_data = error_data;
+          window.hse_overview_state?.end_fetch?.(error_data, this._hass, container);
         }
         this._render();
       });
@@ -1806,16 +1832,21 @@ const build_signature = "2026-03-16_refonte_store_phase1";
       const body = el("div");
       container.appendChild(body);
 
-      if (!this._overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
-      if (this._overview_data?.error) {
+      const overview_data = window.hse_overview_state?.get('data') ?? this._overview_data;
+      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
+      if (overview_data?.error) {
         const err_card = el("div", "hse_card");
         err_card.appendChild(el("div", null, "Erreur"));
-        err_card.appendChild(el("pre", "hse_code", String(this._overview_data.error)));
+        err_card.appendChild(el("pre", "hse_code", String(overview_data.error)));
         body.appendChild(err_card);
         return;
       }
       clear(body);
-      window.hse_overview_view.render_overview(body, this._overview_data, this._hass);
+      // Enregistre le container pour que le subscriber puisse appeler patch_live
+      window.hse_overview_state?.register_container?.(body, this._hass);
+      window.hse_overview_view.render_overview(body, overview_data, this._hass);
+      // Marque le DOM comme construit (patch_live sera utilisé lors des refreshs suivants)
+      container.dataset.hseOverviewBuilt = '1';
     }
 
     _render_scan() {
