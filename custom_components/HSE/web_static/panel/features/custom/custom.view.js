@@ -91,7 +91,9 @@
   };
 
   // ---------------------------------------------------------------------------
-  // UI state — persistant entre renders
+  // UI state — persistant entre renders (local au module, hors store)
+  // Ces valeurs sont purement visuelles (collapse, filtres locaux) :
+  // elles n'ont pas besoin d'être réactives dans le store global.
   // ---------------------------------------------------------------------------
 
   const _collapsed_rooms   = new Map();
@@ -109,8 +111,39 @@
   let _bulk_types_kw       = "";
   let _bulk_types_target   = "";
 
-  // Référence au shadow root courant (pour les modals)
   let _shadow_root         = null;
+
+  // ---------------------------------------------------------------------------
+  // Accès au store
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Lit org_state directement depuis window.hse_store.
+   * Retourne un objet compatible avec l'ancienne API org_state
+   * pour ne pas casser les références internes.
+   *
+   * Si hse_store n'est pas encore chargé (boot en cours),
+   * on accepte le fallback org_state_fallback passé en paramètre.
+   */
+  function _get_org_state(org_state_fallback) {
+    const s = window.hse_store;
+    if (!s) return org_state_fallback || {};
+    return {
+      meta_store:      s.get('org.meta_store') ?? null,
+      meta_draft:      s.get('org.meta_draft') ?? null,
+      dirty:           !!s.get('org.dirty'),
+      saving:          !!s.get('org.saving'),
+      loading:         !!s.get('org.loading'),
+      error:           s.get('org.error') ?? null,
+      message:         s.get('org.message') ?? null,
+      // Champs visuels non migrés dans le store — toujours lus sur le fallback
+      preview_running: org_state_fallback?.preview_running ?? false,
+      apply_running:   org_state_fallback?.apply_running   ?? false,
+      show_raw:        org_state_fallback?.show_raw        ?? false,
+      rooms_filter_q:  org_state_fallback?.rooms_filter_q  ?? "",
+      assignments_filter_q: org_state_fallback?.assignments_filter_q ?? "",
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Normalisation backend
@@ -126,8 +159,6 @@
     return raw;
   }
 
-  // FIX #2 : n'hydrate QUE les entités déjà présentes dans assignments_raw
-  // (ne pas ajouter les capteurs hors-scope comme studio_code_server)
   function _hydrate_assignments(assignments_raw, rooms, snapshot_entities) {
     const out = {};
     Object.entries(assignments_raw || {}).forEach(([eid, a]) => {
@@ -275,7 +306,7 @@
 /* ─── Group body ────────────────────────────────────────────────── */
 .hse_gb { padding: 8px 10px; }
 
-/* ─── FIX #1 : liste capteurs — 1 colonne, nom complet ────────────── */
+/* ─── Liste capteurs — 1 colonne, nom complet ────────────── */
 .hse_sc_col { min-width: 0; }
 .hse_sc_col_title {
   font-size: 10px; font-weight: 700;
@@ -300,7 +331,6 @@
 .hse_sr_click:hover { background: color-mix(in srgb, var(--hse-hover,rgba(37,99,235,.08)) 80%, transparent); }
 .hse_sr_child { margin-left: 16px; color: var(--hse_muted); font-size: 10.5px; }
 .hse_sr_caret { flex-shrink:0; font-size:9px; color:var(--hse_muted); cursor:pointer; padding:0 2px; }
-/* FIX #1 : pas de troncature, le nom s’affiche en entier */
 .hse_sr_label {
   flex: 1 1 auto;
   min-width: 0;
@@ -350,7 +380,7 @@
 .hse_bulkbar_inp { min-width:120px !important; max-width:180px; }
 .hse_filter { min-width:180px !important; max-width:260px; }
 
-/* ─── FIX #3 : Modals — attachées au shadow root ─────────────────── */
+/* ─── Modals — attachées au shadow root ─────────────────── */
 .hse_modal_ov {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.55); z-index: 9999;
@@ -398,11 +428,9 @@
     s.textContent = STYLE_CSS;
     target.appendChild(s);
 
-    // FIX #3 : mémoriser le shadow root pour les modals
     _shadow_root = root;
   }
 
-  // FIX #3 : helper pour ouvrir une modal dans le bon contexte
   function _modal_root() {
     return _shadow_root || document.body;
   }
@@ -464,7 +492,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal rooms — FIX #3 : append dans le shadow root
+  // Modal rooms
   // ---------------------------------------------------------------------------
 
   function _modal_move(entity_ids, current_room_id, rooms, on_action, redraw) {
@@ -509,7 +537,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Modal types — FIX #3 : append dans le shadow root
+  // Modal types
   // ---------------------------------------------------------------------------
 
   function _modal_type(entity_ids, current_type_id, known_types, on_action, redraw) {
@@ -1160,14 +1188,23 @@
 
   // ---------------------------------------------------------------------------
   // Entrée principale
+  //
+  // Signature conservée pour compatibilité ascendante :
+  //   render_customisation(container, state, org_state_fallback, on_action)
+  //
+  // Depuis la Phase 2, org_state est lu prioritairement depuis window.hse_store.
+  // org_state_fallback n'est utilisé que pour les champs purement visuels
+  // (preview_running, apply_running, show_raw) qui ne sont pas encore dans le store.
   // ---------------------------------------------------------------------------
 
-  function render_customisation(container, state, org_state, on_action) {
+  function render_customisation(container, state, org_state_fallback, on_action) {
     _inject_styles(container);
     clear(container);
 
-    const meta_store = org_state?.meta_store || null;
-    const draft      = org_state?.meta_draft || null;
+    // ── Lecture de l'état depuis le store (source de vérité) ──────────────────
+    const org_state   = _get_org_state(org_state_fallback);
+    const meta_store  = org_state.meta_store;
+    const draft       = org_state.meta_draft;
 
     const rooms_raw        = draft?.rooms || meta_store?.meta?.rooms || {};
     const rooms            = _normalize_rooms(rooms_raw);
@@ -1179,7 +1216,7 @@
     const pending     = sync?.pending_diff || null;
     const has_pending = !!(pending && pending.has_changes);
 
-    // ── Apparence
+    // ── Apparence ────────────────────────────────────────────────────────────
     const theme_card = el("div", "hse_card");
     theme_card.appendChild(el("div", null, "Apparence & Thème"));
     theme_card.appendChild(el("div", "hse_subtitle",
@@ -1196,12 +1233,20 @@
     theme_card.appendChild(toggles);
     container.appendChild(theme_card);
 
-    // ── Sync HA
+    // ── Sync HA ───────────────────────────────────────────────────────────────
     const org = el("div", "hse_card");
     org.appendChild(el("div", null, "Sync Home Assistant"));
     org.appendChild(el("div", "hse_subtitle",
       "Prévisualise puis applique des propositions (pièces/affectations) à partir des zones Home Assistant."));
     if (sync?.last_error) org.appendChild(el("pre", "hse_code", String(sync.last_error)));
+
+    // ── Bandeau d'état saving (indique que la boîte de confirmation est ouverte)
+    if (org_state.saving) {
+      const saving_banner = el("div", "hse_subtitle");
+      saving_banner.style.cssText = "color: var(--hse_accent, #3b82f6); font-weight: 600; padding: 4px 0;";
+      saving_banner.textContent = "⏳ Sauvegarde en cours… (confirmation requise)";
+      org.appendChild(saving_banner);
+    }
 
     const summary = [];
     if (has_pending) {
@@ -1216,41 +1261,41 @@
       const ts = _fmt_ts(sync.pending_generated_at);
       if (ts) summary.push(`Généré: ${ts}`);
     }
-    if (org_state?.dirty) summary.push("⚠ Brouillon modifié (non sauvegardé)");
+    if (org_state.dirty) summary.push("⚠ Brouillon modifié (non sauvegardé)");
     org.appendChild(el("div", "hse_subtitle", summary.join(", ")));
 
     const tb = el("div", "hse_toolbar");
     tb.appendChild(_btn("Prévisualiser sync HA", "hse_button", () => on_action("org_preview")));
     const btn_auto = _btn("Appliquer sync HA (auto)", "hse_button",
       () => on_action("org_apply", { apply_mode: "auto" }));
-    btn_auto.disabled = !has_pending || !!org_state?.apply_running;
+    btn_auto.disabled = !has_pending || !!org_state.apply_running || !!org_state.saving;
     tb.appendChild(btn_auto);
     const btn_all = _btn("Appliquer sync HA (all)", "hse_button",
       () => on_action("org_apply", { apply_mode: "all" }));
-    btn_all.disabled = !has_pending || !!org_state?.apply_running;
+    btn_all.disabled = !has_pending || !!org_state.apply_running || !!org_state.saving;
     tb.appendChild(btn_all);
-    tb.appendChild(_btn(org_state?.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
+    tb.appendChild(_btn(org_state.show_raw ? "Debug: ON" : "Debug: OFF", "hse_button",
       () => on_action("org_toggle_raw")));
     org.appendChild(tb);
 
-    if (org_state?.message) org.appendChild(el("div", "hse_subtitle", String(org_state.message)));
-    if (org_state?.error)   org.appendChild(el("pre", "hse_code", String(org_state.error)));
+    if (org_state.message) org.appendChild(el("div", "hse_subtitle", String(org_state.message)));
+    if (org_state.error)   org.appendChild(el("pre", "hse_code", String(org_state.error)));
     if (has_pending) _render_sync_tables(org, pending);
-    if (org_state?.show_raw) {
+    if (org_state.show_raw) {
       org.appendChild(el("div", "hse_subtitle", "Données brutes"));
       org.appendChild(el("pre", "hse_code",
         JSON.stringify({ meta_store, meta_draft: draft }, null, 2)));
     }
     container.appendChild(org);
 
-    // ── Section Rooms
+    // ── Section Rooms ─────────────────────────────────────────────────────────
     const rooms_card = el("div", "hse_card");
     const rooms_sec  = el("div");
     rooms_card.appendChild(rooms_sec);
     container.appendChild(rooms_card);
     _render_rooms_section(rooms_sec, rooms, assignments, on_action);
 
-    // ── Section Types
+    // ── Section Types ─────────────────────────────────────────────────────────
     const types_card = el("div", "hse_card");
     const types_sec  = el("div");
     types_card.appendChild(types_sec);
