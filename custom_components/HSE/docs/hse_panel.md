@@ -7,6 +7,8 @@ Target file:
 AI-first: boot sequence, state model, action dispatch.
 Human layer: scenarios and debugging checklist.
 
+**Version actuelle : `build_signature = "2026-03-20_refonte_store_phase9"`**
+
 ---
 
 ## Purpose
@@ -15,10 +17,10 @@ Defines the custom element `<hse-panel>` (shadow DOM) used by Home Assistant to 
 
 Responsibilities:
 
-- Boot: load shared JS + feature modules + shadow CSS.
+- Boot: load shared JS + feature modules + shadow CSS in strict order.
 - Render: create shell and mount feature views.
-- State: persist UI state in `localStorage`.
-- Actions: dispatch user actions from feature views (scan/custom/overview).
+- State: proxy vers les state bridges (hse_store phase 8/9), persistance `localStorage`.
+- Actions: dispatch user actions depuis les feature views.
 
 ---
 
@@ -28,46 +30,91 @@ Responsibilities:
 - Expects Home Assistant to set `element.hass = hass`.
 - Uses global helpers loaded at runtime:
   - `window.hse_loader`, `window.hse_dom`, `window.hse_table`, `window.hse_shell`
-  - feature modules: `window.hse_overview_api/view`, `window.hse_scan_api/view`, `window.hse_custom_view`
+  - `window.hse_store` (store central — phase 8)
+  - state bridges: `window.hse_diag_state`, `window.hse_config_state`, `window.hse_overview_state`
+  - feature modules: `window.hse_overview_api/state/view`, `window.hse_scan_api/view`,
+    `window.hse_custom_view`, `window.hse_config_api/view`, `window.hse_diag_api/view`,
+    `window.hse_migration_api/view`, `window.hse_cards_api/view/controller`,
+    `window.hse_costs_view`, `window.hse_enrich_api`
 
 ---
 
-## Boot sequence (decision order)
+## Boot sequence (ordre réel)
 
 Entry: `connectedCallback()`
 
-1) Early return if already initialized (`this._root`).
-2) Store a build signature for debugging:
-   - console info
-   - `window.__hse_panel_loaded = build_signature`
-3) Load persisted UI preferences:
-   - `hse_theme`
-   - `hse_custom_dynamic_bg`
-   - `hse_custom_glass`
+1. Early return si déjà initialisé (`this._root`).
+2. Log build signature + `window.__hse_panel_loaded = build_signature`.
+3. Restauration préférences UI depuis `localStorage` :
+   - `hse_theme`, `hse_custom_dynamic_bg`, `hse_custom_glass`
    - `hse_active_tab`
-   - scan UI state: `hse_scan_groups_open`, `hse_scan_open_all`
-4) Create shadow root: `this.attachShadow({ mode: "open" })`.
-5) Start async `_boot()`.
+   - scan UI : `hse_scan_groups_open`, `hse_scan_open_all`
+   - _diag_state et _config_state sont restaurés par leurs propres state bridges._
+4. `this.attachShadow({ mode: "open" })`.
+5. Bind listeners interaction utilisateur (mousedown, focusin, keydown, touchstart).
+6. Appel async `_boot()`.
 
-Boot: `_boot()`
+Boot: `_boot()` — ordre strict de chargement
 
-1) Ensures `window.hse_loader` exists (fallback inline implementation).
-2) Loads scripts (in order):
-   - shared UI: `dom.js`, `table.js`
-   - core: `shell.js`
-   - features: `overview.*`, `scan.*`, `custom.view.js`
-3) Loads CSS text (in order):
-   - `hse_tokens.shadow.css`
-   - `hse_themes.shadow.css`
-   - `hse_alias.v2.css`
-   - `tokens.css`
-4) Injects everything in shadow DOM as a single `<style>` block and a `<div id="root">`.
-5) On error, renders a minimal "Boot error" UI.
+```
+dom.js → table.js
+→ hse.store.js                        (store central — doit être en premier)
+→ diag.state.js                       (state bridge diagnostic)
+→ config.state.js                     (state bridge config)
+→ shell.js
+→ overview.api.js
+→ overview.state.js                   (après store, avant overview.view.js)
+→ overview.view.js
+→ costs.view.js
+→ scan.api.js → scan.view.js
+→ custom.view.js
+→ diagnostic.api.js → diagnostic.view.js
+→ enrich.api.js
+→ migration.api.js → migration.view.js
+→ config.api.js → config.view.js
+→ cards.api.js → yamlComposer.js → cards.view.js → cards.controller.js
+→ CSS : hse_tokens.shadow.css, hse_themes.shadow.css, hse_alias.v2.css, tokens.css, cards.css
+```
 
-Cache-busting:
+Cache-busting : `ASSET_V` (`0.1.37`) est appendé en `?v=<ASSET_V>`. Doit correspondre à `PANEL_JS_URL` dans `const.py`.
 
-- `ASSET_V` is appended as `?v=<ASSET_V>`.
-- Must match backend cache-buster (`const.py` / `PANEL_JS_URL`).
+---
+
+## Modèle de state (phase 8/9)
+
+### Helpers state bridges — accès direct
+
+```js
+_dg(k)     // diag  : window.hse_diag_state?.get(k)
+_ds(k, v)  // diag  : window.hse_diag_state?.set(k, v)
+_cg(k)     // config: window.hse_config_state?.get(k)
+_cs(k, v)  // config: window.hse_config_state?.set(k, v)
+```
+
+### Proxy locaux (fallback avant chargement du bridge)
+
+- `this._diag_state` — Proxy vers `window.hse_diag_state` (get/set).
+- `this._config_state` — Proxy vers `window.hse_config_state` (get/set).
+
+### overview.state — accès direct intentionnel (pas de proxy)
+
+`window.hse_overview_state` expose une API métier étendue au-delà du simple get/set :
+- `begin_fetch()` — signale un fetch en cours.
+- `end_fetch(data, hass, container)` — stocke data + déclenche `patch_live` via subscriber.
+- `register_container(el, hass)` — enregistre le container pour `patch_live`.
+- `update_hass(hass)` — met à jour la référence hass dans le state.
+- `get(k)` / `set(k, v)` — accès store préfixé `overview.*`.
+
+> **Exception de pattern intentionnelle** : contrairement à `_diag_state` et `_config_state`,
+> `_overview_state` n'a pas de proxy local dans `hse_panel.js`. Les méthodes métier
+> (`begin_fetch`, `end_fetch`, `register_container`, `update_hass`) sont appelées directement
+> via `window.hse_overview_state?.method?.()`. Ce choix est délibéré car l'API overview
+> ne se réduit pas à get/set.
+
+### _org_state — bridge compatibilité vers hse_store
+
+Getters/setters directs sur `window.hse_store` pour les clés `org.*` :
+`loading`, `saving`, `dirty`, `error`, `message`, `meta_store`, `meta_draft`.
 
 ---
 
@@ -75,69 +122,63 @@ Cache-busting:
 
 Main renderer: `_render()`
 
-Preconditions:
+Flow :
 
-- Shadow root exists.
-- `#root` exists.
-- `window.hse_shell` and `window.hse_dom` are loaded.
+1. Crée le shell une seule fois via `hse_shell.create_shell()`, refs dans `this._ui`.
+2. Met à jour le label header avec le nom utilisateur.
+3. `_ensure_valid_tab()` — valide l'onglet actif.
+4. `_render_nav_tabs()` — construit la barre de navigation.
+5. Nettoyage du contenu (sauf config/cards déjà construits — guard `data-hse-*-built`).
+6. Si `hass` manquant : affiche "En attente de hass…".
+7. Arrête les timers hors-contexte (overview si pas overview/costs, reference_status si pas config).
+8. Switch `this._active_tab` :
+   - `overview` → `_render_overview()`
+   - `costs` → `_render_costs()`
+   - `diagnostic` → `_render_diagnostic()`
+   - `scan` → `_render_scan()`
+   - `migration` → `_render_migration()`
+   - `config` → `_render_config()`
+   - `custom` → `_render_custom()`
+   - `cards` → `_render_cards()`
 
-Flow:
+### Protections scroll-jack et interactions utilisateur
 
-1) Create shell once with `create_shell()` and keep refs in `this._ui`.
-2) Update header right label with current user name.
-3) Ensure active tab is valid (`_ensure_valid_tab()`).
-4) Render nav tabs (`_render_nav_tabs()`).
-5) Clear content.
-6) If `hass` is missing: show "En attente de hass…".
-7) Switch on `this._active_tab`:
-   - `overview` -> `_render_overview()`
-   - `scan` -> `_render_scan()`
-   - `custom` -> `_render_custom()`
-   - default -> placeholder
-
----
-
-## State persistence
-
-Storage helper methods:
-
-- `_storage_get(key)` and `_storage_set(key,value)` wrap `localStorage` with try/catch.
-
-Stored keys:
-
-- `hse_theme`
-- `hse_custom_dynamic_bg`
-- `hse_custom_glass`
-- `hse_active_tab`
-- `hse_scan_groups_open` (JSON)
-- `hse_scan_open_all` (`"0"|"1"`)
+- `_user_interacting` : flag levé sur mousedown/focusin/keydown/touchstart pendant 2s.
+- `_render_if_not_interacting()` : skip si interaction en cours.
+- `_render_for_active_tab(tab_id)` : skip si tab inactive ou si org.saving.
+- TABS_STABLE : `cards, custom, config, costs, diagnostic, scan, migration` — le setter `hass` ne re-render pas ces onglets.
 
 ---
 
-## Feature action handling
+## Overview autorefresh (phase 9)
 
-### Scan feature
+- Timer `setInterval(30s)` dans `_ensure_overview_autorefresh()`.
+- Tick : `begin_fetch()` → `fn(hass)` → `end_fetch(data, hass, container)`.
+- `end_fetch` écrit dans `hse_store` → subscriber `overview.data` → `patch_live()` en-place **sans** `clear()`.
+- Re-render `_render_if_not_interacting()` uniquement si le container n'est pas encore construit (`data-hse-overview-built`).
 
-Delegate: `window.hse_scan_view.render_scan(container, scan_result, scan_state, callback)`.
+## Reference status polling (config)
 
-Actions handled:
+- Timer `setInterval(4s)` dans `_ensure_reference_status_polling()`.
+- `_fetch_reference_status(for_entity_id)` : boucle de retry si `target_entity_id` change en cours de fetch.
+- Résultat stocké via `_cs('reference_status', ...)`.
+- Re-render partiel via `render_config()` si container déjà construit, sinon `_render()`.
 
-- `filter`: updates `scan_state.filter_q`.
-- `set_group_open`: updates `scan_state.groups_open[id]` and persists JSON.
-  - supports `{ no_render: true }` to avoid full rerender.
-- `open_all`: sets `open_all=true` and persists.
-- `close_all`: clears `open_all` and resets `groups_open`.
-- `scan`: calls `window.hse_scan_api.fetch_scan(hass, { include_disabled:false, exclude_hse:true })` and stores results.
+---
 
-### Overview feature
+## State persistence localStorage
 
-- Loads data on button click using `window.hse_overview_api.fetch_manifest_and_ping(hass)`.
+| Clé | Type | Usage |
+|-----|------|-------|
+| `hse_theme` | string | Thème actif |
+| `hse_custom_dynamic_bg` | `"0"/"1"` | Fond dynamique |
+| `hse_custom_glass` | `"0"/"1"` | Effet glass |
+| `hse_active_tab` | string | Onglet actif |
+| `hse_scan_groups_open` | JSON | Groupes ouverts onglet scan |
+| `hse_scan_open_all` | `"0"/"1"` | Tout déplier onglet scan |
 
-### Custom feature
-
-- `set_theme`: sets host `data-theme` attribute + persists.
-- `toggle_dynamic_bg`: updates CSS var `--hse-bg-dynamic-opacity`.
-- `toggle_glass`: updates CSS var `--hse-backdrop-filter`.
+Les clés `diag.*` et `config.*` sont gérées par `diag.state.js` et `config.state.js`.
+Les clés `overview.*` sont gérées par `overview.state.js`.
 
 ---
 
@@ -145,40 +186,39 @@ Actions handled:
 
 ### Scenario A — Boot error
 
-Symptoms:
-
-- Panel shows "Boot error".
+Symptoms: Panel shows "Boot error".
 
 Likely causes:
+- Static hosting 404 sur un fichier JS/CSS.
+- Mauvais ordre de chargement des modules.
+- `ASSET_V` ne correspond pas à `PANEL_JS_URL` dans `const.py`.
 
-- Static hosting 404.
-- JS module load order mismatch.
+Fix: Console devtools → chercher `script_load_failed` ou `css_load_failed`.
 
 ### Scenario B — Tab renamed in `shell.js`
 
-Symptoms:
+Symptoms: Clic sur un onglet → placeholder vide.
 
-- Clicking tab does nothing or shows placeholder.
-
-Fix:
-
-- Align `shell.js get_nav_items()` ids with `_render()` switch cases.
+Fix: Aligner les `id` dans `shell.js get_nav_items()` avec les `case` du switch `_render()`.
 
 ### Scenario C — Cache/version mismatch
 
-Symptoms:
+Symptoms: Ancien JS servi après mise à jour.
 
-- Old JS served after update.
+Fix: Bumper `ASSET_V` dans `hse_panel.js` ET `PANEL_JS_URL` dans `const.py`.
 
-Fix:
+### Scenario D — overview scroll-jack
 
-- Bump `ASSET_V` and ensure backend `PANEL_JS_URL` cache-buster matches.
+Symptoms: Page overview remonte en haut toutes les 30s.
+
+Fix: Vérifier que `end_fetch` appelle bien `patch_live` et non `render_overview` → s'assurer que `data-hse-overview-built` est posé après le premier render.
 
 ---
 
 ## Human checklist
 
-1) Open devtools console: check for `script_load_failed` / `css_load_failed`.
-2) Confirm `ASSET_V` matches `PANEL_JS_URL` version.
-3) Confirm all `window.hse_*` globals exist after boot.
-4) Inspect `localStorage` keys if UI state behaves unexpectedly.
+1. Console devtools : chercher `script_load_failed` / `css_load_failed` / `[HSE] boot error`.
+2. Vérifier `ASSET_V` === version dans `PANEL_JS_URL` (`const.py`).
+3. Vérifier que tous les `window.hse_*` globaux sont définis après boot.
+4. Inspecter `localStorage` si l'état UI est incohérent.
+5. En cas de bug state : vérifier `window.hse_store`, `window.hse_diag_state`, `window.hse_config_state`, `window.hse_overview_state`.
