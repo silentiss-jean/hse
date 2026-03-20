@@ -1,6 +1,6 @@
 # Architecture actuelle (état courant)
 
-> Mis à jour après la Phase 8 — migration complète des états frontend vers `hse_store` et les state files dédiés (`diag.state.js`, `config.state.js`).
+> Mis à jour après la Phase 9 — `overview.state.js` + `patch_live` sur l'onglet Accueil (fin du scroll-jack).
 
 ## Vue d'ensemble
 
@@ -83,7 +83,7 @@ Flux UI dédié dans l'onglet Configuration : `get_reference_total_status()`, po
 
 ---
 
-## 9) Frontend — Architecture micro-store (Phases 1 → 8)
+## 9) Frontend — Architecture micro-store (Phases 1 → 9)
 
 ### 9.1) `hse.store.js` — micro-store réactif (Phase 1)
 
@@ -124,6 +124,25 @@ Expose `window.hse_diag_state`. Préfixe store : `diag.*`.
 - **Phase 8** : `data` / `loading` / `error` migrés dans le store — exposés via `begin_fetch()` / `end_fetch(data, error)`.
 - Expose `get_state({})`, `begin_fetch`, `end_fetch`, `begin_check`, `end_check`, `set_selected`, `clear_selected`.
 
+#### `overview.state.js` (Phase 9)
+
+Expose `window.hse_overview_state`. Préfixe store : `overview.*`.
+
+| Clé store | Type | Rôle |
+|---|---|---|
+| `overview.data` | `object\|null` | Réponse dashboard complète |
+| `overview.loading` | `bool` | Fetch en cours |
+| `overview.error` | `string\|null` | Dernière erreur fetch |
+| `overview.tax_mode` | `"ht"\|"ttc"` | Mode taxe affiché |
+| `overview.costs_open` | `bool` | Section coûts dépliée |
+
+- **Persistance localStorage** : `tax_mode` → `hse_overview_tax_mode`, `costs_open` → `hse_overview_costs_open`.
+- Restauration au boot depuis localStorage.
+- **Résout le scroll-jack** : subscriber `overview.data` appelle `patch_live()` sur le DOM existant au lieu d'un `clear()` + rebuild complet toutes les 30s.
+- Expose `get_state({})`, `begin_fetch`, `end_fetch`, `register_container(el, hass)`, `update_hass(hass)`.
+
+**Contrat `patch_live`** : `hse_panel.js` appelle `register_container(el, hass)` une seule fois au premier render. Le subscriber `overview.data` appelle ensuite `window.hse_overview_view.patch_live(container, { dashboard }, hass)` à chaque mise à jour de données, sans jamais détruire le DOM.
+
 ### 9.3) `hse_panel.js` — entrypoint allégé (Phase 8)
 
 `build_signature: 2026-03-17_refonte_store_phase8` — `ASSET_V: 0.1.37`
@@ -146,7 +165,7 @@ Expose `window.hse_diag_state`. Préfixe store : `diag.*`.
 
 ```
 dom.js → table.js → hse.store.js
-  → config.state.js → diag.state.js
+  → config.state.js → diag.state.js → overview.state.js
   → shell.js
   → [feature scripts : overview, costs, scan, custom, diagnostic, enrich, migration, config, cards]
   → [CSS tokens + themes + alias + panel + cards]
@@ -167,11 +186,13 @@ Variables HSE tokenisées dans `hse_tokens.shadow.css`, thèmes dans `hse_themes
 - Pricing centralisé avec garde-fous
 - Convention enrichissement helpers stable
 - Micro-store frontend réactif (`hse_store`) avec freeze/unfreeze
-- State files dédiés par feature (`config.state.js`, `diag.state.js`) avec persistance localStorage déléguée
+- State files dédiés par feature (`config.state.js`, `diag.state.js`, `overview.state.js`) avec persistance localStorage déléguée
 - `hse_panel.js` réduit à l'orchestration pure
+- Onglet Accueil sans scroll-jack via `patch_live` + `register_container`
 
 ## 11) Prochaines étapes potentielles
 
 - Généraliser le contrat de statut de workflow (aujourd'hui spécifique à `reference_total`) pour couvrir d'autres opérations longues.
 - Compléter les champs de coûts dans `dashboard_overview.py` (actuellement à `None`).
 - Envisager un state file pour `org` / `migration` si leur complexité augmente.
+- Vérifier que `build_signature` et `ASSET_V` dans `hse_panel.js` reflètent bien la Phase 9.
