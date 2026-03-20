@@ -143,9 +143,15 @@ Expose `window.hse_overview_state`. Préfixe store : `overview.*`.
 
 **Contrat `patch_live`** : `hse_panel.js` appelle `register_container(el, hass)` une seule fois au premier render. Le subscriber `overview.data` appelle ensuite `window.hse_overview_view.patch_live(container, { dashboard }, hass)` à chaque mise à jour de données, sans jamais détruire le DOM.
 
-### 9.3) `hse_panel.js` — entrypoint allégé (Phase 8)
+> **Note pattern** : contrairement à `_diag_state` et `_config_state` qui ont un proxy local dans
+> `hse_panel.js`, `_overview_state` n'en a pas. Les méthodes métier (`begin_fetch`, `end_fetch`,
+> `register_container`, `update_hass`) sont appelées directement via
+> `window.hse_overview_state?.method?.()`. Ce choix est intentionnel : l'API overview ne se
+> réduit pas à get/set.
 
-`build_signature: 2026-03-17_refonte_store_phase8` — `ASSET_V: 0.1.37`
+### 9.3) `hse_panel.js` — entrypoint allégé (Phase 9)
+
+`build_signature: 2026-03-20_refonte_store_phase9` — `ASSET_V: 0.1.37`
 
 **Ce qui a été retiré de `hse_panel.js`** :
 
@@ -161,14 +167,26 @@ Expose `window.hse_overview_state`. Préfixe store : `overview.*`.
 - Gestion `_user_interacting` / `_render_for_active_tab` / guards.
 - Boot sequence (chargement séquentiel des scripts + CSS).
 
-### 9.4) Ordre de chargement au boot
+### 9.4) Ordre de chargement au boot (ordre réel)
 
 ```
-dom.js → table.js → hse.store.js
-  → config.state.js → diag.state.js → overview.state.js
-  → shell.js
-  → [feature scripts : overview, costs, scan, custom, diagnostic, enrich, migration, config, cards]
-  → [CSS tokens + themes + alias + panel + cards]
+dom.js → table.js
+→ hse.store.js                         (store central — doit être en premier)
+→ diag.state.js                        (state bridge diagnostic)
+→ config.state.js                      (state bridge config)
+→ shell.js
+→ overview.api.js
+→ overview.state.js                    (après store + shell, avant overview.view.js)
+→ overview.view.js
+→ costs.view.js
+→ scan.api.js → scan.view.js
+→ custom.view.js
+→ diagnostic.api.js → diagnostic.view.js
+→ enrich.api.js
+→ migration.api.js → migration.view.js
+→ config.api.js → config.view.js
+→ cards.api.js → yamlComposer.js → cards.view.js → cards.controller.js
+→ CSS : hse_tokens.shadow.css, hse_themes.shadow.css, hse_alias.v2.css, tokens.css, cards.css
 ```
 
 Le store et les state files sont **toujours chargés avant** les vues features.
@@ -189,10 +207,10 @@ Variables HSE tokenisées dans `hse_tokens.shadow.css`, thèmes dans `hse_themes
 - State files dédiés par feature (`config.state.js`, `diag.state.js`, `overview.state.js`) avec persistance localStorage déléguée
 - `hse_panel.js` réduit à l'orchestration pure
 - Onglet Accueil sans scroll-jack via `patch_live` + `register_container`
+- `build_signature` et `ASSET_V` alignés sur Phase 9 ✅
 
 ## 11) Prochaines étapes potentielles
 
 - Généraliser le contrat de statut de workflow (aujourd'hui spécifique à `reference_total`) pour couvrir d'autres opérations longues.
 - Compléter les champs de coûts dans `dashboard_overview.py` (actuellement à `None`).
 - Envisager un state file pour `org` / `migration` si leur complexité augmente.
-- Vérifier que `build_signature` et `ASSET_V` dans `hse_panel.js` reflètent bien la Phase 9.
