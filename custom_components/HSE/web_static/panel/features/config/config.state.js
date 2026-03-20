@@ -1,6 +1,6 @@
 (function () {
   /**
-   * config.state.js — Phase 3
+   * config.state.js — Phase 8
    *
    * Bridge d'état pour l'onglet Configuration.
    * Pose les clés config.* dans window.hse_store et expose
@@ -30,11 +30,15 @@
    *   hse_config_cost_filter_q → config.cost_filter_q
    *
    * API exposée via window.hse_config_state :
-   *   .get(key)           — lit une clé config.*
-   *   .set(key, value)    — écrit une clé config.*
-   *   .patch(obj)         — écrit plusieurs clés en une fois
-   *   .get_state()        — retourne un snapshot complet de l'état
-   *   .reset()            — remet l'état à zéro (hors cost_filter_q)
+   *   .get(key)               — lit une clé config.*
+   *   .set(key, value)        — écrit une clé config.*
+   *   .patch(obj)             — écrit plusieurs clés en une fois
+   *   .get_state()            — retourne un snapshot complet de l'état
+   *   .begin_loading()        — loading=true, error=null, message=null
+   *   .end_loading(error)     — loading=false, error
+   *   .begin_saving()         — saving=true, error=null, message=null
+   *   .end_saving(error, msg) — saving=false, error|message
+   *   .reset()                — remet l'état à zéro (hors cost_filter_q)
    */
 
   const PREFIX = 'config.';
@@ -62,7 +66,7 @@
     if (s) s.set(PREFIX + key, value);
   }
 
-  // ── Valeurs initiales ───────────────────────────────────────────────────────
+  // ── Valeurs initiales ─────────────────────────────────────────────────────────────
   const _initial = {
     loading:                      false,
     saving:                       false,
@@ -83,10 +87,9 @@
     cost_filter_q:                '',
   };
 
-  // ── Restauration initiale ───────────────────────────────────────────────────
+  // ── Restauration initiale ─────────────────────────────────────────────────────────
   function _restore_from_storage() {
     const cost_filter_q = _ls_get('hse_config_cost_filter_q') || '';
-
     for (const [k, v] of Object.entries(_initial)) {
       _set(k, k === 'cost_filter_q' ? cost_filter_q : v);
     }
@@ -96,7 +99,6 @@
   function _subscribe_persistence() {
     const s = _s();
     if (!s || typeof s.subscribe !== 'function') return;
-
     s.subscribe(PREFIX + 'cost_filter_q', (v) => {
       _ls_set('hse_config_cost_filter_q', v || '');
     });
@@ -113,10 +115,6 @@
         _set(key, value);
       },
 
-      /**
-       * Écrit plusieurs clés en une fois.
-       * Ex: hse_config_state.patch({ loading: true, error: null })
-       */
       patch(obj) {
         if (!obj || typeof obj !== 'object') return;
         for (const [k, v] of Object.entries(obj)) {
@@ -124,10 +122,6 @@
         }
       },
 
-      /**
-       * Retourne un snapshot complet de l'état config.
-       * Compatible avec this._config_state dans hse_panel.js.
-       */
       get_state() {
         return {
           loading:                      !!_get('loading',                      false),
@@ -142,7 +136,7 @@
           current_reference_entity_id:  _get('current_reference_entity_id',   null),
           selected_reference_entity_id: _get('selected_reference_entity_id',  null),
           reference_status:             _get('reference_status',               null),
-          reference_status_error:       _get('reference_status_error',        null),
+          reference_status_error:       _get('reference_status_error',         null),
           pricing:                      _get('pricing',                        null),
           pricing_defaults:             _get('pricing_defaults',               null),
           pricing_draft:                _get('pricing_draft',                  null),
@@ -150,13 +144,41 @@
         };
       },
 
+      /** Phase 8 — Début chargement initial. */
+      begin_loading() {
+        _set('loading', true);
+        _set('error',   null);
+        _set('message', null);
+        _set('pricing_error',   null);
+        _set('pricing_message', null);
+      },
+
+      /** Phase 8 — Fin chargement initial. */
+      end_loading(error) {
+        _set('loading', false);
+        if (error != null) _set('error', error);
+      },
+
+      /** Phase 8 — Début sauvegarde référence / tarifs. */
+      begin_saving() {
+        _set('saving', true);
+        _set('error',   null);
+        _set('message', null);
+      },
+
+      /** Phase 8 — Fin sauvegarde. */
+      end_saving(error, message) {
+        _set('saving', false);
+        if (error   != null) _set('error',   error);
+        if (message != null) _set('message', message);
+      },
+
       /**
        * Remet l'état config à zéro (hors cost_filter_q persisté).
-       * Utile lors d'un changement d'onglet forcé.
        */
       reset() {
         for (const [k, v] of Object.entries(_initial)) {
-          if (k === 'cost_filter_q') continue; // on garde la valeur persistée
+          if (k === 'cost_filter_q') continue;
           _set(k, v);
         }
       },
@@ -170,9 +192,8 @@
     _restore_from_storage();
     _subscribe_persistence();
     window.hse_config_state = _make_api();
-    console.debug('[HSE] config.state.js loaded — window.hse_config_state ready');
+    console.debug('[HSE] config.state.js loaded — window.hse_config_state ready (Phase 8)');
   } else {
-    // Fallback dégradé : état local en mémoire
     console.warn('[HSE] config.state.js: hse_store non disponible — mode dégradé');
 
     const _local = {
@@ -186,9 +207,13 @@
         _local[key] = value;
         if (key === 'cost_filter_q') _ls_set('hse_config_cost_filter_q', value || '');
       },
-      patch(obj)      { if (obj) for (const [k,v] of Object.entries(obj)) this.set(k, v); },
-      get_state()     { return { ..._local }; },
-      reset()         { for (const [k,v] of Object.entries(_initial)) { if (k !== 'cost_filter_q') _local[k] = v; } },
+      patch(obj)           { if (obj) for (const [k,v] of Object.entries(obj)) this.set(k, v); },
+      get_state()          { return { ..._local }; },
+      begin_loading()      { _local.loading = true; _local.error = null; _local.message = null; _local.pricing_error = null; _local.pricing_message = null; },
+      end_loading(err)     { _local.loading = false; if (err != null) _local.error = err; },
+      begin_saving()       { _local.saving = true; _local.error = null; _local.message = null; },
+      end_saving(err, msg) { _local.saving = false; if (err != null) _local.error = err; if (msg != null) _local.message = msg; },
+      reset()              { for (const [k,v] of Object.entries(_initial)) { if (k !== 'cost_filter_q') _local[k] = v; } },
     };
   }
 })();
