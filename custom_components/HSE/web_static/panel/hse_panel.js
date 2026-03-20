@@ -757,6 +757,7 @@ const build_signature = "2026-03-20_refonte_store_phase9";
       if (this._ui?.content) {
         this._ui.content.removeAttribute("data-hse-config-built");
         this._ui.content.removeAttribute("data-hse-cards-built");
+        this._ui.content.removeAttribute("data-hse-cards-dom-ready");
       }
       this._active_tab = tab_id;
       this._storage_set("hse_active_tab", tab_id);
