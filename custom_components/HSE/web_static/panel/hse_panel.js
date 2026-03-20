@@ -1,12 +1,12 @@
 /* entrypoint - hse_panel.js */
-const build_signature = "2026-03-19_refonte_store_phase2";
+const build_signature = "2026-03-19_refonte_store_phase3";
 
 (function () {
   const PANEL_BASE = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
 
   // IMPORTANT: must match const.py PANEL_JS_URL
-  const ASSET_V = "0.1.36";
+  const ASSET_V = "0.1.37";
 
   const NAV_ITEMS_FALLBACK = [
     { id: "overview", label: "Accueil" },
@@ -19,7 +19,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
     { id: "costs", label: "Analyse de co\u00fbts" },
   ];
 
-  // Onglets dont le DOM NE DOIT PAS être d\u00e9truit par les callbacks async
+  // Onglets dont le DOM NE DOIT PAS \u00eatre d\u00e9truit par les callbacks async
   // des autres onglets (org_fetch_meta, etc.)
   const TABS_STABLE = new Set(["cards", "custom", "config", "costs", "diagnostic", "scan", "migration"]);
 
@@ -44,20 +44,19 @@ const build_signature = "2026-03-19_refonte_store_phase2";
         open_all: false,
       };
 
-      this._diag_state = {
-        loading: false,
-        data: null,
-        error: null,
-        filter_q: "",
-        selected: {},
-        advanced: false,
-        last_request: null,
-        last_response: null,
-        last_action: null,
-        check_loading: false,
-        check_error: null,
-        check_result: null,
-      };
+      // \u2500\u2500 _diag_state : proxy vers hse_diag_state (diag.state.js) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      // Fallback objet plat si le bridge n\u2019est pas encore charg\u00e9.
+      this._diag_state = new Proxy({}, {
+        get(_, k) {
+          const s = window.hse_diag_state;
+          return s ? s.get(k) : undefined;
+        },
+        set(_, k, v) {
+          const s = window.hse_diag_state;
+          if (s) s.set(k, v);
+          return true;
+        },
+      });
 
       this._migration_state = {
         loading: false,
@@ -66,25 +65,19 @@ const build_signature = "2026-03-19_refonte_store_phase2";
         active_yaml: "",
       };
 
-      this._config_state = {
-        loading: false,
-        saving: false,
-        error: null,
-        message: null,
-        pricing_saving: false,
-        pricing_error: null,
-        pricing_message: null,
-        scan_result: { integrations: [], candidates: [] },
-        catalogue: null,
-        current_reference_entity_id: null,
-        selected_reference_entity_id: null,
-        reference_status: null,
-        reference_status_error: null,
-        pricing: null,
-        pricing_defaults: null,
-        pricing_draft: null,
-        cost_filter_q: "",
-      };
+      // \u2500\u2500 _config_state : proxy vers hse_config_state (config.state.js) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+      // Fallback objet plat si le bridge n\u2019est pas encore charg\u00e9.
+      this._config_state = new Proxy({}, {
+        get(_, k) {
+          const s = window.hse_config_state;
+          return s ? s.get(k) : undefined;
+        },
+        set(_, k, v) {
+          const s = window.hse_config_state;
+          if (s) s.set(k, v);
+          return true;
+        },
+      });
 
       this._boot_done = false;
       this._boot_error = null;
@@ -96,7 +89,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
         glass: false,
       };
 
-      // ── _org_state : bridge de compatibilité vers hse_store ──────────────────────
+      // \u2500\u2500 _org_state : bridge de compatibilit\u00e9 vers hse_store \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
       this._org_state = {
         get loading()        { return !!window.hse_store?.get('org.loading'); },
         set loading(v)       { window.hse_store?.set('org.loading', !!v); },
@@ -186,7 +179,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
 
     set hass(hass) {
       this._hass = hass;
-      // Met à jour hse_overview_state avec le nouveau hass
+      // Met \u00e0 jour hse_overview_state avec le nouveau hass
       window.hse_overview_state?.update_hass?.(hass);
       if (TABS_STABLE.has(this._active_tab)) return;
       this._render();
@@ -217,14 +210,8 @@ const build_signature = "2026-03-19_refonte_store_phase2";
       } catch (_) {}
       this._scan_state.open_all = (this._storage_get("hse_scan_open_all") || "0") === "1";
 
-      this._diag_state.filter_q = this._storage_get("hse_diag_filter_q") || "";
-      this._diag_state.advanced = (this._storage_get("hse_diag_advanced") || "0") === "1";
-      try {
-        const rawSel = this._storage_get("hse_diag_selected");
-        if (rawSel) this._diag_state.selected = JSON.parse(rawSel) || {};
-      } catch (_) {}
-
-      this._config_state.cost_filter_q = this._storage_get("hse_config_cost_filter_q") || "";
+      // _diag_state et _config_state sont g\u00e9r\u00e9s par leurs state bridges
+      // (diag.state.js / config.state.js) qui restaurent localStorage eux-m\u00eames.
 
       this._root = this.attachShadow({ mode: "open" });
 
@@ -397,7 +384,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
       }
     }
 
-    // ── Overview autorefresh ──────────────────────────────────────────────────
+    // \u2500\u2500 Overview autorefresh \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     // Le timer écrit dans hse_overview_state (begin_fetch / end_fetch).
     // Le subscriber dans overview.state.js déclenche patch_live ou render_overview
     // sans passer par _render() — plus de scroll-jack.
@@ -538,7 +525,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
         window.hse_store.set('org.saving', true);
       }
       this._org_state.error = null;
-      this._org_state.message = "Sauvegarde en préparation\u2026";
+      this._org_state.message = "Sauvegarde en pr\u00e9paration\u2026";
 
       const ok = window.confirm("Sauvegarder l'organisation (meta: rooms/types/assignments) ?");
       if (!ok) {
@@ -682,14 +669,18 @@ const build_signature = "2026-03-19_refonte_store_phase2";
         await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
         await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
 
-        // ── Store chargé en premier ────────────────────────────────────────────
+        // \u2500\u2500 Store charg\u00e9 en premier \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
         await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
+
+        // \u2500\u2500 State bridges charg\u00e9s imm\u00e9diatement apr\u00e8s le store \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
+        await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
 
-        // ── overview.state.js chargé après le store, avant overview.view.js ──
+        // \u2500\u2500 overview.state.js charg\u00e9 apr\u00e8s le store, avant overview.view.js \u2500\u2500
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
 
         await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
@@ -1107,7 +1098,6 @@ const build_signature = "2026-03-19_refonte_store_phase2";
 
         if (action === "cost_filter") {
           this._config_state.cost_filter_q = value || "";
-          this._storage_set("hse_config_cost_filter_q", this._config_state.cost_filter_q);
           this._render();
           return;
         }
@@ -1488,36 +1478,34 @@ const build_signature = "2026-03-19_refonte_store_phase2";
       window.hse_diag_view.render_diagnostic(container, this._diag_state.data, this._diag_state, async (action, payload) => {
         if (action === "toggle_advanced") {
           this._diag_state.advanced = !this._diag_state.advanced;
-          this._storage_set("hse_diag_advanced", this._diag_state.advanced ? "1" : "0");
           this._render();
           return;
         }
         if (action === "filter") {
           this._diag_state.filter_q = payload || "";
-          this._storage_set("hse_diag_filter_q", this._diag_state.filter_q);
           this._diag_state.selected = {};
-          this._storage_set("hse_diag_selected", "{}");
           this._render();
           return;
         }
         if (action === "select") {
           if (payload && payload.item_id) {
-            this._diag_state.selected[payload.item_id] = !!payload.checked;
-            this._storage_set("hse_diag_selected", JSON.stringify(this._diag_state.selected));
+            const sel = this._diag_state.selected || {};
+            sel[payload.item_id] = !!payload.checked;
+            this._diag_state.selected = sel;
           }
           this._render();
           return;
         }
         if (action === "select_none") {
           this._diag_state.selected = {};
-          this._storage_set("hse_diag_selected", "{}");
           this._render();
           return;
         }
         if (action === "select_all_filtered") {
           const ids = _filtered_ids();
-          for (const id of ids) this._diag_state.selected[id] = true;
-          this._storage_set("hse_diag_selected", JSON.stringify(this._diag_state.selected));
+          const sel = this._diag_state.selected || {};
+          for (const id of ids) sel[id] = true;
+          this._diag_state.selected = sel;
           this._render();
           return;
         }
@@ -1558,7 +1546,7 @@ const build_signature = "2026-03-19_refonte_store_phase2";
           const ok = window.confirm(`Appliquer REMOVED sur ${ids.length} item(s) (${mode}) ?`);
           if (!ok) return;
           await _wrap_last("bulk_triage/removed", () => diag_api.bulk_triage(ids, { policy: "removed" }), { method: "post", path: "hse/unified/catalogue/triage/bulk", body: { item_ids: ids, triage: { policy: "removed" } } });
-          this._diag_state.data = await _wrap_last("fetch_catalogue", () => diag_api.fetch_catalogue(), { method: "get\", path: \"hse/unified/catalogue", body: null });
+          this._diag_state.data = await _wrap_last("fetch_catalogue", () => diag_api.fetch_catalogue(), { method: "get", path: "hse/unified/catalogue", body: null });
           this._render_for_active_tab("diagnostic");
           return;
         }
@@ -1643,22 +1631,10 @@ const build_signature = "2026-03-19_refonte_store_phase2";
           this._render();
           return;
         }
-        if (action === "org_refresh") {
-          this._org_fetch_meta();
-          return;
-        }
-        if (action === "org_preview") {
-          this._org_preview();
-          return;
-        }
-        if (action === "org_apply") {
-          this._org_apply(value?.apply_mode || "auto");
-          return;
-        }
-        if (action === "org_save") {
-          this._org_save_meta();
-          return;
-        }
+        if (action === "org_refresh") { this._org_fetch_meta(); return; }
+        if (action === "org_preview") { this._org_preview(); return; }
+        if (action === "org_apply") { this._org_apply(value?.apply_mode || "auto"); return; }
+        if (action === "org_save") { this._org_save_meta(); return; }
         if (action === "org_draft_reset") {
           const ok = window.confirm("R\u00e9initialiser le brouillon (perdre les modifications locales non sauvegard\u00e9es) ?");
           if (!ok) return;
@@ -1731,15 +1707,8 @@ const build_signature = "2026-03-19_refonte_store_phase2";
           _do_render();
           return;
         }
-        if (action === "org_toggle_raw") {
-          this._org_state.show_raw = !this._org_state.show_raw;
-          _do_render();
-          return;
-        }
-        if (action === "org_rerender") {
-          _do_render();
-          return;
-        }
+        if (action === "org_toggle_raw") { this._org_state.show_raw = !this._org_state.show_raw; _do_render(); return; }
+        if (action === "org_rerender") { _do_render(); return; }
       };
 
       _do_render();
