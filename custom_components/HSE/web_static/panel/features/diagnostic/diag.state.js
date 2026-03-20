@@ -31,11 +31,13 @@
    *   .set(key, value)        — écrit une clé diag.*
    *   .patch(obj)             — écrit plusieurs clés en une fois
    *   .get_state()            — retourne un snapshot complet de l'état
-   *   .reset_check()          — remet check_loading/error/result à zéro
    *   .begin_fetch()          — loading=true, error=null
-   *   .end_fetch(data, err)   — loading=false, stocke data ou error
+   *   .end_fetch(data, error) — loading=false, data|error
    *   .begin_check()          — check_loading=true, check_error=null
-   *   .end_check(result, err) — check_loading=false, stocke result ou error
+   *   .end_check(result, err) — check_loading=false, check_result|check_error
+   *   .set_selected(map)      — remplace la sélection complète
+   *   .clear_selected()       — vide la sélection
+   *   .reset_check()          — remet check_loading/error/result à zéro
    */
 
   const PREFIX = 'diag.';
@@ -139,34 +141,47 @@
         };
       },
 
-      reset_check() {
-        _set('check_loading', false);
-        _set('check_error',   null);
-        _set('check_result',  null);
-      },
-
-      // ── Phase 8 : helpers fetch / check ──────────────────────────────────────
-
+      /** Phase 8 — Début fetch catalogue. */
       begin_fetch() {
         _set('loading', true);
         _set('error',   null);
       },
 
+      /** Phase 8 — Fin fetch catalogue. */
       end_fetch(data, error) {
         _set('loading', false);
         _set('data',    error ? _get('data', null) : (data ?? null));
         _set('error',   error ?? null);
       },
 
+      /** Phase 8 — Début check cohérence. */
       begin_check() {
         _set('check_loading', true);
         _set('check_error',   null);
       },
 
+      /** Phase 8 — Fin check cohérence. */
       end_check(result, error) {
         _set('check_loading', false);
         _set('check_result',  error ? null : (result ?? null));
         _set('check_error',   error ?? null);
+      },
+
+      /** Phase 8 — Remplace la sélection complète. */
+      set_selected(map) {
+        _set('selected', map && typeof map === 'object' ? map : {});
+      },
+
+      /** Phase 8 — Vide la sélection. */
+      clear_selected() {
+        _set('selected', {});
+      },
+
+      /** Remet check_loading / check_error / check_result à zéro. */
+      reset_check() {
+        _set('check_loading', false);
+        _set('check_error',   null);
+        _set('check_result',  null);
       },
     };
   }
@@ -178,7 +193,7 @@
     _restore_from_storage();
     _subscribe_persistence();
     window.hse_diag_state = _make_api();
-    console.debug('[HSE] diag.state.js loaded — window.hse_diag_state ready');
+    console.debug('[HSE] diag.state.js loaded — window.hse_diag_state ready (Phase 8)');
   } else {
     console.warn('[HSE] diag.state.js: hse_store non disponible — mode dégradé');
 
@@ -192,20 +207,22 @@
     };
 
     window.hse_diag_state = {
-      get(key)              { return _local[key]; },
-      set(key, value) {
+      get(key)           { return _local[key]; },
+      set(key, value)    {
         _local[key] = value;
         if (key === 'filter_q') _ls_set('hse_diag_filter_q', value || '');
         if (key === 'advanced') _ls_set('hse_diag_advanced', value ? '1' : '0');
         if (key === 'selected') { try { _ls_set('hse_diag_selected', JSON.stringify(value || {})); } catch(_){} }
       },
-      patch(obj)            { if (obj) for (const [k,v] of Object.entries(obj)) this.set(k, v); },
-      get_state()           { return { ..._local }; },
-      reset_check()         { _local.check_loading = false; _local.check_error = null; _local.check_result = null; },
-      begin_fetch()         { _local.loading = true; _local.error = null; },
-      end_fetch(data, err)  { _local.loading = false; _local.data = err ? _local.data : (data ?? null); _local.error = err ?? null; },
-      begin_check()         { _local.check_loading = true; _local.check_error = null; },
-      end_check(res, err)   { _local.check_loading = false; _local.check_result = err ? null : (res ?? null); _local.check_error = err ?? null; },
+      patch(obj)           { if (obj) for (const [k,v] of Object.entries(obj)) this.set(k, v); },
+      get_state()          { return { ..._local }; },
+      begin_fetch()        { _local.loading = true; _local.error = null; },
+      end_fetch(data, err) { _local.loading = false; _local.data = err ? _local.data : (data ?? null); _local.error = err ?? null; },
+      begin_check()        { _local.check_loading = true; _local.check_error = null; },
+      end_check(res, err)  { _local.check_loading = false; _local.check_result = err ? null : (res ?? null); _local.check_error = err ?? null; },
+      set_selected(map)    { _local.selected = (map && typeof map === 'object') ? map : {}; try { _ls_set('hse_diag_selected', JSON.stringify(_local.selected)); } catch(_){} },
+      clear_selected()     { _local.selected = {}; try { _ls_set('hse_diag_selected', '{}'); } catch(_){} },
+      reset_check()        { _local.check_loading = false; _local.check_error = null; _local.check_result = null; },
     };
   }
 })();
