@@ -1,6 +1,7 @@
 # Architecture actuelle (état courant)
 
 > Mis à jour après la Phase 9 — `overview.state.js` + `patch_live` sur l'onglet Accueil (fin du scroll-jack).
+> Fix 2026-03-20 : `data-hse-cards-dom-ready` retiré dans `_set_active_tab` (cards page vide au retour d'onglet).
 
 ## Vue d'ensemble
 
@@ -167,6 +168,24 @@ Expose `window.hse_overview_state`. Préfixe store : `overview.*`.
 - Gestion `_user_interacting` / `_render_for_active_tab` / guards.
 - Boot sequence (chargement séquentiel des scripts + CSS).
 
+**Guards DOM onglet cards** :
+
+`_set_active_tab` retire **trois** attributs à chaque changement d'onglet :
+
+```js
+this._ui.content.removeAttribute("data-hse-config-built");
+this._ui.content.removeAttribute("data-hse-cards-built");
+this._ui.content.removeAttribute("data-hse-cards-dom-ready"); // Fix 2026-03-20
+```
+
+> **Pourquoi `data-hse-cards-dom-ready` doit être retiré** : cet attribut est posé par
+> `cards.controller.js` sur le container après le premier build du layout. Si on quitte
+> puis revient sur l'onglet, `hse_dom.clear()` vide les enfants mais laisse les attributs
+> du container intact. Le guard principal de `render_cards` (`_instance &&
+> container.hasAttribute("data-hse-cards-dom-ready")`) court-circuitait alors tout le
+> rebuild → page vide. En retirant l'attribut dans `_set_active_tab`, le guard est
+> correctement réinitialisé à chaque changement d'onglet.
+
 ### 9.4) Ordre de chargement au boot (ordre réel)
 
 ```
@@ -208,6 +227,7 @@ Variables HSE tokenisées dans `hse_tokens.shadow.css`, thèmes dans `hse_themes
 - `hse_panel.js` réduit à l'orchestration pure
 - Onglet Accueil sans scroll-jack via `patch_live` + `register_container`
 - `build_signature` et `ASSET_V` alignés sur Phase 9 ✅
+- Fix cards DOM guard : `data-hse-cards-dom-ready` retiré dans `_set_active_tab` ✅
 
 ## 11) Prochaines étapes potentielles
 
