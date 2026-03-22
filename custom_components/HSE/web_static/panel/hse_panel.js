@@ -1786,6 +1786,10 @@ const build_signature = "2026-03-20_refonte_store_phase9";
 
       this._ensure_overview_autorefresh();
 
+      // Guard : DOM déjà construit, patch_live s'en charge
+      if (container.dataset.hseOverviewBuilt === '1') return;
+
+
       const card = el("div", "hse_card");
       const toolbar = el("div", "hse_toolbar");
 
