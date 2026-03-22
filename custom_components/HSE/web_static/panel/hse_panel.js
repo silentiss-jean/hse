@@ -185,11 +185,13 @@ const build_signature = "2026-03-20_refonte_store_phase9";
 
     set hass(hass) {
       this._hass = hass;
-      // Met \u00e0 jour hse_overview_state avec le nouveau hass
       window.hse_overview_state?.update_hass?.(hass);
       if (TABS_STABLE.has(this._active_tab)) return;
+      // Ne pas re-render si l'overview est déjà construit (patch_live s'en charge)
+      if (this._active_tab === 'overview' && this._ui?.content?.dataset?.hseOverviewBuilt === '1') return;
       this._render();
     }
+
 
     connectedCallback() {
       if (this._root) return;
@@ -813,12 +815,20 @@ const build_signature = "2026-03-20_refonte_store_phase9";
         this._active_tab === "cards" &&
         this._ui.content.hasAttribute("data-hse-cards-built");
 
-      if (!config_already_built && !cards_already_built) {
+      // ── Fix overview : ne pas clear le DOM si patch_live est actif ──────
+      if (this._active_tab !== "overview" && this._ui.content.dataset.hseOverviewBuilt === '1') {
+        delete this._ui.content.dataset.hseOverviewBuilt;
+      }
+      const overview_already_built =
+        this._active_tab === "overview" &&
+        this._ui.content.dataset.hseOverviewBuilt === '1';
+
+      if (!config_already_built && !cards_already_built && !overview_already_built) {
         window.hse_dom.clear(this._ui.content);
       }
 
       if (!this._hass) {
-        if (config_already_built || cards_already_built) window.hse_dom.clear(this._ui.content);
+        if (config_already_built || cards_already_built || overview_already_built) window.hse_dom.clear(this._ui.content);
         this._ui.content.appendChild(window.hse_dom.el("div", "hse_card", "En attente de hass\u2026"));
         return;
       }
