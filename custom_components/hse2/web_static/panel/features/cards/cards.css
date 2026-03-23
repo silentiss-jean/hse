@@ -1,0 +1,79 @@
+/* ─── Layout général ─────────────────────────────────────────────────────── */
+.hse_cards_layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hse-spacing-lg, 16px);
+}
+
+/* ─── Hero ───────────────────────────────────────────────────────────────── */
+.hse_cards_hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hse-spacing-md, 12px);
+  flex-wrap: wrap;
+}
+
+.hse_cards_hero_left { flex: 1; }
+.hse_cards_hero_right { flex-shrink: 0; }
+
+/* ─── Meta ───────────────────────────────────────────────────────────────── */
+.hse_cards_meta {
+  display: flex;
+  gap: var(--hse-spacing-lg, 16px);
+  flex-wrap: wrap;
+}
+
+.hse_cards_meta_item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ─── Grille de champs ───────────────────────────────────────────────────── */
+.hse_cards_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--hse-spacing-md, 12px);
+  margin-top: var(--hse-spacing-md, 12px);
+}
+
+.hse_cards_field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ─── Individuals ────────────────────────────────────────────────────────── */
+.hse_cards_individuals_wrap {
+  margin-top: var(--hse-spacing-lg, 16px);
+}
+
+.hse_cards_individual_row {
+  margin-top: var(--hse-spacing-md, 12px);
+  padding: var(--hse-spacing-md, 12px);
+  border-left: 3px solid var(--hse-color-primary, #4a90e2);
+}
+
+/* ─── Aperçu preview ─────────────────────────────────────────────────────── */
+.hse_cards_preview_grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--hse-spacing-md, 12px);
+  margin-top: var(--hse-spacing-md, 12px);
+}
+
+.hse_cards_preview_card {
+  text-align: center;
+}
+
+.hse_value {
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--hse-color-primary, #4a90e2);
+}
+
+.hse_unit {
+  font-size: 0.6em;
+  opacity: 0.75;
+}
