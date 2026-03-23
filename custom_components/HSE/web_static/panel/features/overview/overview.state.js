@@ -76,11 +76,14 @@
     _set('error',   null);
   }
 
-  function end_fetch(data, error) {
+  // Fix: hse_panel.js appelle end_fetch(data, hass, container)
+  // hass n'est pas une erreur — on lit l'erreur depuis data.error
+  function end_fetch(data, hass, container) {
     _set('loading', false);
-    _set('data',    error ? null : (data ?? null));
-    _set('error',   error ?? null);
+    _set('data',    data ?? null);
+    _set('error',   data?.error ?? null);
   }
+
 
   function get_state(fallback) {
     const fb = fallback || {};
