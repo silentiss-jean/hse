@@ -760,7 +760,8 @@ const build_signature = "2026-03-20_refonte_store_phase9";
         this._ui.content.removeAttribute("data-hse-config-built");
         this._ui.content.removeAttribute("data-hse-cards-built");
         this._ui.content.removeAttribute("data-hse-cards-dom-ready");
-                this._ui.content.removeAttribute("data-hse-overview-rendering");
+        this._ui.content.removeAttribute("data-hse-overview-rendering");
+        delete this._ui.content.dataset.hseOverviewBuilt;
       }
       this._active_tab = tab_id;
       this._storage_set("hse_active_tab", tab_id);
@@ -1735,49 +1736,63 @@ const build_signature = "2026-03-20_refonte_store_phase9";
 
       this._ensure_overview_autorefresh();
 
-      const card = el("div", "hse_card");
-      const toolbar = el("div", "hse_toolbar");
+      // ── Shell : construit une seule fois ──────────────────────────────────────
+      let body = container.querySelector('[data-hse-costs-body]');
+      if (!body) {
+        const card = el("div", "hse_card");
+        const toolbar = el("div", "hse_toolbar");
+        const btn = el("button", "hse_button hse_button_primary", "Rafraîchir");
+        btn.addEventListener("click", async () => {
+          this._overview_data = null;
+          window.hse_overview_state?.begin_fetch?.();
+          this._render();
+          try {
+            const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
+            if (!fn) throw new Error("overview_api_not_loaded");
+            const data = await fn(this._hass);
+            this._overview_data = data;
+            window.hse_overview_state?.end_fetch?.(data, this._hass, null);
+          } catch (err) {
+            const error_data = { error: this._err_msg(err) };
+            this._overview_data = error_data;
+            window.hse_overview_state?.end_fetch?.(error_data, this._hass, null);
+          }
+          this._render();
+        });
+        toolbar.appendChild(btn);
+        card.appendChild(toolbar);
+        body = el("div");
+        body.dataset.hseCostsBody = "1";
+        container.appendChild(card);
+        container.appendChild(body);
+      }
 
-      const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
-      btn.addEventListener("click", async () => {
-        this._overview_data = null;
-        window.hse_overview_state?.begin_fetch?.();
-        this._render();
-        try {
-          const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
-          if (!fn) throw new Error("overview_api_not_loaded");
-          const data = await fn(this._hass);
-          this._overview_data = data;
-          window.hse_overview_state?.end_fetch?.(data, this._hass, container);
-        } catch (err) {
-          const error_data = { error: this._err_msg(err) };
-          this._overview_data = error_data;
-          window.hse_overview_state?.end_fetch?.(error_data, this._hass, container);
-        }
-        this._render();
-      });
-
-      toolbar.appendChild(btn);
-      card.appendChild(toolbar);
-      container.appendChild(card);
-
-      const body = el("div");
-      container.appendChild(body);
-
+      // ── Affichage selon état des données ─────────────────────────────────────
       const overview_data = window.hse_overview_state?.get('data') ?? this._overview_data;
-      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement…")); delete container.dataset.hseOverviewRendering; return; }
+
+      if (!overview_data) {
+        clear(body);
+        body.appendChild(el("div", "hse_subtitle", "Chargement…"));
+        return;
+      }
+
       if (overview_data?.error) {
+        clear(body);
         const err_card = el("div", "hse_card");
         err_card.appendChild(el("div", null, "Erreur"));
         err_card.appendChild(el("pre", "hse_code", String(overview_data.error)));
         body.appendChild(err_card);
-        delete container.dataset.hseOverviewRendering;
         return;
       }
+
       clear(body);
-      if (!window.hse_costs_view?.render_costs) { this._render_placeholder("Analyse de co\u00fbts", "costs.view.js non charg\u00e9."); return; }
+      if (!window.hse_costs_view?.render_costs) {
+        this._render_placeholder("Analyse de coûts", "costs.view.js non chargé.");
+        return;
+      }
       window.hse_costs_view.render_costs(body, overview_data, this._hass);
     }
+
 
     async _render_overview() {
       const { el, clear } = window.hse_dom;
@@ -1785,63 +1800,70 @@ const build_signature = "2026-03-20_refonte_store_phase9";
 
       this._ensure_overview_autorefresh();
 
-      // Guard : DOM déjà construit, patch_live s'en charge
+      // ── Shell : construit une seule fois ──────────────────────────────────────
+      let body = container.querySelector('[data-hse-overview-body]');
+      if (!body) {
+        const card = el("div", "hse_card");
+        const toolbar = el("div", "hse_toolbar");
+        const btn = el("button", "hse_button hse_button_primary", "Rafraîchir");
+        btn.addEventListener("click", async () => {
+          this._overview_data = null;
+          window.hse_overview_state?.begin_fetch?.();
+          delete container.dataset.hseOverviewBuilt;
+          this._render();
+          try {
+            const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
+            if (!fn) throw new Error("overview_api_not_loaded");
+            const data = await fn(this._hass);
+            this._overview_data = data;
+            // body peut avoir changé si _render a reconstruit → re-chercher
+            const b = container.querySelector('[data-hse-overview-body]');
+            window.hse_overview_state?.end_fetch?.(data, this._hass, b);
+          } catch (err) {
+            const error_data = { error: this._err_msg(err) };
+            this._overview_data = error_data;
+            const b = container.querySelector('[data-hse-overview-body]');
+            window.hse_overview_state?.end_fetch?.(error_data, this._hass, b);
+          }
+          this._render();
+        });
+        toolbar.appendChild(btn);
+        card.appendChild(toolbar);
+        body = el("div");
+        body.dataset.hseOverviewBody = "1";
+        container.appendChild(card);
+        container.appendChild(body);
+      }
+
+      // ── Si déjà rendu complet → patch_live s'en charge ───────────────────────
       if (container.dataset.hseOverviewBuilt === '1') return;
-      // Guard anti-double exécution concurrente
-      if (container.dataset.hseOverviewRendering === '1') return;
-      container.dataset.hseOverviewRendering = '1';
 
-
-
-      const card = el("div", "hse_card");
-      const toolbar = el("div", "hse_toolbar");
-
-      const btn = el("button", "hse_button hse_button_primary", "Rafra\u00eechir");
-      btn.addEventListener("click", async () => {
-        // Reset état + forcer un fetch immédiat
-        this._overview_data = null;
-        window.hse_overview_state?.begin_fetch?.();
-        // Réinitialise le flag "déjà construit" pour forcer render_overview (pas patch_live)
-        delete container.dataset.hseOverviewBuilt;
-        this._render();
-        try {
-          const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
-          if (!fn) throw new Error("overview_api_not_loaded");
-          const data = await fn(this._hass);
-          this._overview_data = data;
-          window.hse_overview_state?.end_fetch?.(data, this._hass, container);
-        } catch (err) {
-          const error_data = { error: this._err_msg(err) };
-          this._overview_data = error_data;
-          window.hse_overview_state?.end_fetch?.(error_data, this._hass, container);
-        }
-        this._render();
-      });
-
-      toolbar.appendChild(btn);
-      card.appendChild(toolbar);
-      container.appendChild(card);
-
-      const body = el("div");
-      container.appendChild(body);
-
+      // ── Affichage selon état des données ─────────────────────────────────────
       const overview_data = window.hse_overview_state?.get('data') ?? this._overview_data;
-      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
+
+      if (!overview_data) {
+        clear(body);
+        body.appendChild(el("div", "hse_subtitle", "Chargement…"));
+        return;
+      }
+
       if (overview_data?.error) {
+        clear(body);
         const err_card = el("div", "hse_card");
         err_card.appendChild(el("div", null, "Erreur"));
         err_card.appendChild(el("pre", "hse_code", String(overview_data.error)));
         body.appendChild(err_card);
         return;
       }
+
+      // ── Rendu complet ─────────────────────────────────────────────────────────
       clear(body);
-      // Enregistre le container pour que le subscriber puisse appeler patch_live
       window.hse_overview_state?.register_container?.(body, this._hass);
       window.hse_overview_view.render_overview(body, overview_data, this._hass);
-      // Marque le DOM comme construit (patch_live sera utilisé lors des refreshs suivants)
       container.dataset.hseOverviewBuilt = '1';
-      delete container.dataset.hseOverviewRendering;
     }
+
+
 
     _render_scan() {
       const container = this._ui.content;
