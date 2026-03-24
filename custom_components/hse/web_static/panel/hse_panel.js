@@ -1765,12 +1765,13 @@ const build_signature = "2026-03-20_refonte_store_phase9";
       container.appendChild(body);
 
       const overview_data = window.hse_overview_state?.get('data') ?? this._overview_data;
-      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement\u2026")); return; }
+      if (!overview_data) { body.appendChild(el("div", "hse_subtitle", "Chargement…")); delete container.dataset.hseOverviewRendering; return; }
       if (overview_data?.error) {
         const err_card = el("div", "hse_card");
         err_card.appendChild(el("div", null, "Erreur"));
         err_card.appendChild(el("pre", "hse_code", String(overview_data.error)));
         body.appendChild(err_card);
+        delete container.dataset.hseOverviewRendering;
         return;
       }
       clear(body);
