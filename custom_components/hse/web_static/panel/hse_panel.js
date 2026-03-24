@@ -815,10 +815,7 @@ const build_signature = "2026-03-20_refonte_store_phase9";
         this._active_tab === "cards" &&
         this._ui.content.hasAttribute("data-hse-cards-built");
 
-      // ── Fix overview : ne pas clear le DOM si patch_live est actif ──────
-      if (this._active_tab !== "overview" && this._ui.content.dataset.hseOverviewBuilt === '1') {
-        delete this._ui.content.dataset.hseOverviewBuilt;
-      }
+      // ── Fix overview : hseOverviewBuilt préservé même hors onglet overview ──
       const overview_already_built =
         this._active_tab === "overview" &&
         this._ui.content.dataset.hseOverviewBuilt === '1';
