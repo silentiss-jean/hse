@@ -760,6 +760,7 @@ const build_signature = "2026-03-20_refonte_store_phase9";
         this._ui.content.removeAttribute("data-hse-config-built");
         this._ui.content.removeAttribute("data-hse-cards-built");
         this._ui.content.removeAttribute("data-hse-cards-dom-ready");
+                this._ui.content.removeAttribute("data-hse-overview-rendering");
       }
       this._active_tab = tab_id;
       this._storage_set("hse_active_tab", tab_id);
@@ -1785,6 +1786,10 @@ const build_signature = "2026-03-20_refonte_store_phase9";
 
       // Guard : DOM déjà construit, patch_live s'en charge
       if (container.dataset.hseOverviewBuilt === '1') return;
+      // Guard anti-double exécution concurrente
+      if (container.dataset.hseOverviewRendering === '1') return;
+      container.dataset.hseOverviewRendering = '1';
+
 
 
       const card = el("div", "hse_card");
@@ -1834,6 +1839,7 @@ const build_signature = "2026-03-20_refonte_store_phase9";
       window.hse_overview_view.render_overview(body, overview_data, this._hass);
       // Marque le DOM comme construit (patch_live sera utilisé lors des refreshs suivants)
       container.dataset.hseOverviewBuilt = '1';
+      delete container.dataset.hseOverviewRendering;
     }
 
     _render_scan() {
