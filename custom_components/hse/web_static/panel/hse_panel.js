@@ -4,7 +4,7 @@ const build_signature = "2026-03-24_phase11_lit";
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.40";
+  const ASSET_V     = "0.1.41";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -773,6 +773,22 @@ const build_signature = "2026-03-24_phase11_lit";
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.controller.js?v=${ASSET_V}`);
 
+          // ── Réinit modules si hse_store a été recréé ──────────────────
+          // Au retour bureau virtuel, HA recrée hse-panel sans recharger
+          // les scripts. Si hse_store est une nouvelle instance, on
+          // rebranche overview/diag/config state sur ce nouveau store.
+          const _store_id = window.hse_store?._instance_id;
+          if (!_store_id || _store_id !== window.__hse_last_store_id) {
+            if (window.hse_store) {
+              window.hse_store._instance_id = Date.now();
+              window.__hse_last_store_id = window.hse_store._instance_id;
+            }
+            if (typeof window.hse_overview_state_init === 'function') window.hse_overview_state_init();
+            if (typeof window.hse_diag_state_init     === 'function') window.hse_diag_state_init();
+            if (typeof window.hse_config_state_init   === 'function') window.hse_config_state_init();
+            console.info('[HSE] store reinit: modules rebranches sur nouveau hse_store');
+          }
+
           // Instancie actions après chargement
           this._actions = new window.hse_panel_actions(this);
 
@@ -1108,7 +1124,10 @@ const build_signature = "2026-03-24_phase11_lit";
 
   if (!window.__hse_boot_started) {
     window.__hse_boot_started = true;
+    if (!window.__hse_boot_started) {
+    window.__hse_boot_started = true;
     boot_and_define().catch(err => console.error('[HSE] boot_and_define failed', err));
+  }
   }
 
 })();

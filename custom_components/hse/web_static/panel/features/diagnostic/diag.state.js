@@ -187,6 +187,18 @@
   }
 
   // ── Bootstrap ────────────────────────────────────────────────────────────────
+  function _init() {
+    const s = _s();
+    if (s) {
+      _restore_from_storage();
+      _subscribe_persistence();
+      window.hse_diag_state = _make_api();
+    }
+  }
+
+  // Exposé pour réinit au retour bureau virtuel (hse_store recréé)
+  window.hse_diag_state_init = _init;
+
   const store = _s();
 
   if (store) {

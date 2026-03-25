@@ -128,9 +128,17 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  _restore_from_storage();
-  _subscribe_persistence();
-  _subscribe_patch_live();
+  function _init() {
+    _restore_from_storage();
+    _subscribe_persistence();
+    _subscribe_patch_live();
+  }
+
+  _init(); // premier boot
+
+  // Exposé pour que hse_panel._boot() puisse rappeler _init()
+  // quand hse_store a été recréé (retour bureau virtuel).
+  window.hse_overview_state_init = _init;
 
   window.hse_overview_state = {
     get_state,
