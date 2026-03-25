@@ -6,10 +6,18 @@ const build_signature = "2026-03-24_phase11_lit";
   const SHARED_BASE = "/api/hse/static/shared";
   const ASSET_V     = "0.1.38";
 
-  // ── Attend que LitElement soit disponible puis définit le composant ──────
+  async function _load_lit(url) {
+    if (window.LitElement) return;
+    const mod = await import(url);
+    window.LitElement = mod.LitElement;
+    window.html       = mod.html;
+    window.css        = mod.css;
+    window.nothing    = mod.nothing;
+    window.Lit        = mod;
+  }
+
   async function boot_and_define() {
 
-    // ── Loader minimal (identique phase précédente) ───────────────────────
     if (!window.hse_loader) {
       window.hse_loader = {
         load_script_once: (url) =>
@@ -29,23 +37,8 @@ const build_signature = "2026-03-24_phase11_lit";
       };
     }
 
-    // ── Phase 10 : charge Lit depuis CDN (une seule fois) ─────────────────
-    // ── Charge Lit via import() dynamique (ES module servi en local) ──────
-    async function _load_lit(url) {
-      if (window.LitElement) return; // déjà chargé
-      const mod = await import(url);
-      window.LitElement = mod.LitElement;
-      window.html       = mod.html;
-      window.css        = mod.css;
-      window.nothing    = mod.nothing;
-      window.Lit        = mod;
-    }
-
-    async function boot_and_define() {
-      await _load_lit(`${SHARED_BASE}/lib/lit-core.min.js?v=${ASSET_V}`);
-      const { LitElement, html, css, nothing } = window.Lit;
-      // ... reste identique
-
+    await _load_lit(`${SHARED_BASE}/lib/lit-core.min.js?v=${ASSET_V}`);
+    const { LitElement, html, css, nothing } = window.Lit;
 
     // ── Onglets stables (DOM préservé entre set hass) ─────────────────────
     const TABS_STABLE = new Set(['cards','custom','config','costs','diagnostic','scan','migration']);
