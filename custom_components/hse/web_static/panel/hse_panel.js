@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_boot_render_fix";
+const build_signature = "2026-03-25_phase11_virtual_desktop_fix";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -134,6 +134,11 @@ const build_signature = "2026-03-25_phase11_boot_render_fix";
         };
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────
+        // HA utilise display:none sur le conteneur — connectedCallback et
+        // set hass ne sont pas rappelés au retour. On récupère hass
+        // manuellement depuis l'hôte home-assistant.
+        // FIX-A : on reset aussi le timer autorefresh pour forcer un tick
+        // immédiat au retour (évite l'écran noir si le WS était bloqué).
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
           const ha = document.querySelector('home-assistant');
@@ -141,26 +146,33 @@ const build_signature = "2026-03-25_phase11_boot_render_fix";
             this.hass = ha.hass;
           } else if (this._hass_raw) {
             this._overview_built = false;
+            // FIX-A : reset du timer pour relancer tick() immédiatement
+            if (this._active_tab === 'overview' || this._active_tab === 'costs') {
+              this._overview_refreshing = false;
+              this._clear_overview_autorefresh();
+            }
             this.requestUpdate();
           }
         };
       }
 
-      // ── set hass ─────────────────────────────────────────────────────
+      // ── set hass — injecté par HA à chaque état ───────────────────────
       set hass(hass) {
         this._hass_raw = hass;
         window.hse_overview_state?.update_hass?.(hass);
 
         const shadow = this.shadowRoot;
         if (shadow && !shadow.querySelector('.hse_page') && this._boot_done) {
+          // FIX-C : le shadow est vide (retour bureau virtuel ou recréation DOM)
+          // → invalider _overview_built pour forcer rebuild du contenu
+          this._overview_built = false;
           this.requestUpdate();
           return;
         }
 
         if (!this._boot_done) {
           if (!this._booting) this._boot();
-          // FIX 1 : force re-render même pendant le boot
-          // (hass peut arriver avant que _boot_done soit posé)
+          // FIX-1 : force re-render même pendant le boot
           this.requestUpdate();
           return;
         }
@@ -658,12 +670,12 @@ const build_signature = "2026-03-25_phase11_boot_render_fix";
             const msg = String(err?.message || err?.code || err || '');
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
             if (is_ws_err) {
-              // FIX 3 : libérer _overview_refreshing AVANT le retry
-              // pour ne pas bloquer les ticks suivants
+              // FIX-B : libérer _overview_refreshing AVANT le retry
+              // pour ne pas bloquer les ticks suivants du setInterval
               console.info('[HSE] overview tick: ws not ready, retry in 3s');
               this._overview_refreshing = false;
               setTimeout(tick, 3000);
-              return; // évite le finally
+              return; // évite le finally (qui remettrait refreshing=false en double)
             } else {
               const d = { error: msg };
               this._overview_data = d;
@@ -814,8 +826,7 @@ const build_signature = "2026-03-25_phase11_boot_render_fix";
 
           this._boot_done  = true;
           this._boot_error = null;
-          // FIX 2 : forcer le re-render immédiatement après boot
-          // Lit ne re-render pas automatiquement après un await
+          // FIX-2 : forcer le re-render immédiatement après boot
           this.requestUpdate();
         } catch (err) {
           this._boot_error = err?.message || String(err);
