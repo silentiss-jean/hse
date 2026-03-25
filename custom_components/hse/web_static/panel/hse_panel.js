@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-24_phase11_lit";
+const build_signature = "2026-03-25_phase11_lit_fix_stale";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.41";
+  const ASSET_V     = "0.1.42";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -59,9 +59,7 @@ const build_signature = "2026-03-24_phase11_lit";
       // ── Propriétés réactives Lit ────────────────────────────────────────
       static get properties() {
         return {
-          // hass injecté par HA
           hass:         { attribute: false },
-          // état interne — tout changement déclenche un render schedulé
           _active_tab:  { state: true },
           _boot_done:   { state: true },
           _boot_error:  { state: true },
@@ -69,9 +67,6 @@ const build_signature = "2026-03-24_phase11_lit";
         };
       }
 
-      // ── Pas de Shadow DOM isolé — on réutilise le shadow existant de HA ─
-      // On garde createRenderRoot par défaut (shadowRoot) mais on injecte
-      // les styles HSE via adoptedStyleSheets ou <style> dans render()
       constructor() {
         super();
 
@@ -80,13 +75,13 @@ const build_signature = "2026-03-24_phase11_lit";
         this._boot_error  = null;
         this._theme       = 'ha';
 
-        // ── État non-réactif (géré manuellement via requestUpdate) ────────
-        this._hass_raw    = null; // miroir de hass sans déclencher Lit
-        this._actions     = null; // HsePanelActions instance
+        this._hass_raw    = null;
+        this._actions     = null;
 
         this._overview_timer      = null;
         this._overview_refreshing = false;
         this._overview_data       = null;
+        this._overview_built      = false;
 
         this._scan_result = { integrations: [], candidates: [] };
         this._scan_state  = {
@@ -104,7 +99,6 @@ const build_signature = "2026-03-24_phase11_lit";
         this._user_interacting       = false;
         this._user_interacting_timer = null;
 
-        // ── _org_state : bridge vers hse_store ───────────────────────────
         this._org_state = {
           get loading()     { return !!window.hse_store?.get('org.loading'); },
           set loading(v)    { window.hse_store?.set('org.loading', !!v); },
@@ -124,19 +118,16 @@ const build_signature = "2026-03-24_phase11_lit";
           show_raw: false, rooms_filter_q: '', assignments_filter_q: '',
         };
 
-        // ── _diag_state proxy ────────────────────────────────────────────
         this._diag_state = new Proxy({}, {
           get(_, k) { const s = window.hse_diag_state; return s ? s.get(k) : undefined; },
           set(_, k, v) { const s = window.hse_diag_state; if (s) s.set(k, v); return true; },
         });
 
-        // ── _config_state proxy ──────────────────────────────────────────
         this._config_state = new Proxy({}, {
           get(_, k) { const s = window.hse_config_state; return s ? s.get(k) : undefined; },
           set(_, k, v) { const s = window.hse_config_state; if (s) s.set(k, v); return true; },
         });
 
-        // ── Handlers document ────────────────────────────────────────────
         this._doc_mousedown = () => this._mark_interacting();
         this._doc_focusin   = (e) => {
           if (this.shadowRoot && e.composedPath?.().some(n => n === this.shadowRoot))
@@ -149,18 +140,13 @@ const build_signature = "2026-03-24_phase11_lit";
         this._hass_raw = hass;
         window.hse_overview_state?.update_hass?.(hass);
 
-        // ── Guard : si le shadow est vide (après AbortError HA), on force un boot
         const shadow = this.shadowRoot;
         if (shadow && !shadow.querySelector('.hse_page') && this._boot_done) {
-          // Le DOM a été effacé par HA sans passer par disconnectedCallback
-          // → forcer un re-render complet
           this.requestUpdate();
           return;
         }
 
-        // ── Si pas encore booté, laisser _boot() gérer via connectedCallback
         if (!this._boot_done) {
-          // Boot pas encore fait — tenter de le relancer si connectedCallback a raté
           if (!this._booting) this._boot();
           return;
         }
@@ -182,7 +168,6 @@ const build_signature = "2026-03-24_phase11_lit";
         this.requestUpdate();
       }
 
-
       get hass() { return this._hass_raw; }
 
       // ── Cycle de vie ─────────────────────────────────────────────────
@@ -191,7 +176,6 @@ const build_signature = "2026-03-24_phase11_lit";
         console.info(`[HSE] panel loaded (${build_signature})`);
         window.__hse_panel_loaded = build_signature;
 
-        // Restaurer préférences
         this._theme = this._storage_get('hse_theme') || 'ha';
         this._custom_state.theme = this._theme;
         this._custom_state.dynamic_bg = (this._storage_get('hse_custom_dynamic_bg') || '1') === '1';
@@ -217,6 +201,15 @@ const build_signature = "2026-03-24_phase11_lit";
         document.addEventListener('mousedown', this._doc_mousedown, true);
         document.addEventListener('focusin',   this._doc_focusin,   true);
 
+        // Retour bureau virtuel : l'instance existe déjà, on reset l'état
+        // overview pour forcer un rebuild propre au prochain render
+        if (this._boot_done) {
+          this._overview_built = false;
+          window.hse_overview_state?.register_container?.(null, null);
+          this.requestUpdate();
+          return;
+        }
+
         this._boot();
       }
 
@@ -227,12 +220,13 @@ const build_signature = "2026-03-24_phase11_lit";
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
         document.removeEventListener('mousedown', this._doc_mousedown, true);
         document.removeEventListener('focusin',   this._doc_focusin,   true);
+        // Invalide le container dans overview.state pour éviter les patch_live
+        // sur un DOM détaché pendant l'absence du panel
+        window.hse_overview_state?.register_container?.(null, null);
       }
 
-      // ── Lit : pas de styles encapsulés (on charge les CSS HSE via <style>) ──
       static get styles() { return css``; }
 
-      // ── render() — point d'entrée Lit, schedulé automatiquement ─────────
       render() {
         if (!this._boot_done) {
           if (this._boot_error) {
@@ -265,7 +259,6 @@ const build_signature = "2026-03-24_phase11_lit";
           </div>`;
       }
 
-      // ── Fragments de template ─────────────────────────────────────────
       _render_header() {
         const user = this._hass_raw?.user?.name || '—';
         return html`
@@ -293,14 +286,10 @@ const build_signature = "2026-03-24_phase11_lit";
       }
 
       _render_tab_content() {
-        // Les onglets stables utilisent un <div> persistant géré par les views
-        // On retourne nothing et on laisse updated() appeler les view functions
         return nothing;
       }
 
-      // ── updated() — appelé après chaque render Lit ───────────────────
       updated(changed) {
-        // Nettoie les timers des onglets inactifs
         if (this._active_tab !== 'overview' && this._active_tab !== 'costs') {
           this._clear_overview_autorefresh();
         }
@@ -338,6 +327,7 @@ const build_signature = "2026-03-24_phase11_lit";
 
         let body = content.querySelector('[data-hse-overview-body]');
         if (!body) {
+          // Nouveau DOM : reset complet du flag built
           this._overview_built = false;
           const { el } = window.hse_dom;
           content.innerHTML = '';
@@ -353,7 +343,7 @@ const build_signature = "2026-03-24_phase11_lit";
           content.appendChild(body);
         }
 
-        // Toujours re-enregistrer le body courant (protège contre DOM détaché)
+        // Enregistre toujours le body courant — overview.state vérifiera isConnected
         window.hse_overview_state?.register_container?.(body, this._hass_raw);
 
         if (this._overview_built) return; // patch_live gère les updates
@@ -373,10 +363,12 @@ const build_signature = "2026-03-24_phase11_lit";
           return;
         }
 
+        // Rebuild complet
         body.innerHTML = '';
-        window.hse_overview_state?.register_container?.(body, this._hass_raw);
         window.hse_overview_view.render_overview(body, data, this._hass_raw);
         this._overview_built = true;
+        // Marque aussi dans overview.state pour que patch_live soit autorisé
+        window.hse_overview_state?.mark_built?.();
       }
 
       async _overview_force_refresh(content) {
@@ -390,12 +382,12 @@ const build_signature = "2026-03-24_phase11_lit";
           const data = await fn(this._hass_raw);
           this._overview_data = data;
           const body = content.querySelector('[data-hse-overview-body]');
-          window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body);
+          window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
         } catch (err) {
           const d = { error: this._actions?._err_msg(err) || String(err) };
           this._overview_data = d;
           const body = content.querySelector('[data-hse-overview-body]');
-          window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body);
+          window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
         }
         this.requestUpdate();
       }
@@ -593,14 +585,11 @@ const build_signature = "2026-03-24_phase11_lit";
         _do_render();
       }
 
-      // ── Onglet Config (délégué à panel.actions.js) ────────────────────
+      // ── Onglet Config ─────────────────────────────────────────────────
       async _tab_config(content) {
         if (!window.hse_config_view || !window.hse_config_api || !window.hse_scan_api) {
           this._tab_placeholder(content, 'Configuration', 'config.view.js non chargé.'); return;
         }
-        // Réutilise exactement la logique de l'ancienne _render_config()
-        // en remplaçant this._render() → this.requestUpdate()
-        // et this._ui.content → content
         await this._tab_config_impl(content);
       }
 
@@ -649,10 +638,16 @@ const build_signature = "2026-03-24_phase11_lit";
             const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
             window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
           } catch (err) {
-            const d = { error: String(err?.message || err) };
-            this._overview_data = d;
-            const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
-            window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
+            // Erreur WebSocket HA (Subscription not found, etc.) : on ignore
+            // silencieusement pour ne pas polluer la console ni bloquer le render
+            const msg = String(err?.message || err?.code || err || '');
+            const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
+            if (!is_ws_err) {
+              const d = { error: msg };
+              this._overview_data = d;
+              const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
+              window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
+            }
           } finally {
             this._overview_refreshing = false;
             if (!this._overview_built) this.requestUpdate();
@@ -691,8 +686,9 @@ const build_signature = "2026-03-24_phase11_lit";
       }
 
       _set_active_tab(tab_id) {
-        this._overview_built = false; // reset overview flag
-        this._active_tab = tab_id;   // Lit détecte le changement → requestUpdate auto
+        // Reset overview built flag à chaque changement d'onglet
+        this._overview_built = false;
+        this._active_tab = tab_id;
         this._storage_set('hse_active_tab', tab_id);
       }
 
@@ -702,7 +698,6 @@ const build_signature = "2026-03-24_phase11_lit";
         this._custom_state.theme = this._theme;
         this.setAttribute('data-theme', this._theme);
         this._storage_set('hse_theme', this._theme);
-        // _theme est @state → requestUpdate auto
       }
 
       _apply_dynamic_bg_override() {
@@ -735,7 +730,7 @@ const build_signature = "2026-03-24_phase11_lit";
       _storage_get(key) { try { return window.localStorage.getItem(key); } catch (_) { return null; } }
       _storage_set(key, v) { try { window.localStorage.setItem(key, v); } catch (_) {} }
 
-      // ── Style tag (CSS HSE injecté dans le shadow) ────────────────────
+      // ── Style tag ─────────────────────────────────────────────────────
       _style_tag() {
         return this._css_text
           ? html`<style>${this._css_text}</style>`
@@ -774,9 +769,6 @@ const build_signature = "2026-03-24_phase11_lit";
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.controller.js?v=${ASSET_V}`);
 
           // ── Réinit modules si hse_store a été recréé ──────────────────
-          // Au retour bureau virtuel, HA recrée hse-panel sans recharger
-          // les scripts. Si hse_store est une nouvelle instance, on
-          // rebranche overview/diag/config state sur ce nouveau store.
           const _store_id = window.hse_store?._instance_id;
           if (!_store_id || _store_id !== window.__hse_last_store_id) {
             if (window.hse_store) {
@@ -789,10 +781,8 @@ const build_signature = "2026-03-24_phase11_lit";
             console.info('[HSE] store reinit: modules rebranches sur nouveau hse_store');
           }
 
-          // Instancie actions après chargement
           this._actions = new window.hse_panel_actions(this);
 
-          // Charge les CSS HSE dans le shadow
           const css_parts = await Promise.all([
             window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_tokens.shadow.css?v=${ASSET_V}`),
             window.hse_loader.load_css_text(`${SHARED_BASE}/styles/hse_themes.shadow.css?v=${ASSET_V}`),
@@ -802,22 +792,17 @@ const build_signature = "2026-03-24_phase11_lit";
           ]);
           this._css_text = css_parts.join('\n\n');
 
-          this._boot_done  = true; // @state → requestUpdate auto
+          this._boot_done  = true;
           this._boot_error = null;
         } catch (err) {
           this._boot_error = err?.message || String(err);
           console.error('[HSE] boot error', err);
         } finally {
           this._booting = false;
-          // @state → requestUpdate auto
         }
       }
 
       // ── Implémentations config & diagnostic ──────────────────────────
-      // (copiées de l'ancienne _render_config / _render_diagnostic,
-      //  avec this._render() → this.requestUpdate()
-      //  et this._ui.content → content passé en paramètre)
-
       async _tab_config_impl(content) {
         const _cg = (k) => this._actions._cg(k);
         const _cs = (k, v) => this._actions._cs(k, v);
