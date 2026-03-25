@@ -149,17 +149,39 @@ const build_signature = "2026-03-24_phase11_lit";
         this._hass_raw = hass;
         window.hse_overview_state?.update_hass?.(hass);
 
-        if (TABS_STABLE.has(this._active_tab)) return;
+        // ── Guard : si le shadow est vide (après AbortError HA), on force un boot
+        const shadow = this.shadowRoot;
+        if (shadow && !shadow.querySelector('.hse_page') && this._boot_done) {
+          // Le DOM a été effacé par HA sans passer par disconnectedCallback
+          // → forcer un re-render complet
+          this.requestUpdate();
+          return;
+        }
+
+        // ── Si pas encore booté, laisser _boot() gérer via connectedCallback
+        if (!this._boot_done) {
+          // Boot pas encore fait — tenter de le relancer si connectedCallback a raté
+          if (!this._booting) this._boot();
+          return;
+        }
+
+        if (TABS_STABLE.has(this._active_tab)) {
+          this.requestUpdate();
+          return;
+        }
 
         if (this._active_tab === 'overview') {
-          // Vérifier que le body patch_live est encore vivant
-          const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
-          const built = this._overview_built;
-          if (built && body?.isConnected) return;
+          const body = shadow?.querySelector('[data-hse-overview-body]');
+          if (this._overview_built && body?.isConnected) {
+            this.requestUpdate();
+            return;
+          }
           this._overview_built = false;
         }
+
         this.requestUpdate();
       }
+
 
       get hass() { return this._hass_raw; }
 
@@ -722,7 +744,8 @@ const build_signature = "2026-03-24_phase11_lit";
 
       // ── Boot ──────────────────────────────────────────────────────────
       async _boot() {
-        if (this._boot_done) return;
+        if (this._boot_done || this._booting) return;
+        this._booting = true;
         try {
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
@@ -768,6 +791,8 @@ const build_signature = "2026-03-24_phase11_lit";
         } catch (err) {
           this._boot_error = err?.message || String(err);
           console.error('[HSE] boot error', err);
+        } finally {
+          this._booting = false;
           // @state → requestUpdate auto
         }
       }
