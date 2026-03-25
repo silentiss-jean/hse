@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_dispatch_async";
+const build_signature = "2026-03-25_phase11_visibility_fix";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.44";
+  const ASSET_V     = "0.1.45";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -133,6 +133,21 @@ const build_signature = "2026-03-25_phase11_dispatch_async";
           if (this.shadowRoot && e.composedPath?.().some(n => n === this.shadowRoot))
             this._mark_interacting();
         };
+
+        // ── FIX bureau virtuel : visibilitychange ─────────────────────
+        // HA utilise display:none sur le conteneur — connectedCallback et
+        // set hass ne sont pas rappelés au retour. On récupère hass
+        // manuellement depuis l'hôte home-assistant.
+        this._on_visibility_change = () => {
+          if (document.visibilityState !== 'visible' || !this._boot_done) return;
+          const ha = document.querySelector('home-assistant');
+          if (ha?.hass && ha.hass !== this._hass_raw) {
+            this.hass = ha.hass;
+          } else if (this._hass_raw) {
+            this._overview_built = false;
+            this.requestUpdate();
+          }
+        };
       }
 
       // ── set hass — injecté par HA à chaque état ───────────────────────
@@ -198,8 +213,9 @@ const build_signature = "2026-03-25_phase11_dispatch_async";
         this.shadowRoot.addEventListener('keydown',   () => this._mark_interacting(), true);
         this.shadowRoot.addEventListener('touchstart',() => this._mark_interacting(), { passive: true, capture: true });
 
-        document.addEventListener('mousedown', this._doc_mousedown, true);
-        document.addEventListener('focusin',   this._doc_focusin,   true);
+        document.addEventListener('mousedown',       this._doc_mousedown,          true);
+        document.addEventListener('focusin',         this._doc_focusin,            true);
+        document.addEventListener('visibilitychange', this._on_visibility_change);
 
         if (this._boot_done) {
           this._overview_built = false;
@@ -216,8 +232,9 @@ const build_signature = "2026-03-25_phase11_dispatch_async";
         this._clear_overview_autorefresh();
         this._clear_reference_status_polling();
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
-        document.removeEventListener('mousedown', this._doc_mousedown, true);
-        document.removeEventListener('focusin',   this._doc_focusin,   true);
+        document.removeEventListener('mousedown',        this._doc_mousedown,         true);
+        document.removeEventListener('focusin',          this._doc_focusin,           true);
+        document.removeEventListener('visibilitychange', this._on_visibility_change);
         window.hse_overview_state?.register_container?.(null, null);
       }
 
@@ -285,7 +302,6 @@ const build_signature = "2026-03-25_phase11_dispatch_async";
         return nothing;
       }
 
-      // ── FIX : updated() appelle _dispatch_tab en fire-and-forget avec .catch() ──
       updated(changed) {
         if (this._active_tab !== 'overview' && this._active_tab !== 'costs') {
           this._clear_overview_autorefresh();
@@ -297,15 +313,12 @@ const build_signature = "2026-03-25_phase11_dispatch_async";
         const content = this.shadowRoot?.querySelector('#hse-content');
         if (!content || !this._boot_done || !this._hass_raw) return;
 
-        // _dispatch_tab est async — on attrape les rejets pour éviter
-        // les Uncaught (in promise) qui remontent jusqu'à HA
         this._dispatch_tab(content).catch(err => {
           console.error('[HSE] _dispatch_tab unhandled error', err);
           this._render_error(content, 'dispatch_tab_unhandled', err);
         });
       }
 
-      // ── FIX : _dispatch_tab async + await sur les tabs async ─────────────
       async _dispatch_tab(content) {
         try {
           switch (this._active_tab) {
