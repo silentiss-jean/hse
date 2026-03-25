@@ -4,7 +4,7 @@ const build_signature = "2026-03-24_phase11_lit";
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.39";
+  const ASSET_V     = "0.1.40";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -1098,9 +1098,17 @@ const build_signature = "2026-03-24_phase11_lit";
       }
     }
 
-    customElements.define('hse-panel', HsePanel);
-    console.info(`[HSE] hse-panel (Lit) registered (${build_signature})`);
+    if (!customElements.get('hse-panel')) {
+      customElements.define('hse-panel', HsePanel);
+      console.info(`[HSE] hse-panel (Lit) registered (${build_signature})`);
+    } else {
+      console.info(`[HSE] hse-panel already defined, skipping (${build_signature})`);
+      }
   }
 
-  boot_and_define().catch(err => console.error('[HSE] boot_and_define failed', err));
+  if (!window.__hse_boot_started) {
+    window.__hse_boot_started = true;
+    boot_and_define().catch(err => console.error('[HSE] boot_and_define failed', err));
+  }
+
 })();
