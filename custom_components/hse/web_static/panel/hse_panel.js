@@ -163,6 +163,7 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
 
         if (!this._boot_done) {
           if (!this._booting) this._boot();
+          this.requestUpdate();
           return;
         }
 
@@ -660,7 +661,9 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
             if (is_ws_err) {
               console.info('[HSE] overview tick: ws not ready, retry in 3s');
+              this._overview_refreshing = false;
               setTimeout(tick, 3000);
+              return;
             } else {
               const d = { error: msg };
               this._overview_data = d;
@@ -811,6 +814,7 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
 
           this._boot_done  = true;
           this._boot_error = null;
+          this.requestUpdate();
         } catch (err) {
           this._boot_error = err?.message || String(err);
           console.error('[HSE] boot error', err);
