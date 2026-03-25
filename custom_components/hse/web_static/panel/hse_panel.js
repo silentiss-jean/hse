@@ -4,7 +4,7 @@ const build_signature = "2026-03-24_phase11_lit";
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.38";
+  const ASSET_V     = "0.1.39";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
