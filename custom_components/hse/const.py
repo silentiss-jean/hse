@@ -7,7 +7,7 @@ PANEL_URL_PATH = "hse"
 PANEL_TITLE = "Home Suivi Elec v2"
 PANEL_ICON = "mdi:flash"
 
-PANEL_JS_URL = f"{STATIC_URL}/panel/hse_panel.js?v=0.1.42"
+PANEL_JS_URL = f"{STATIC_URL}/panel/hse_panel.js?v=0.1.43"
 PANEL_ELEMENT_NAME = "hse-panel"
 
 # Catalogue refresh default interval
