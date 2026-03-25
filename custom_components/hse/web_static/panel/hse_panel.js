@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_visibility_fix";
+const build_signature = "2026-03-25_phase11_boot_render_fix";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.45";
+  const ASSET_V     = "0.1.46";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -56,7 +56,6 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
 
     class HsePanel extends LitElement {
 
-      // ── Propriétés réactives Lit ────────────────────────────────────────
       static get properties() {
         return {
           hass:         { attribute: false },
@@ -135,9 +134,6 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
         };
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────
-        // HA utilise display:none sur le conteneur — connectedCallback et
-        // set hass ne sont pas rappelés au retour. On récupère hass
-        // manuellement depuis l'hôte home-assistant.
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
           const ha = document.querySelector('home-assistant');
@@ -150,7 +146,7 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
         };
       }
 
-      // ── set hass — injecté par HA à chaque état ───────────────────────
+      // ── set hass ─────────────────────────────────────────────────────
       set hass(hass) {
         this._hass_raw = hass;
         window.hse_overview_state?.update_hass?.(hass);
@@ -163,6 +159,8 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
 
         if (!this._boot_done) {
           if (!this._booting) this._boot();
+          // FIX 1 : force re-render même pendant le boot
+          // (hass peut arriver avant que _boot_done soit posé)
           this.requestUpdate();
           return;
         }
@@ -214,8 +212,8 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
         this.shadowRoot.addEventListener('keydown',   () => this._mark_interacting(), true);
         this.shadowRoot.addEventListener('touchstart',() => this._mark_interacting(), { passive: true, capture: true });
 
-        document.addEventListener('mousedown',       this._doc_mousedown,          true);
-        document.addEventListener('focusin',         this._doc_focusin,            true);
+        document.addEventListener('mousedown',        this._doc_mousedown,         true);
+        document.addEventListener('focusin',          this._doc_focusin,           true);
         document.addEventListener('visibilitychange', this._on_visibility_change);
 
         if (this._boot_done) {
@@ -660,10 +658,12 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
             const msg = String(err?.message || err?.code || err || '');
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
             if (is_ws_err) {
+              // FIX 3 : libérer _overview_refreshing AVANT le retry
+              // pour ne pas bloquer les ticks suivants
               console.info('[HSE] overview tick: ws not ready, retry in 3s');
               this._overview_refreshing = false;
               setTimeout(tick, 3000);
-              return;
+              return; // évite le finally
             } else {
               const d = { error: msg };
               this._overview_data = d;
@@ -814,10 +814,13 @@ const build_signature = "2026-03-25_phase11_visibility_fix";
 
           this._boot_done  = true;
           this._boot_error = null;
+          // FIX 2 : forcer le re-render immédiatement après boot
+          // Lit ne re-render pas automatiquement après un await
           this.requestUpdate();
         } catch (err) {
           this._boot_error = err?.message || String(err);
           console.error('[HSE] boot error', err);
+          this.requestUpdate();
         } finally {
           this._booting = false;
         }
