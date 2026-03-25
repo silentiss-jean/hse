@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_ws_retry";
+const build_signature = "2026-03-25_phase11_dispatch_async";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.43";
+  const ASSET_V     = "0.1.44";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -201,8 +201,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
         document.addEventListener('mousedown', this._doc_mousedown, true);
         document.addEventListener('focusin',   this._doc_focusin,   true);
 
-        // Retour bureau virtuel : l'instance existe déjà, on reset l'état
-        // overview pour forcer un rebuild propre au prochain render
         if (this._boot_done) {
           this._overview_built = false;
           window.hse_overview_state?.register_container?.(null, null);
@@ -220,8 +218,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
         document.removeEventListener('mousedown', this._doc_mousedown, true);
         document.removeEventListener('focusin',   this._doc_focusin,   true);
-        // Invalide le container dans overview.state pour éviter les patch_live
-        // sur un DOM détaché pendant l'absence du panel
         window.hse_overview_state?.register_container?.(null, null);
       }
 
@@ -289,6 +285,7 @@ const build_signature = "2026-03-25_phase11_ws_retry";
         return nothing;
       }
 
+      // ── FIX : updated() appelle _dispatch_tab en fire-and-forget avec .catch() ──
       updated(changed) {
         if (this._active_tab !== 'overview' && this._active_tab !== 'costs') {
           this._clear_overview_autorefresh();
@@ -300,20 +297,26 @@ const build_signature = "2026-03-25_phase11_ws_retry";
         const content = this.shadowRoot?.querySelector('#hse-content');
         if (!content || !this._boot_done || !this._hass_raw) return;
 
-        this._dispatch_tab(content);
+        // _dispatch_tab est async — on attrape les rejets pour éviter
+        // les Uncaught (in promise) qui remontent jusqu'à HA
+        this._dispatch_tab(content).catch(err => {
+          console.error('[HSE] _dispatch_tab unhandled error', err);
+          this._render_error(content, 'dispatch_tab_unhandled', err);
+        });
       }
 
-      _dispatch_tab(content) {
+      // ── FIX : _dispatch_tab async + await sur les tabs async ─────────────
+      async _dispatch_tab(content) {
         try {
           switch (this._active_tab) {
-            case 'overview':   this._tab_overview(content);   break;
-            case 'costs':      this._tab_costs(content);      break;
-            case 'diagnostic': this._tab_diagnostic(content); break;
-            case 'scan':       this._tab_scan(content);       break;
-            case 'migration':  this._tab_migration(content);  break;
-            case 'config':     this._tab_config(content);     break;
-            case 'custom':     this._tab_custom(content);     break;
-            case 'cards':      this._tab_cards(content);      break;
+            case 'overview':   this._tab_overview(content);         break;
+            case 'costs':      this._tab_costs(content);            break;
+            case 'diagnostic': await this._tab_diagnostic(content); break;
+            case 'scan':       this._tab_scan(content);             break;
+            case 'migration':  await this._tab_migration(content);  break;
+            case 'config':     await this._tab_config(content);     break;
+            case 'custom':     this._tab_custom(content);           break;
+            case 'cards':      this._tab_cards(content);            break;
             default:           this._tab_placeholder(content, 'Page', 'À venir.');
           }
         } catch (err) {
@@ -327,7 +330,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
 
         let body = content.querySelector('[data-hse-overview-body]');
         if (!body) {
-          // Nouveau DOM : reset complet du flag built
           this._overview_built = false;
           const { el } = window.hse_dom;
           content.innerHTML = '';
@@ -343,10 +345,9 @@ const build_signature = "2026-03-25_phase11_ws_retry";
           content.appendChild(body);
         }
 
-        // Enregistre toujours le body courant — overview.state vérifiera isConnected
         window.hse_overview_state?.register_container?.(body, this._hass_raw);
 
-        if (this._overview_built) return; // patch_live gère les updates
+        if (this._overview_built) return;
 
         const data = window.hse_overview_state?.get('data') ?? this._overview_data;
         if (!data) {
@@ -363,11 +364,9 @@ const build_signature = "2026-03-25_phase11_ws_retry";
           return;
         }
 
-        // Rebuild complet
         body.innerHTML = '';
         window.hse_overview_view.render_overview(body, data, this._hass_raw);
         this._overview_built = true;
-        // Marque aussi dans overview.state pour que patch_live soit autorisé
         window.hse_overview_state?.mark_built?.();
       }
 
@@ -629,7 +628,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
         const tick = async () => {
           if (this._overview_refreshing) return;
 
-          // Hass pas encore prêt → retry dans 3s (ex: retour bureau virtuel)
           if (!this._hass_raw) {
             setTimeout(tick, 3000);
             return;
@@ -648,8 +646,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
             const msg = String(err?.message || err?.code || err || '');
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
             if (is_ws_err) {
-              // WebSocket HA pas encore rétabli (retour bureau virtuel, reconnexion)
-              // → on réessaie dans 3s plutôt que d'abandonner silencieusement
               console.info('[HSE] overview tick: ws not ready, retry in 3s');
               setTimeout(tick, 3000);
             } else {
@@ -696,7 +692,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
       }
 
       _set_active_tab(tab_id) {
-        // Reset overview built flag à chaque changement d'onglet
         this._overview_built = false;
         this._active_tab = tab_id;
         this._storage_set('hse_active_tab', tab_id);
@@ -778,7 +773,6 @@ const build_signature = "2026-03-25_phase11_ws_retry";
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/cards/cards.controller.js?v=${ASSET_V}`);
 
-          // ── Réinit modules si hse_store a été recréé ──────────────────
           const _store_id = window.hse_store?._instance_id;
           if (!_store_id || _store_id !== window.__hse_last_store_id) {
             if (window.hse_store) {
