@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_lit_fix_stale";
+const build_signature = "2026-03-25_phase11_ws_retry";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.42";
+  const ASSET_V     = "0.1.43";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -628,6 +628,13 @@ const build_signature = "2026-03-25_phase11_lit_fix_stale";
         if (this._overview_timer) return;
         const tick = async () => {
           if (this._overview_refreshing) return;
+
+          // Hass pas encore prêt → retry dans 3s (ex: retour bureau virtuel)
+          if (!this._hass_raw) {
+            setTimeout(tick, 3000);
+            return;
+          }
+
           this._overview_refreshing = true;
           try {
             const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
@@ -638,11 +645,14 @@ const build_signature = "2026-03-25_phase11_lit_fix_stale";
             const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
             window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
           } catch (err) {
-            // Erreur WebSocket HA (Subscription not found, etc.) : on ignore
-            // silencieusement pour ne pas polluer la console ni bloquer le render
             const msg = String(err?.message || err?.code || err || '');
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
-            if (!is_ws_err) {
+            if (is_ws_err) {
+              // WebSocket HA pas encore rétabli (retour bureau virtuel, reconnexion)
+              // → on réessaie dans 3s plutôt que d'abandonner silencieusement
+              console.info('[HSE] overview tick: ws not ready, retry in 3s');
+              setTimeout(tick, 3000);
+            } else {
               const d = { error: msg };
               this._overview_data = d;
               const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
