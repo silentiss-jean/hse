@@ -30,14 +30,22 @@ const build_signature = "2026-03-24_phase11_lit";
     }
 
     // ── Phase 10 : charge Lit depuis CDN (une seule fois) ─────────────────
-    // On utilise le build standalone ESM-shims-compatible de Lit 3
-    if (!window.LitElement) {
-      await window.hse_loader.load_script_once(
-        'https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js'
-      );
+    // ── Charge Lit via import() dynamique (ES module servi en local) ──────
+    async function _load_lit(url) {
+      if (window.LitElement) return; // déjà chargé
+      const mod = await import(url);
+      window.LitElement = mod.LitElement;
+      window.html       = mod.html;
+      window.css        = mod.css;
+      window.nothing    = mod.nothing;
+      window.Lit        = mod;
     }
 
-    const { LitElement, html, css, nothing } = window.Lit;
+    async function boot_and_define() {
+      await _load_lit(`${SHARED_BASE}/lib/lit-core.min.js?v=${ASSET_V}`);
+      const { LitElement, html, css, nothing } = window.Lit;
+      // ... reste identique
+
 
     // ── Onglets stables (DOM préservé entre set hass) ─────────────────────
     const TABS_STABLE = new Set(['cards','custom','config','costs','diagnostic','scan','migration']);
