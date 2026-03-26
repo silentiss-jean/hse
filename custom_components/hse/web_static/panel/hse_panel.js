@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-26_fix_ws_reconnect";
+const build_signature = "2026-03-26_fix_callapi_to_fetch";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -134,54 +134,31 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
         };
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────────
-        // Quand le panneau redevient visible après un bureau virtuel HA,
-        // connectedCallback et set hass ne sont PAS rappelés par HA.
-        // Le vrai problème : l'objet hass._connection (WebSocket) a pu
-        // se reconnecter pendant le masquage. Les subscription IDs WS
-        // anciens sont invalidés → callApi throw 'Subscription not found'
-        // comme promesse rejetée non-catchée.
-        //
-        // Solution :
-        // 1. Toujours récupérer le hass FRAIS depuis home-assistant
-        // 2. Si la WS n'est pas encore connectée, attendre l'événement
-        //    'ready' sur hass.connection avant de lancer le tick()
-        // 3. Ne jamais appeler callApi si connection.connected === false
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
 
-          // Toujours récupérer le hass frais, même si l'objet n'a pas changé
           const ha = document.querySelector('home-assistant');
           const fresh_hass = ha?.hass ?? this._hass_raw;
           if (fresh_hass) this._hass_raw = fresh_hass;
 
-          // Invalider overview pour forcer rebuild
           this._overview_built = false;
-
-          // Reset du timer autorefresh pour déclencher un tick immédiat
-          // après reconnexion WS (évite d'attendre les 30s restantes)
           this._overview_refreshing = false;
           this._clear_overview_autorefresh();
 
           const conn = this._hass_raw?.connection;
 
           if (!conn) {
-            // Pas de connexion disponible : on relance quand même, tick()
-            // vérifiera lui-même
             this.requestUpdate();
             return;
           }
 
           if (conn.connected) {
-            // WS déjà reconnectée : on peut relancer immédiatement
             this.requestUpdate();
             return;
           }
 
-          // WS pas encore reconnectée : on attend 'ready' (one-shot)
-          // avant de relancer le render/tick
           const on_ready = () => {
             try { conn.removeEventListener('ready', on_ready); } catch (_) {}
-            // Récupère le hass encore plus frais après reconnexion
             const ha2 = document.querySelector('home-assistant');
             if (ha2?.hass) this._hass_raw = ha2.hass;
             this._overview_refreshing = false;
@@ -190,7 +167,6 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
           try {
             conn.addEventListener('ready', on_ready);
           } catch (_) {
-            // Si addEventListener échoue (API non dispo), on relance quand même
             this.requestUpdate();
           }
         };
@@ -203,8 +179,6 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
 
         const shadow = this.shadowRoot;
         if (shadow && !shadow.querySelector('.hse_page') && this._boot_done) {
-          // FIX-C : le shadow est vide (retour bureau virtuel ou recréation DOM)
-          // → invalider _overview_built pour forcer rebuild du contenu
           this._overview_built = false;
           this.requestUpdate();
           return;
@@ -212,7 +186,6 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
 
         if (!this._boot_done) {
           if (!this._booting) this._boot();
-          // FIX-1 : force re-render même pendant le boot
           this.requestUpdate();
           return;
         }
@@ -697,11 +670,9 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
             return;
           }
 
-          // ── GUARD WS : ne jamais appeler callApi si la WS n'est pas connectée
-          // hass.connection.connected est false pendant une reconnexion WS.
-          // Dans ce cas on attend 2s et on réessaie — _on_visibility_change
-          // aura entre-temps récupéré le hass frais et appelé requestUpdate
-          // qui créera un nouveau timer propre.
+          // Avec hse_fetch (HTTP), le guard WS n'est plus nécessaire pour
+          // les appels API. On garde la vérification uniquement pour éviter
+          // un tick inutile si la WS n'est pas encore prête au démarrage.
           const conn = this._hass_raw?.connection;
           if (conn && conn.connected === false) {
             console.info('[HSE] overview tick: WS not connected, retry in 2s');
@@ -719,19 +690,10 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
             const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
             window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
           } catch (err) {
-            const msg = String(err?.message || err?.code || err || '');
-            const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
-            if (is_ws_err) {
-              console.info('[HSE] overview tick: ws error, retry in 3s', msg);
-              this._overview_refreshing = false;
-              setTimeout(tick, 3000);
-              return;
-            } else {
-              const d = { error: msg };
-              this._overview_data = d;
-              const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
-              window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
-            }
+            const d = { error: String(err?.message || err?.code || err || '') };
+            this._overview_data = d;
+            const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
+            window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
           } finally {
             this._overview_refreshing = false;
             if (!this._overview_built) this.requestUpdate();
@@ -828,6 +790,8 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
+          // ── hse.fetch.js doit être chargé avant tout module *.api.js ──
+          await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.fetch.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
@@ -876,7 +840,6 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
 
           this._boot_done  = true;
           this._boot_error = null;
-          // FIX-2 : forcer le re-render immédiatement après boot
           this.requestUpdate();
         } catch (err) {
           this._boot_error = err?.message || String(err);
@@ -1091,7 +1054,8 @@ const build_signature = "2026-03-26_fix_ws_reconnect";
           refresh_catalogue:  () => window.hse_diag_api.refresh_catalogue(p._hass_raw),
           set_item_triage:    (id, t) => window.hse_diag_api.set_item_triage(p._hass_raw, id, t),
           bulk_triage:        (ids, t) => window.hse_diag_api.bulk_triage(p._hass_raw, ids, t),
-          check_consistency:  (payload) => p._hass_raw.callApi('post', 'hse/unified/diagnostic/check', payload),
+          // ── Remplacé : callApi → hse_fetch ──
+          check_consistency:  (payload) => window.hse_fetch(p._hass_raw, 'POST', 'hse/unified/diagnostic/check', payload),
         };
 
         const _wrap = async (label, fn, meta) => {
