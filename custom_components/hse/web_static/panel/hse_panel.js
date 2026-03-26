@@ -1,10 +1,10 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-26_fix_callapi_to_fetch";
+const build_signature = "2026-03-26_fix_visibility_reconnect";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.49";
+  const ASSET_V     = "0.1.50";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -153,7 +153,15 @@ const build_signature = "2026-03-26_fix_callapi_to_fetch";
           }
 
           if (conn.connected) {
-            this.requestUpdate();
+            // ── FIX: délai pour laisser HA finaliser la reconnexion WS
+            // avant de déclencher un requestUpdate → appel API.
+            // Sans ce délai, la WS semble connectée mais les subscriptions
+            // HA ne sont pas encore recréées → "Subscription not found".
+            setTimeout(() => {
+              const ha2 = document.querySelector('home-assistant');
+              if (ha2?.hass) this._hass_raw = ha2.hass;
+              this.requestUpdate();
+            }, 1500);
             return;
           }
 
@@ -663,6 +671,14 @@ const build_signature = "2026-03-26_fix_callapi_to_fetch";
       _ensure_overview_autorefresh() {
         if (this._overview_timer) return;
         const tick = async () => {
+          // ── FIX: ne pas exécuter si l'onglet est en arrière-plan.
+          // Évite les ticks accumulés par le throttling navigateur qui
+          // s'exécutent en rafale au retour sur le bureau virtuel.
+          if (document.hidden) {
+            setTimeout(tick, 2000);
+            return;
+          }
+
           if (this._overview_refreshing) return;
 
           if (!this._hass_raw) {
