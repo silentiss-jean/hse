@@ -4,7 +4,7 @@ const build_signature = "2026-03-26_fix_callapi_to_fetch";
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.47";
+  const ASSET_V     = "0.1.48";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
