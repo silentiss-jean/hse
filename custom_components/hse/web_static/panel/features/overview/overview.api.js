@@ -1,37 +1,41 @@
 (function () {
+  // fetch_overview — blindé contre toute erreur WS/réseau.
+  // Ne throw JAMAIS : retourne toujours { fetched_at, fetch_ms, dashboard? | error? }
+  // L'erreur 'Subscription not found' de HA WS est catchée ici et retournée
+  // comme { error: ... } pour que tick() puisse la détecter sans uncaught promise.
   async function fetch_overview(hass) {
     const started_at = Date.now();
+    let dashboard = null;
+    let err_details = null;
 
     try {
-      const dashboard = await hass.callApi("GET", "hse/unified/dashboard");
-      return {
-        fetched_at: new Date().toISOString(),
-        fetch_ms: Date.now() - started_at,
-        dashboard,
-      };
+      dashboard = await hass.callApi('GET', 'hse/unified/dashboard');
     } catch (err) {
-      const details = {
-        message: err?.message || String(err),
-        status: err?.status,
-        body: err?.body,
-      };
-
-      let extra = null;
       try {
-        extra = JSON.stringify(details, null, 2);
+        err_details = {
+          message: err?.message || String(err),
+          status:  err?.status,
+          body:    err?.body,
+          code:    err?.code,
+        };
       } catch (_) {
-        extra = String(details.message);
+        err_details = { message: String(err) };
       }
-
-      return {
-        fetched_at: new Date().toISOString(),
-        fetch_ms: Date.now() - started_at,
-        error: `dashboard_fetch_failed\n${extra}`,
-      };
     }
+
+    const fetch_ms = Date.now() - started_at;
+    const fetched_at = new Date().toISOString();
+
+    if (err_details) {
+      let extra;
+      try { extra = JSON.stringify(err_details, null, 2); } catch (_) { extra = String(err_details.message); }
+      return { fetched_at, fetch_ms, error: `dashboard_fetch_failed\n${extra}` };
+    }
+
+    return { fetched_at, fetch_ms, dashboard };
   }
 
-  // Backward-compatible name used by hse_panel.js (overview refresh button)
+  // Backward-compatible alias
   async function fetch_manifest_and_ping(hass) {
     return fetch_overview(hass);
   }
