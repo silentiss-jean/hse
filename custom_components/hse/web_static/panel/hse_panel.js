@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-26_fix_visibility_reconnect";
+const build_signature = "2026-03-26_fix_hass_watchdog";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -134,49 +134,30 @@ const build_signature = "2026-03-26_fix_visibility_reconnect";
         };
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────────
+        // Watchdog actif : poll home-assistant.hass jusqu'à obtenir un hass
+        // frais, sans dépendre du set hass passif ni de conn.connected.
+        // Au retour d'un bureau virtuel, HA ne re-injecte pas hass dans le
+        // custom element si aucun état ne change → écran blanc indéfini.
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
-
-          const ha = document.querySelector('home-assistant');
-          const fresh_hass = ha?.hass ?? this._hass_raw;
-          if (fresh_hass) this._hass_raw = fresh_hass;
 
           this._overview_built = false;
           this._overview_refreshing = false;
           this._clear_overview_autorefresh();
 
-          const conn = this._hass_raw?.connection;
-
-          if (!conn) {
-            this.requestUpdate();
-            return;
-          }
-
-          if (conn.connected) {
-            // ── FIX: délai pour laisser HA finaliser la reconnexion WS
-            // avant de déclencher un requestUpdate → appel API.
-            // Sans ce délai, la WS semble connectée mais les subscriptions
-            // HA ne sont pas encore recréées → "Subscription not found".
-            setTimeout(() => {
-              const ha2 = document.querySelector('home-assistant');
-              if (ha2?.hass) this._hass_raw = ha2.hass;
+          let _attempts = 0;
+          const _poll = () => {
+            const ha = document.querySelector('home-assistant');
+            const fresh = ha?.hass;
+            if (fresh) {
+              this._hass_raw = fresh;
               this.requestUpdate();
-            }, 1500);
-            return;
-          }
-
-          const on_ready = () => {
-            try { conn.removeEventListener('ready', on_ready); } catch (_) {}
-            const ha2 = document.querySelector('home-assistant');
-            if (ha2?.hass) this._hass_raw = ha2.hass;
-            this._overview_refreshing = false;
-            this.requestUpdate();
+              return;
+            }
+            if (++_attempts < 20) setTimeout(_poll, 500); // max 10s
+            else this.requestUpdate(); // rend quand même avec ce qu'on a
           };
-          try {
-            conn.addEventListener('ready', on_ready);
-          } catch (_) {
-            this.requestUpdate();
-          }
+          _poll();
         };
       }
 
