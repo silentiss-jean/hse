@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-25_phase11_virtual_desktop_fix";
+const build_signature = "2026-03-26_fix_ws_reconnect";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -133,24 +133,64 @@ const build_signature = "2026-03-25_phase11_virtual_desktop_fix";
             this._mark_interacting();
         };
 
-        // ── FIX bureau virtuel : visibilitychange ─────────────────────
-        // HA utilise display:none sur le conteneur — connectedCallback et
-        // set hass ne sont pas rappelés au retour. On récupère hass
-        // manuellement depuis l'hôte home-assistant.
-        // FIX-A : on reset aussi le timer autorefresh pour forcer un tick
-        // immédiat au retour (évite l'écran noir si le WS était bloqué).
+        // ── FIX bureau virtuel : visibilitychange ─────────────────────────
+        // Quand le panneau redevient visible après un bureau virtuel HA,
+        // connectedCallback et set hass ne sont PAS rappelés par HA.
+        // Le vrai problème : l'objet hass._connection (WebSocket) a pu
+        // se reconnecter pendant le masquage. Les subscription IDs WS
+        // anciens sont invalidés → callApi throw 'Subscription not found'
+        // comme promesse rejetée non-catchée.
+        //
+        // Solution :
+        // 1. Toujours récupérer le hass FRAIS depuis home-assistant
+        // 2. Si la WS n'est pas encore connectée, attendre l'événement
+        //    'ready' sur hass.connection avant de lancer le tick()
+        // 3. Ne jamais appeler callApi si connection.connected === false
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
+
+          // Toujours récupérer le hass frais, même si l'objet n'a pas changé
           const ha = document.querySelector('home-assistant');
-          if (ha?.hass && ha.hass !== this._hass_raw) {
-            this.hass = ha.hass;
-          } else if (this._hass_raw) {
-            this._overview_built = false;
-            // FIX-A : reset du timer pour relancer tick() immédiatement
-            if (this._active_tab === 'overview' || this._active_tab === 'costs') {
-              this._overview_refreshing = false;
-              this._clear_overview_autorefresh();
-            }
+          const fresh_hass = ha?.hass ?? this._hass_raw;
+          if (fresh_hass) this._hass_raw = fresh_hass;
+
+          // Invalider overview pour forcer rebuild
+          this._overview_built = false;
+
+          // Reset du timer autorefresh pour déclencher un tick immédiat
+          // après reconnexion WS (évite d'attendre les 30s restantes)
+          this._overview_refreshing = false;
+          this._clear_overview_autorefresh();
+
+          const conn = this._hass_raw?.connection;
+
+          if (!conn) {
+            // Pas de connexion disponible : on relance quand même, tick()
+            // vérifiera lui-même
+            this.requestUpdate();
+            return;
+          }
+
+          if (conn.connected) {
+            // WS déjà reconnectée : on peut relancer immédiatement
+            this.requestUpdate();
+            return;
+          }
+
+          // WS pas encore reconnectée : on attend 'ready' (one-shot)
+          // avant de relancer le render/tick
+          const on_ready = () => {
+            try { conn.removeEventListener('ready', on_ready); } catch (_) {}
+            // Récupère le hass encore plus frais après reconnexion
+            const ha2 = document.querySelector('home-assistant');
+            if (ha2?.hass) this._hass_raw = ha2.hass;
+            this._overview_refreshing = false;
+            this.requestUpdate();
+          };
+          try {
+            conn.addEventListener('ready', on_ready);
+          } catch (_) {
+            // Si addEventListener échoue (API non dispo), on relance quand même
             this.requestUpdate();
           }
         };
@@ -657,6 +697,18 @@ const build_signature = "2026-03-25_phase11_virtual_desktop_fix";
             return;
           }
 
+          // ── GUARD WS : ne jamais appeler callApi si la WS n'est pas connectée
+          // hass.connection.connected est false pendant une reconnexion WS.
+          // Dans ce cas on attend 2s et on réessaie — _on_visibility_change
+          // aura entre-temps récupéré le hass frais et appelé requestUpdate
+          // qui créera un nouveau timer propre.
+          const conn = this._hass_raw?.connection;
+          if (conn && conn.connected === false) {
+            console.info('[HSE] overview tick: WS not connected, retry in 2s');
+            setTimeout(tick, 2000);
+            return;
+          }
+
           this._overview_refreshing = true;
           try {
             const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
@@ -670,12 +722,10 @@ const build_signature = "2026-03-25_phase11_virtual_desktop_fix";
             const msg = String(err?.message || err?.code || err || '');
             const is_ws_err = msg.includes('not_found') || msg.includes('Subscription') || msg.includes('WebSocket');
             if (is_ws_err) {
-              // FIX-B : libérer _overview_refreshing AVANT le retry
-              // pour ne pas bloquer les ticks suivants du setInterval
-              console.info('[HSE] overview tick: ws not ready, retry in 3s');
+              console.info('[HSE] overview tick: ws error, retry in 3s', msg);
               this._overview_refreshing = false;
               setTimeout(tick, 3000);
-              return; // évite le finally (qui remettrait refreshing=false en double)
+              return;
             } else {
               const d = { error: msg };
               this._overview_data = d;
