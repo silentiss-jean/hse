@@ -1,15 +1,13 @@
 (function () {
-  // fetch_overview — blindé contre toute erreur WS/réseau.
+  // fetch_overview — utilise hse_fetch (HTTP pur) au lieu de hass.callApi (WS).
   // Ne throw JAMAIS : retourne toujours { fetched_at, fetch_ms, dashboard? | error? }
-  // L'erreur 'Subscription not found' de HA WS est catchée ici et retournée
-  // comme { error: ... } pour que tick() puisse la détecter sans uncaught promise.
   async function fetch_overview(hass) {
     const started_at = Date.now();
     let dashboard = null;
     let err_details = null;
 
     try {
-      dashboard = await hass.callApi('GET', 'hse/unified/dashboard');
+      dashboard = await window.hse_fetch(hass, 'GET', 'hse/unified/dashboard');
     } catch (err) {
       try {
         err_details = {
@@ -35,7 +33,6 @@
     return { fetched_at, fetch_ms, dashboard };
   }
 
-  // Backward-compatible alias
   async function fetch_manifest_and_ping(hass) {
     return fetch_overview(hass);
   }
