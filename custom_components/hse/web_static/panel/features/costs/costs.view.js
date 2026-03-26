@@ -1,7 +1,6 @@
 (function () {
   const { el, clear } = window.hse_dom;
 
-  // ─── LocalStorage helpers ───────────────────────────────────────────────────
   function _ls_get(key) {
     try { return window.localStorage.getItem(key); } catch (_) { return null; }
   }
@@ -9,7 +8,6 @@
     try { window.localStorage.setItem(key, value); } catch (_) {}
   }
 
-  // ─── Formatters ─────────────────────────────────────────────────────────────
   function _num(x) {
     const v = Number.parseFloat(String(x));
     return Number.isFinite(v) ? v : null;
@@ -20,7 +18,6 @@
   function _fmt_delta_kwh(x) { const v = _num(x); if (v == null) return "—"; return `${v > 0 ? "+" : ""}${v.toFixed(3)} kWh`; }
   function _fmt_delta_eur(x) { const v = _num(x); if (v == null) return "—"; return `${v > 0 ? "+" : ""}${v.toFixed(2)} €`; }
 
-  // ─── Preferences ────────────────────────────────────────────────────────────
   function _display_mode(pricing) {
     const saved = String(_ls_get("hse_costs_tax_mode") || "").toLowerCase();
     if (saved === "ht" || saved === "ttc") return saved;
@@ -34,14 +31,12 @@
   }
   function _set_subtab(v) { _ls_set("hse_costs_subtab", v === "compare" ? "compare" : "period"); }
 
-  // ── Period preset ────────────────────────────────────────────────────────────
   function _period_preset() {
     const v = String(_ls_get("hse_costs_period_preset") || "today").toLowerCase();
     return ["today","yesterday","7days","30days","this_month","last_month"].includes(v) ? v : "today";
   }
   function _set_period_preset(v) { _ls_set("hse_costs_period_preset", v); }
 
-  // ── Compare preset ───────────────────────────────────────────────────────────
   function _compare_preset() {
     const v = String(_ls_get("hse_costs_compare_preset") || "today_vs_yesterday").toLowerCase();
     return ["today_vs_yesterday","this_week_vs_last_week","this_weekend_vs_last_weekend","custom"].includes(v) ? v : "today_vs_yesterday";
@@ -65,7 +60,6 @@
     };
   }
 
-  // ─── Labels contextuels ──────────────────────────────────────────────────────
   function _compare_labels(preset) {
     if (preset === "today_vs_yesterday")          return { ref: "Aujourd'hui",   cmp: "Hier" };
     if (preset === "this_week_vs_last_week")       return { ref: "Cette semaine", cmp: "Semaine dernière" };
@@ -73,7 +67,6 @@
     return { ref: "Période 1", cmp: "Période 2" };
   }
 
-  // ─── Date utilities ──────────────────────────────────────────────────────────
   function _start_of_day(d)   { const r = new Date(d); r.setHours(0,0,0,0); return r; }
   function _end_of_day(d)     { const r = new Date(d); r.setHours(23,59,59,999); return r; }
   function _shift_days(d, n)  { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
@@ -94,17 +87,6 @@
     return s && e ? `${fmt(s)} → ${fmt(e)}` : "—";
   }
 
-  // Map period preset → dashboard period key
-  function _preset_to_period_key(preset) {
-    if (preset === "today" || preset === "yesterday") return "day";
-    if (preset === "7days")      return "week";
-    if (preset === "30days")     return "month";
-    if (preset === "this_month") return "month";
-    if (preset === "last_month") return "month";
-    return "day";
-  }
-
-  // Resolve compare ranges
   function _compare_ranges(preset, weekMode, customWeekStart, now) {
     const sd = weekMode === "custom" ? customWeekStart : 1;
     if (preset === "this_week_vs_last_week") {
@@ -131,7 +113,6 @@
     return { ref:[rs,re], cmp:[cs,ce] };
   }
 
-  // ─── UI atoms ────────────────────────────────────────────────────────────────
   function _pill_title(text) { return el("div", "hse_pill_title", text); }
   function _mk_toggle_button(label, active, onClick) {
     const btn = el("button", "hse_button", label);
@@ -162,7 +143,6 @@
     return badge;
   }
 
-  // ─── Bloc 2 sous-lignes générique (compteur ref + capteurs) ─────────────────
   function _mk_two_line_row({
     name, subtitle,
     refKwh, refCost,
@@ -173,7 +153,6 @@
     isTitle = false,
   }) {
     const maxV = _num(maxCost);
-
     const wrap = el("div", null);
     wrap.style.cssText = isTitle
       ? "padding:6px 4px 8px;"
@@ -198,32 +177,22 @@
     if (showBar && maxV && maxV > 0) {
       const barGroup = el("div", null);
       barGroup.style.cssText = "display:flex;flex-direction:column;gap:2px;margin-bottom:5px;";
-
       if (rc != null) {
         const pct = Math.min(100, (rc / maxV) * 100);
-        const track = el("div", null);
-        track.style.cssText = "height:3px;background:rgba(128,128,128,0.15);border-radius:2px;";
-        const fill = el("div", null);
-        fill.style.cssText = `height:100%;width:${pct}%;background:var(--primary-color,#4caf50);border-radius:2px;`;
-        track.appendChild(fill);
-        barGroup.appendChild(track);
+        const track = el("div", null); track.style.cssText = "height:3px;background:rgba(128,128,128,0.15);border-radius:2px;";
+        const fill = el("div", null); fill.style.cssText = `height:100%;width:${pct}%;background:var(--primary-color,#4caf50);border-radius:2px;`;
+        track.appendChild(fill); barGroup.appendChild(track);
       }
-
       if (cc != null && labelCmp) {
         const pct2 = Math.min(100, (cc / maxV) * 100);
-        const track2 = el("div", null);
-        track2.style.cssText = "height:3px;background:rgba(128,128,128,0.15);border-radius:2px;";
-        const fill2 = el("div", null);
-        fill2.style.cssText = `height:100%;width:${pct2}%;background:#e74c3c;border-radius:2px;opacity:0.7;`;
-        track2.appendChild(fill2);
-        barGroup.appendChild(track2);
+        const track2 = el("div", null); track2.style.cssText = "height:3px;background:rgba(128,128,128,0.15);border-radius:2px;";
+        const fill2 = el("div", null); fill2.style.cssText = `height:100%;width:${pct2}%;background:#e74c3c;border-radius:2px;opacity:0.7;`;
+        track2.appendChild(fill2); barGroup.appendChild(track2);
       }
-
       wrap.appendChild(barGroup);
     }
 
     const lblW = isTitle ? "auto" : "100px";
-
     const row1 = el("div", null);
     row1.style.cssText = `display:flex;align-items:center;gap:6px;font-size:${isTitle ? "0.9em" : "0.85em"};`;
     if (labelRef) {
@@ -257,64 +226,48 @@
       const c2El = el("span", null, `· ${_fmt_eur(cc)}`); row2.appendChild(c2El);
       wrap.appendChild(row2);
     }
-
     return { wrap, refCostNum: rc };
   }
 
-  // ─── Coverage block ──────────────────────────────────────────────────────────
   function _mk_coverage_block(refKwh1, intKwh1, refKwh2, intKwh2, labelRef, labelCmp) {
     const r1 = _num(refKwh1); const i1 = _num(intKwh1);
     const r2 = _num(refKwh2); const i2 = _num(intKwh2);
     if (r1 == null && r2 == null) return null;
-
     const cov = (ref, int_) => (ref && ref > 0 && int_ != null) ? Math.min(100, (int_ / ref) * 100) : null;
     const cov1 = cov(r1, i1); const cov2 = cov(r2, i2);
     const drift = (cov1 != null && cov2 != null) ? Math.abs(cov1 - cov2) : null;
     const hasDrift = drift != null && drift > 10;
-
     const wrap = el("div", null); wrap.style.cssText = "margin-top:8px;";
     const borderColor = hasDrift ? "#e67e22" : "rgba(128,128,128,0.3)";
     const bgColor     = hasDrift ? "rgba(230,126,34,0.08)" : "rgba(128,128,128,0.05)";
     const block = el("div", null);
     block.style.cssText = `padding:8px 14px;border-left:3px solid ${borderColor};background:${bgColor};border-radius:0 8px 8px 0;font-size:0.85em;`;
-
     const title = el("div", null);
     title.style.cssText = "font-weight:600;margin-bottom:4px;color:var(--secondary-text-color,#888);";
     title.textContent = "ℹ️ Couverture capteurs"; block.appendChild(title);
-
     const lRef = labelRef || "Période 1";
     const lCmp = labelCmp || "Période 2";
-
     const mkLine = (label, cov_, refV, intV) => {
       if (cov_ == null) return;
-      const line = el("div", null);
-      line.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:2px;";
-      const labelEl = el("span", null, label + " : ");
-      labelEl.style.cssText = "opacity:0.7;min-width:110px;"; line.appendChild(labelEl);
-      const barTrack = el("div", null);
-      barTrack.style.cssText = "flex:1;height:4px;background:rgba(128,128,128,0.2);border-radius:2px;overflow:hidden;";
+      const line = el("div", null); line.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:2px;";
+      const labelEl = el("span", null, label + " : "); labelEl.style.cssText = "opacity:0.7;min-width:110px;"; line.appendChild(labelEl);
+      const barTrack = el("div", null); barTrack.style.cssText = "flex:1;height:4px;background:rgba(128,128,128,0.2);border-radius:2px;overflow:hidden;";
       const barFill = el("div", null);
       const fillColor = cov_ > 90 ? "#27ae60" : cov_ > 65 ? "#e67e22" : "rgba(128,128,128,0.5)";
       barFill.style.cssText = `height:100%;width:${cov_}%;background:${fillColor};border-radius:2px;`;
       barTrack.appendChild(barFill); line.appendChild(barTrack);
-      const pctEl = el("span", null, `${cov_.toFixed(0)} %`);
-      pctEl.style.cssText = "font-weight:600;min-width:36px;text-align:right;"; line.appendChild(pctEl);
-      const detail = el("span", null, `(${_fmt_kwh(intV)} / ${_fmt_kwh(refV)})`);
-      detail.style.cssText = "opacity:0.55;font-size:0.9em;"; line.appendChild(detail);
+      const pctEl = el("span", null, `${cov_.toFixed(0)} %`); pctEl.style.cssText = "font-weight:600;min-width:36px;text-align:right;"; line.appendChild(pctEl);
+      const detail = el("span", null, `(${_fmt_kwh(intV)} / ${_fmt_kwh(refV)})`); detail.style.cssText = "opacity:0.55;font-size:0.9em;"; line.appendChild(detail);
       block.appendChild(line);
     };
-
     if (cov1 != null) mkLine(r2 != null ? lRef : "Couverture", cov1, r1, i1);
     if (cov2 != null) mkLine(lCmp, cov2, r2, i2);
-
     if (hasDrift) {
-      const note = el("div", null);
-      note.style.cssText = "margin-top:6px;font-size:0.82em;color:#e67e22;";
+      const note = el("div", null); note.style.cssText = "margin-top:6px;font-size:0.82em;color:#e67e22;";
       note.textContent = `⚡ L'écart entre capteurs varie de ${drift.toFixed(0)} point(s) — un appareil non mesuré a peut-être changé de comportement.`;
       block.appendChild(note);
     } else if (cov1 != null) {
-      const note = el("div", null);
-      note.style.cssText = "margin-top:6px;font-size:0.82em;opacity:0.6;";
+      const note = el("div", null); note.style.cssText = "margin-top:6px;font-size:0.82em;opacity:0.6;";
       note.textContent = cov1 < 65
         ? "Plusieurs appareils ne sont pas encore mesurés — c'est normal."
         : "Couverture stable entre les deux périodes.";
@@ -324,7 +277,6 @@
     return wrap;
   }
 
-  // ─── Render: header ──────────────────────────────────────────────────────────
   function _render_header(container, mode, onModeChange, subtab, onSubtabChange) {
     const card = el("div", "hse_card");
     card.appendChild(el("div", "hse_kpi_title", "📊 Analyse de coûts"));
@@ -341,11 +293,9 @@
     container.appendChild(card);
   }
 
-  // ─── Render: period tab ──────────────────────────────────────────────────────
   function _render_period(container, dash, mode, rerender) {
     const preset    = _period_preset();
     const periodKey = _preset_to_period_key(preset);
-
     const ctrl = el("div", "hse_card");
     const presetRow = el("div", "hse_card_actions"); presetRow.style.cssText = "flex-wrap:wrap;";
     const presets = [
@@ -361,8 +311,7 @@
     }
     ctrl.appendChild(presetRow);
     if (preset === "yesterday" || preset === "last_month") {
-      const note = el("div", "hse_subtitle");
-      note.style.cssText = "margin-top:6px;font-size:0.8em;opacity:0.6;";
+      const note = el("div", "hse_subtitle"); note.style.cssText = "margin-top:6px;font-size:0.8em;opacity:0.6;";
       note.textContent = preset === "yesterday"
         ? "ℹ️ Fenêtre journalière glissante (données live). Pour une comparaison précise, utilisez l'onglet Comparaison."
         : "ℹ️ Fenêtre mensuelle glissante. Pour le mois calendaire précédent exact, utilisez l'onglet Comparaison.";
@@ -370,23 +319,14 @@
     }
     container.appendChild(ctrl);
 
-    // ── Bloc compteur de référence ───────────────────────────────────────────
     const hasRef = !!(dash?.reference?.entity_id);
     if (hasRef) {
       const refRow = _find_period_row(dash?.reference_table, periodKey);
       const refKwh  = _num(refRow?.kwh);
       const refCost = _num(_row_total(refRow, mode));
-
       const refCard = el("div", "hse_card");
       refCard.appendChild(el("div", "hse_kpi_title", "🏠 " + (dash.reference.name || dash.reference.entity_id)));
-      const { wrap } = _mk_two_line_row({
-        name: null,
-        refKwh, refCost,
-        cmpKwh: null, cmpCost: null,
-        maxCost: null,
-        labelRef: null, labelCmp: null,
-        showBar: false, isTitle: true,
-      });
+      const { wrap } = _mk_two_line_row({ name: null, refKwh, refCost, cmpKwh: null, cmpCost: null, maxCost: null, labelRef: null, labelCmp: null, showBar: false, isTitle: true });
       clear(wrap);
       const valRow = el("div", null); valRow.style.cssText = "display:flex;gap:6px;align-items:baseline;padding:4px 4px 2px;";
       const bigKwh = el("span", null, _fmt_kwh(refKwh)); bigKwh.style.cssText = "font-size:1.3em;font-weight:700;";
@@ -397,10 +337,7 @@
       container.appendChild(refCard);
     }
 
-    // ── Capteurs internes ─────────────────────────────────────────────────────
     const perSensor = Array.isArray(dash?.per_sensor_costs) ? dash.per_sensor_costs : [];
-
-    // FIX: guard r null/undefined pour éviter le crash quand sorted[0] est undefined
     const getSensorCost = (r) => {
       if (!r) return null;
       const m = mode === "ht" ? r.cost_ht : r.cost_ttc;
@@ -411,11 +348,9 @@
       const m = r.kwh;
       return (m && typeof m === "object") ? _num(m[periodKey]) : _num(m);
     };
-
     const sorted = perSensor.slice().sort((a,b) => (getSensorCost(b) || -1e9) - (getSensorCost(a) || -1e9));
     const maxCost = getSensorCost(sorted[0]);
     let totalIntKwh = 0; let totalIntCost = 0; let hasAnyKwh = false;
-
     if (sorted.length) {
       const intCard = el("div", "hse_card");
       const intHead = el("div", "hse_card_header");
@@ -423,46 +358,30 @@
       const intTotBadge = el("span", null); intTotBadge.style.cssText = "font-size:0.9em;opacity:0.75;";
       intHead.appendChild(intTotBadge);
       intCard.appendChild(intHead);
-
       const list = el("div", null);
       for (const r of sorted) {
-        const cost = getSensorCost(r);
-        const kwh  = getSensorKwh(r);
+        const cost = getSensorCost(r); const kwh = getSensorKwh(r);
         if (cost != null) totalIntCost += cost;
         if (kwh  != null) { totalIntKwh += kwh; hasAnyKwh = true; }
-        const { wrap } = _mk_two_line_row({
-          name: r.name || r.entity_id || "—",
-          refKwh: kwh, refCost: cost,
-          cmpKwh: null, cmpCost: null,
-          maxCost, labelRef: null, labelCmp: null,
-          showBar: true, isTitle: false,
-        });
+        const { wrap } = _mk_two_line_row({ name: r.name || r.entity_id || "—", refKwh: kwh, refCost: cost, cmpKwh: null, cmpCost: null, maxCost, labelRef: null, labelCmp: null, showBar: true, isTitle: false });
         list.appendChild(wrap);
       }
-
       const totalRow = el("div", null);
       totalRow.style.cssText = "display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 4px 2px;font-weight:600;font-size:0.9em;border-top:1px solid rgba(128,128,128,0.2);";
       totalRow.appendChild(el("div", null, "Total mesuré"));
       totalRow.appendChild(el("div", null, _fmt_eur(totalIntCost)));
       list.appendChild(totalRow);
       intCard.appendChild(list);
-
-      intTotBadge.textContent = hasAnyKwh
-        ? `${_fmt_kwh(totalIntKwh)}  ${_fmt_eur(totalIntCost)}`
-        : _fmt_eur(totalIntCost);
-
+      intTotBadge.textContent = hasAnyKwh ? `${_fmt_kwh(totalIntKwh)}  ${_fmt_eur(totalIntCost)}` : _fmt_eur(totalIntCost);
       const refKwh1 = hasRef ? _num(_find_period_row(dash?.reference_table, periodKey)?.kwh) : null;
       const covBlock = _mk_coverage_block(refKwh1, hasAnyKwh ? totalIntKwh : null, null, null, "Couverture", null);
       if (covBlock) intCard.appendChild(covBlock);
       container.appendChild(intCard);
     } else if (!hasRef) {
-      const empty = el("div", "hse_card");
-      empty.appendChild(el("div", "hse_subtitle", "Aucune donnée disponible."));
-      container.appendChild(empty);
+      const empty = el("div", "hse_card"); empty.appendChild(el("div", "hse_subtitle", "Aucune donnée disponible.")); container.appendChild(empty);
     }
   }
 
-  // ─── Render: compare tab ─────────────────────────────────────────────────────
   async function _render_compare(container, dash, mode, rerender, hass) {
     const preset          = _compare_preset();
     const weekMode        = _week_mode();
@@ -483,7 +402,6 @@
       presetRow.appendChild(_mk_toggle_button(label, preset === val, () => { _set_compare_preset(val); rerender(); }));
     }
     ctrl.appendChild(presetRow);
-
     if (preset === "this_week_vs_last_week") {
       const wr = el("div", "hse_card_actions");
       wr.appendChild(_mk_toggle_button("Lundi–Dimanche", weekMode === "classic", () => { _set_week_mode("classic"); rerender(); }));
@@ -500,7 +418,6 @@
         wrap.appendChild(select); ctrl.appendChild(wrap);
       }
     }
-
     if (preset === "custom") {
       const c = _get_custom_compare_ranges();
       const pCard = el("div", "hse_card hse_card_compact"); pCard.style.cssText = "margin-top:8px;";
@@ -519,7 +436,6 @@
       applyBtn.addEventListener("click", () => rerender());
       pCard.appendChild(applyBtn); ctrl.appendChild(pCard);
     }
-
     const lbl1 = el("div", "hse_subtitle"); lbl1.style.cssText = "margin-top:6px;font-size:0.82em;opacity:0.7;";
     lbl1.textContent = `${labels.ref} : ${_fmt_range(ref[0], ref[1])}`; ctrl.appendChild(lbl1);
     const lbl2 = el("div", "hse_subtitle"); lbl2.style.cssText = "font-size:0.82em;opacity:0.7;";
@@ -532,7 +448,8 @@
 
     let resp = null;
     try {
-      resp = await hass.callApi("POST", "hse/unified/costs/compare", {
+      // ── Remplacé : hass.callApi → window.hse_fetch (HTTP pur) ──
+      resp = await window.hse_fetch(hass, 'POST', 'hse/unified/costs/compare', {
         preset: preset === "custom" ? "custom_periods" : preset,
         tax_mode: mode,
         week_mode: weekMode,
@@ -550,7 +467,6 @@
     }
 
     clear(loadingCard);
-
     if (!resp || resp.ok !== true || resp.supported === false) {
       loadingCard.appendChild(el("div", "hse_kpi_title", "Comparaison indisponible"));
       loadingCard.appendChild(el("div", "hse_subtitle", "Le backend n'a pas pu résoudre cette comparaison."));
@@ -567,28 +483,15 @@
       const refCard = el("div", "hse_card");
       const refHead = el("div", "hse_card_header");
       refHead.appendChild(el("div", "hse_kpi_title", "🏠 " + (dash.reference.name || dash.reference.entity_id)));
-      const refPct   = _num(summary?.reference?.[pctKey]);
+      const refPct = _num(summary?.reference?.[pctKey]);
       const refBadge = _mk_delta_badge(refPct);
       if (refBadge) refHead.appendChild(refBadge);
       refCard.appendChild(refHead);
-
       const refCostVal = _num(_row_total(refPeriod?.reference, mode));
       const cmpCostVal = _num(_row_total(cmpPeriod?.reference, mode));
       const refMaxCost = Math.max(refCostVal || 0, cmpCostVal || 0) || null;
-
-      const { wrap: refWrap } = _mk_two_line_row({
-        name: null,
-        subtitle: "Compteur — valeur réelle totale du foyer",
-        refKwh:  _num(refPeriod?.reference?.kwh),
-        refCost: refCostVal,
-        cmpKwh:  _num(cmpPeriod?.reference?.kwh),
-        cmpCost: cmpCostVal,
-        maxCost: refMaxCost,
-        labelRef: labels.ref, labelCmp: labels.cmp,
-        showBar: true, isTitle: true,
-      });
+      const { wrap: refWrap } = _mk_two_line_row({ name: null, subtitle: "Compteur — valeur réelle totale du foyer", refKwh: _num(refPeriod?.reference?.kwh), refCost: refCostVal, cmpKwh: _num(cmpPeriod?.reference?.kwh), cmpCost: cmpCostVal, maxCost: refMaxCost, labelRef: labels.ref, labelCmp: labels.cmp, showBar: true, isTitle: true });
       refCard.appendChild(refWrap);
-
       const dKwh  = _num(summary?.reference?.delta_kwh);
       const dCost = _num(summary?.reference?.[mode === "ht" ? "delta_total_ht" : "delta_total_ttc"]);
       if (dKwh != null || dCost != null) {
@@ -604,36 +507,25 @@
 
     const perSensor = Array.isArray(resp.per_sensor) ? resp.per_sensor : [];
     const hasAnySensorData = perSensor.some((r) => _num(_row_total(r?.reference_period, mode)) != null);
-
-    const sorted = perSensor.slice().sort((a,b) =>
-      (_num(_row_total(b?.reference_period, mode)) || -1e9) - (_num(_row_total(a?.reference_period, mode)) || -1e9)
-    );
+    const sorted = perSensor.slice().sort((a,b) => (_num(_row_total(b?.reference_period, mode)) || -1e9) - (_num(_row_total(a?.reference_period, mode)) || -1e9));
     const maxCostP1 = _num(_row_total(sorted[0]?.reference_period, mode));
-
     let totalInt1Cost = 0; let totalInt1Kwh = 0;
     let totalInt2Cost = 0; let totalInt2Kwh = 0;
     for (const r of sorted) {
-      const c1 = _num(_row_total(r?.reference_period, mode));
-      const c2 = _num(_row_total(r?.compare_period,   mode));
-      const k1 = _num(r?.reference_period?.kwh);
-      const k2 = _num(r?.compare_period?.kwh);
-      if (c1 != null) totalInt1Cost += c1;
-      if (c2 != null) totalInt2Cost += c2;
-      if (k1 != null) totalInt1Kwh  += k1;
-      if (k2 != null) totalInt2Kwh  += k2;
+      const c1 = _num(_row_total(r?.reference_period, mode)); const c2 = _num(_row_total(r?.compare_period, mode));
+      const k1 = _num(r?.reference_period?.kwh); const k2 = _num(r?.compare_period?.kwh);
+      if (c1 != null) totalInt1Cost += c1; if (c2 != null) totalInt2Cost += c2;
+      if (k1 != null) totalInt1Kwh  += k1; if (k2 != null) totalInt2Kwh  += k2;
     }
-
     const intCard = el("div", "hse_card");
     const intHead = el("div", "hse_card_header");
     intHead.appendChild(el("div", "hse_kpi_title", "🔌 Capteurs internes"));
-    const intPct   = _num(summary?.internal?.[pctKey]);
+    const intPct = _num(summary?.internal?.[pctKey]);
     const intBadge = _mk_delta_badge(intPct);
     if (intBadge) intHead.appendChild(intBadge);
     intCard.appendChild(intHead);
-
     if (!hasAnySensorData) {
-      const info = el("div", null);
-      info.style.cssText = "padding:10px 4px;font-size:0.88em;opacity:0.75;line-height:1.6;";
+      const info = el("div", null); info.style.cssText = "padding:10px 4px;font-size:0.88em;opacity:0.75;line-height:1.6;";
       info.innerHTML = "Les données historiques par capteur ne sont pas encore disponibles.<br>" +
         "<strong>Cause probable :</strong> les entités <code>*_kwh_total</code> ne sont pas encore enregistrées " +
         "dans les statistiques Home Assistant (recorder).<br>" +
@@ -642,25 +534,14 @@
     } else {
       const list = el("div", null);
       for (const r of sorted) {
-        const c1 = _num(_row_total(r?.reference_period, mode));
-        const c2 = _num(_row_total(r?.compare_period,   mode));
-        const k1 = _num(r?.reference_period?.kwh);
-        const k2 = _num(r?.compare_period?.kwh);
-        const { wrap } = _mk_two_line_row({
-          name: r.name || r.entity_id || "—",
-          refKwh: k1, refCost: c1,
-          cmpKwh: k2, cmpCost: c2,
-          maxCost: maxCostP1,
-          labelRef: labels.ref, labelCmp: labels.cmp,
-          showBar: true, isTitle: false,
-        });
+        const c1 = _num(_row_total(r?.reference_period, mode)); const c2 = _num(_row_total(r?.compare_period, mode));
+        const k1 = _num(r?.reference_period?.kwh); const k2 = _num(r?.compare_period?.kwh);
+        const { wrap } = _mk_two_line_row({ name: r.name || r.entity_id || "—", refKwh: k1, refCost: c1, cmpKwh: k2, cmpCost: c2, maxCost: maxCostP1, labelRef: labels.ref, labelCmp: labels.cmp, showBar: true, isTitle: false });
         list.appendChild(wrap);
       }
-
       const totalRow = el("div", null);
       totalRow.style.cssText = "padding:8px 4px 2px;font-weight:600;font-size:0.88em;border-top:1px solid rgba(128,128,128,0.2);display:flex;align-items:center;gap:8px;";
-      const totLabel = el("div", null, "Total mesuré"); totLabel.style.cssText = "flex:1;";
-      totalRow.appendChild(totLabel);
+      const totLabel = el("div", null, "Total mesuré"); totLabel.style.cssText = "flex:1;"; totalRow.appendChild(totLabel);
       const totRef = el("span", null, _fmt_eur(totalInt1Cost)); totRef.style.cssText = "font-weight:700;"; totalRow.appendChild(totRef);
       if (totalInt2Cost > 0) {
         const tp = ((totalInt1Cost - totalInt2Cost) / Math.abs(totalInt2Cost)) * 100;
@@ -668,13 +549,10 @@
         if (b) { b.style.marginLeft = "6px"; totalRow.appendChild(b); }
       }
       list.appendChild(totalRow);
-      const totalRow2 = el("div", null);
-      totalRow2.style.cssText = "padding:2px 4px 6px;font-size:0.82em;opacity:0.6;display:flex;gap:8px;";
+      const totalRow2 = el("div", null); totalRow2.style.cssText = "padding:2px 4px 6px;font-size:0.82em;opacity:0.6;display:flex;gap:8px;";
       totalRow2.appendChild(el("div", null, `${labels.cmp} : ${_fmt_eur(totalInt2Cost)}`));
       list.appendChild(totalRow2);
-
       intCard.appendChild(list);
-
       const refKwh1 = hasRef ? _num(refPeriod?.reference?.kwh) : null;
       const refKwh2 = hasRef ? _num(cmpPeriod?.reference?.kwh) : null;
       const covBlock = _mk_coverage_block(refKwh1, totalInt1Kwh, refKwh2, totalInt2Kwh, labels.ref, labels.cmp);
@@ -683,13 +561,20 @@
     container.appendChild(intCard);
   }
 
-  // ─── Helper ──────────────────────────────────────────────────────────────────
   function _find_period_row(rows, period) {
     const arr = Array.isArray(rows) ? rows : [];
     return arr.find((r) => r?.period === period) || null;
   }
 
-  // ─── Main entry point ────────────────────────────────────────────────────────
+  function _preset_to_period_key(preset) {
+    if (preset === "today" || preset === "yesterday") return "day";
+    if (preset === "7days")      return "week";
+    if (preset === "30days")     return "month";
+    if (preset === "this_month") return "month";
+    if (preset === "last_month") return "month";
+    return "day";
+  }
+
   function render_costs(container, data, hass) {
     clear(container);
     const dash = data?.dashboard || null;
@@ -700,28 +585,16 @@
       container.appendChild(card);
       return;
     }
-
     const pricing = dash.pricing || dash.defaults || {};
     const mode    = _display_mode(pricing);
     const subtab  = _subtab();
-
     let _raf_pending = false;
     const rerender = () => {
       if (_raf_pending) return;
       _raf_pending = true;
-      window.requestAnimationFrame(() => {
-        _raf_pending = false;
-        render_costs(container, data, hass);
-      });
+      window.requestAnimationFrame(() => { _raf_pending = false; render_costs(container, data, hass); });
     };
-
-    _render_header(
-      container, mode,
-      (m) => { _set_display_mode(m); rerender(); },
-      subtab,
-      (s) => { _set_subtab(s); rerender(); }
-    );
-
+    _render_header(container, mode, (m) => { _set_display_mode(m); rerender(); }, subtab, (s) => { _set_subtab(s); rerender(); });
     if (subtab === "compare") {
       _render_compare(container, dash, mode, rerender, hass);
     } else {
