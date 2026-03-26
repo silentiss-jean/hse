@@ -28,5 +28,26 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     return resp.text();
   }
 
+  // --- Fix: re-inject hass into ha-panel-custom after browser tab switch ---
+  function _fix_hass_on_visibility() {
+    if (document.visibilityState !== "visible") return;
+
+    setTimeout(() => {
+      const haRoot  = document.querySelector("home-assistant");
+      const haMain  = haRoot?.shadowRoot
+                        ?.querySelector("home-assistant-main")?.shadowRoot;
+      const panel   = haMain?.querySelector("ha-panel-custom");
+      const fresh   = haRoot?.hass;
+
+      if (panel && fresh && !panel.hass) {
+        console.warn("[HSE-LOADER] hass perdu sur ha-panel-custom — re-injection");
+        panel.hass = fresh;
+      }
+    }, 500);
+  }
+
+  document.addEventListener("visibilitychange", _fix_hass_on_visibility);
+  // -------------------------------------------------------------------------
+
   window.hse_loader = { load_script_once, load_css_text };
 })();
