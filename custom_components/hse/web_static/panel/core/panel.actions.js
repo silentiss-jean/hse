@@ -3,12 +3,11 @@
 
   class HsePanelActions {
     constructor(panel) {
-      this._p = panel; // référence au LitElement
+      this._p = panel;
     }
 
     get p() { return this._p; }
 
-    // ── Helpers état ──────────────────────────────────────────────────────
     _dg(k)    { return window.hse_diag_state?.get(k); }
     _ds(k, v) { window.hse_diag_state?.set(k, v); }
     _cg(k)    { return window.hse_config_state?.get(k); }
@@ -57,7 +56,6 @@
       cur[parts[parts.length - 1]] = v;
     }
 
-    // ── Org helpers ───────────────────────────────────────────────────────
     _org_normalize_dict(raw) {
       if (!raw) return {};
       if (Array.isArray(raw)) {
@@ -108,7 +106,7 @@
       p._org_state.message = null;
       p.requestUpdate();
       try {
-        const resp = await p._hass.callApi('get', 'hse/unified/meta');
+        const resp = await window.hse_fetch(p._hass, 'GET', 'hse/unified/meta');
         p._org_state.meta_store = resp?.meta_store || null;
         p._org_state.error = null;
         if (!p._org_state.dirty) this._org_reset_draft_from_store();
@@ -142,7 +140,7 @@
       }
       s.message = 'Sauvegarde…';
       try {
-        const resp = await p._hass.callApi('post', 'hse/unified/meta', { meta: draft_snapshot });
+        const resp = await window.hse_fetch(p._hass, 'POST', 'hse/unified/meta', { meta: draft_snapshot });
         s.meta_store = resp?.meta_store || s.meta_store;
         s.message = 'Organisation sauvegardée.';
         s.error = null;
@@ -167,7 +165,7 @@
       s.preview_running = true; s.error = null; s.message = null;
       p.requestUpdate();
       try {
-        const resp = await p._hass.callApi('post', 'hse/unified/meta/sync/preview', { persist: true });
+        const resp = await window.hse_fetch(p._hass, 'POST', 'hse/unified/meta/sync/preview', { persist: true });
         s.meta_store = resp?.meta_store || s.meta_store;
         s.error = null; s.message = 'Propositions mises à jour.';
         if (!s.dirty) this._org_reset_draft_from_store();
@@ -198,7 +196,7 @@
       s.apply_running = true; s.error = null; s.message = null;
       p.requestUpdate();
       try {
-        const resp = await p._hass.callApi('post', 'hse/unified/meta/sync/apply', { apply_mode: mode });
+        const resp = await window.hse_fetch(p._hass, 'POST', 'hse/unified/meta/sync/apply', { apply_mode: mode });
         s.meta_store = resp?.meta_store || s.meta_store;
         s.error = null; s.message = 'Changements appliqués.';
         if (window.hse_store) window.hse_store.unfreeze('org.meta_draft');
@@ -214,7 +212,6 @@
       }
     }
 
-    // ── Reference status ──────────────────────────────────────────────────
     _reference_effective_entity_id() {
       return this._cg('selected_reference_entity_id') || this._cg('current_reference_entity_id') || null;
     }
