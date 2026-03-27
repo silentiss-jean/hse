@@ -29,38 +29,51 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   }
 
   // --- Fix: recover ha-panel-custom after macOS virtual desktop switch ---
-  // Mission Control (3-finger swipe) does not trigger visibilitychange,
-  // so we use window 'focus' as primary trigger + visibilitychange as backup.
-  function _fix_panel_on_focus() {
-    setTimeout(() => {
-      const haRoot    = document.querySelector("home-assistant");
-      const haMain    = haRoot?.shadowRoot
-                          ?.querySelector("home-assistant-main")?.shadowRoot;
-      const panel     = haMain?.querySelector("ha-panel-custom");
-      const freshHass = haRoot?.hass;
+  // macOS Mission Control (3-finger swipe) triggers NO browser event at all.
+  // visibilitychange and window.focus are both unreliable in this context.
+  // Polling every 2s is the only reliable detection mechanism.
+  let _fix_in_progress = false;
 
-      if (!panel || !freshHass) return;
+  function _check_panel_health() {
+    // Seulement si on est sur /hse
+    if (!window.location.pathname.startsWith("/hse")) return;
+    // Ne pas lancer deux corrections en parallèle
+    if (_fix_in_progress) return;
 
-      // Cas 1 : hass manquant sur ha-panel-custom
-      if (!panel.hass) {
-        console.warn("[HSE-LOADER] hass manquant — re-injection");
-        panel.hass = freshHass;
-        return;
-      }
+    const haRoot    = document.querySelector("home-assistant");
+    const haMain    = haRoot?.shadowRoot
+                        ?.querySelector("home-assistant-main")?.shadowRoot;
+    const panel     = haMain?.querySelector("ha-panel-custom");
+    const freshHass = haRoot?.hass;
 
-      // Cas 2 : hass OK mais shadowRoot null (élément zombie — typique macOS bureaux virtuels)
-      if (!panel.shadowRoot) {
-        console.warn("[HSE-LOADER] shadowRoot null — forçage navigate");
-        const path = window.location.pathname;
-        window.history.pushState({}, "", "/");
-        setTimeout(() => window.history.pushState({}, "", path), 100);
-      }
-    }, 600);
+    if (!panel || !freshHass) return;
+
+    // Cas 1 : hass manquant
+    if (!panel.hass) {
+      console.warn("[HSE-LOADER] hass manquant — re-injection");
+      panel.hass = freshHass;
+      return;
+    }
+
+    // Cas 2 : shadowRoot null (zombie — typique macOS bureaux virtuels)
+    if (!panel.shadowRoot) {
+      console.warn("[HSE-LOADER] shadowRoot null — forçage navigate");
+      _fix_in_progress = true;
+      const path = window.location.pathname;
+      window.history.pushState({}, "", "/");
+      setTimeout(() => {
+        window.history.pushState({}, "", path);
+        // Laisser 3s à HA pour remonter le panel avant de re-checker
+        setTimeout(() => { _fix_in_progress = false; }, 3000);
+      }, 150);
+    }
   }
 
-  window.addEventListener("focus", _fix_panel_on_focus);
+  setInterval(_check_panel_health, 2000);
+
+  // Garder les event listeners en bonus pour les cas onglets Chrome
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") _fix_panel_on_focus();
+    if (document.visibilityState === "visible") _check_panel_health();
   });
   // -----------------------------------------------------------------------
 
