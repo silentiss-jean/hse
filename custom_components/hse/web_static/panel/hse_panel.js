@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-26_fix_hass_watchdog";
+const build_signature = "2026-03-27_fix_hass_reinject";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -135,9 +135,10 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────────
         // Watchdog actif : poll home-assistant.hass jusqu'à obtenir un hass
-        // frais, sans dépendre du set hass passif ni de conn.connected.
-        // Au retour d'un bureau virtuel, HA ne re-injecte pas hass dans le
-        // custom element si aucun état ne change → écran blanc indéfini.
+        // frais, puis appelle set hass() pour propager à tous les sous-modules
+        // (overview_state.update_hass, etc.).
+        // Sans passer par le setter, hse_overview_state reste sans hass
+        // et fn(this._hass_raw) échoue avec 'Subscription not found'.
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
 
@@ -150,7 +151,8 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
             const ha = document.querySelector('home-assistant');
             const fresh = ha?.hass;
             if (fresh) {
-              this._hass_raw = fresh;
+              // Passer par le setter pour propager hass à tous les modules
+              this.hass = fresh;
               this.requestUpdate();
               return;
             }
@@ -652,9 +654,6 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
       _ensure_overview_autorefresh() {
         if (this._overview_timer) return;
         const tick = async () => {
-          // ── FIX: ne pas exécuter si l'onglet est en arrière-plan.
-          // Évite les ticks accumulés par le throttling navigateur qui
-          // s'exécutent en rafale au retour sur le bureau virtuel.
           if (document.hidden) {
             setTimeout(tick, 2000);
             return;
@@ -662,16 +661,18 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
 
           if (this._overview_refreshing) return;
 
+          // FIX: si _hass_raw est null, attendre — ne pas appeler fn(null)
           if (!this._hass_raw) {
             setTimeout(tick, 3000);
             return;
           }
 
-          // Avec hse_fetch (HTTP), le guard WS n'est plus nécessaire pour
-          // les appels API. On garde la vérification uniquement pour éviter
-          // un tick inutile si la WS n'est pas encore prête au démarrage.
+          // FIX: conn absent (hass pas encore connecté) OU conn.connected === false
+          // L'ancienne condition "conn && conn.connected === false" laissait passer
+          // le cas conn=undefined (hass fraîchement injecté sans connection établie)
+          // et appelait fn(hass) trop tôt → 'Subscription not found'.
           const conn = this._hass_raw?.connection;
-          if (conn && conn.connected === false) {
+          if (!conn || conn.connected === false) {
             console.info('[HSE] overview tick: WS not connected, retry in 2s');
             setTimeout(tick, 2000);
             return;
@@ -787,7 +788,6 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
-          // ── hse.fetch.js doit être chargé avant tout module *.api.js ──
           await window.hse_loader.load_script_once(`${SHARED_BASE}/hse.fetch.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
@@ -1051,7 +1051,6 @@ const build_signature = "2026-03-26_fix_hass_watchdog";
           refresh_catalogue:  () => window.hse_diag_api.refresh_catalogue(p._hass_raw),
           set_item_triage:    (id, t) => window.hse_diag_api.set_item_triage(p._hass_raw, id, t),
           bulk_triage:        (ids, t) => window.hse_diag_api.bulk_triage(p._hass_raw, ids, t),
-          // ── Remplacé : callApi → hse_fetch ──
           check_consistency:  (payload) => window.hse_fetch(p._hass_raw, 'POST', 'hse/unified/diagnostic/check', payload),
         };
 

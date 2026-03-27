@@ -34,6 +34,10 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   // Polling every 2s is the only reliable detection mechanism.
   // Navigation must use HA's internal 'location-changed' event — pushState alone
   // is not enough for HA's Lit router to recreate ha-panel-custom.
+  // After navigation, we force pc.hass = null then pc.hass = fresh to ensure
+  // HsePanel.set hass() is called and propagates hass to all sub-modules
+  // (hse_overview_state.update_hass, etc.) — without this, hass_raw stays null
+  // inside the new HsePanel instance and the overview tick fails immediately.
   let _fix_in_progress = false;
 
   function _ha_navigate(path) {
@@ -41,15 +45,17 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true }));
   }
 
+  function _get_panel_custom() {
+    const haRoot = document.querySelector("home-assistant");
+    const haMain = haRoot?.shadowRoot?.querySelector("home-assistant-main")?.shadowRoot;
+    return { pc: haMain?.querySelector("ha-panel-custom"), freshHass: haRoot?.hass };
+  }
+
   function _check_panel_health() {
     if (!window.location.pathname.startsWith("/hse")) return;
     if (_fix_in_progress) return;
 
-    const haRoot    = document.querySelector("home-assistant");
-    const haMain    = haRoot?.shadowRoot
-                        ?.querySelector("home-assistant-main")?.shadowRoot;
-    const panel     = haMain?.querySelector("ha-panel-custom");
-    const freshHass = haRoot?.hass;
+    const { pc: panel, freshHass } = _get_panel_custom();
 
     if (!panel || !freshHass) return;
 
@@ -68,7 +74,21 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
       _ha_navigate("/");
       setTimeout(() => {
         _ha_navigate(path);
-        setTimeout(() => { _fix_in_progress = false; }, 3000);
+        // Après la navigation, forcer hass = null puis hass = fresh sur
+        // ha-panel-custom pour déclencher HsePanel.set hass() et propager
+        // hass à hse_overview_state et aux autres modules.
+        setTimeout(() => {
+          const { pc, freshHass: fh } = _get_panel_custom();
+          if (pc && fh) {
+            console.info("[HSE-LOADER] re-inject hass sur ha-panel-custom après navigate");
+            pc.hass = null;
+            setTimeout(() => {
+              const { freshHass: fh2 } = _get_panel_custom();
+              if (pc && fh2) pc.hass = fh2;
+            }, 100);
+          }
+          setTimeout(() => { _fix_in_progress = false; }, 3000);
+        }, 800);
       }, 500);
     }
   }
