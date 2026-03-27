@@ -28,26 +28,41 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     return resp.text();
   }
 
-  // --- Fix: re-inject hass into ha-panel-custom after browser tab switch ---
-  function _fix_hass_on_visibility() {
-    if (document.visibilityState !== "visible") return;
-
+  // --- Fix: recover ha-panel-custom after macOS virtual desktop switch ---
+  // Mission Control (3-finger swipe) does not trigger visibilitychange,
+  // so we use window 'focus' as primary trigger + visibilitychange as backup.
+  function _fix_panel_on_focus() {
     setTimeout(() => {
-      const haRoot  = document.querySelector("home-assistant");
-      const haMain  = haRoot?.shadowRoot
-                        ?.querySelector("home-assistant-main")?.shadowRoot;
-      const panel   = haMain?.querySelector("ha-panel-custom");
-      const fresh   = haRoot?.hass;
+      const haRoot    = document.querySelector("home-assistant");
+      const haMain    = haRoot?.shadowRoot
+                          ?.querySelector("home-assistant-main")?.shadowRoot;
+      const panel     = haMain?.querySelector("ha-panel-custom");
+      const freshHass = haRoot?.hass;
 
-      if (panel && fresh && !panel.hass) {
-        console.warn("[HSE-LOADER] hass perdu sur ha-panel-custom — re-injection");
-        panel.hass = fresh;
+      if (!panel || !freshHass) return;
+
+      // Cas 1 : hass manquant sur ha-panel-custom
+      if (!panel.hass) {
+        console.warn("[HSE-LOADER] hass manquant — re-injection");
+        panel.hass = freshHass;
+        return;
       }
-    }, 500);
+
+      // Cas 2 : hass OK mais shadowRoot null (élément zombie — typique macOS bureaux virtuels)
+      if (!panel.shadowRoot) {
+        console.warn("[HSE-LOADER] shadowRoot null — forçage navigate");
+        const path = window.location.pathname;
+        window.history.pushState({}, "", "/");
+        setTimeout(() => window.history.pushState({}, "", path), 100);
+      }
+    }, 600);
   }
 
-  document.addEventListener("visibilitychange", _fix_hass_on_visibility);
-  // -------------------------------------------------------------------------
+  window.addEventListener("focus", _fix_panel_on_focus);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") _fix_panel_on_focus();
+  });
+  // -----------------------------------------------------------------------
 
   window.hse_loader = { load_script_once, load_css_text };
 })();
