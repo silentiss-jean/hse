@@ -39,63 +39,78 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   // partial-panel-resolver as permanent zombies (_$litElement$: undefined,
   // renderRoot pointing to the element itself instead of its shadowRoot).
   //
-  // Instead: inject hass directly on the existing element even when
-  // shadowRoot = null. ha-panel-custom delegates hass to hse-panel via its
-  // own internal mechanism, independently of shadowRoot state.
+  // When shadowRoot = null, injecting hass on ha-panel-custom is a no-op:
+  // hse-panel no longer exists inside it. The correct fix is to call
+  // requestUpdate() on partial-panel-resolver so Lit re-renders it cleanly,
+  // recreating ha-panel-custom with connectedCallback properly fired.
+  // After re-render, re-inject hass on the fresh ha-panel-custom instance.
   let _fix_in_progress = false;
 
   function _get_panel_custom() {
     const haRoot = document.querySelector("home-assistant");
     const haMain = haRoot?.shadowRoot?.querySelector("home-assistant-main")?.shadowRoot;
-    return { pc: haMain?.querySelector("ha-panel-custom"), freshHass: haRoot?.hass, haRoot };
+    const ppr    = haMain?.querySelector("partial-panel-resolver");
+    return {
+      pc:         haMain?.querySelector("ha-panel-custom"),
+      ppr,
+      freshHass:  haRoot?.hass,
+      haRoot,
+    };
   }
 
   function _check_panel_health() {
     if (!window.location.pathname.startsWith("/hse")) return;
     if (_fix_in_progress) return;
 
-    const { pc: panel, freshHass, haRoot } = _get_panel_custom();
+    const { pc: panel, ppr, freshHass, haRoot } = _get_panel_custom();
 
     if (!panel || !freshHass) return;
 
-    // Cas 1 : hass manquant
+    // Cas 1 : hass manquant sur ha-panel-custom (panel vivant mais hass non propagé)
     if (!panel.hass) {
-      console.warn("[HSE-LOADER] hass manquant — re-injection");
+      console.warn("[HSE-LOADER] hass manquant — re-injection directe");
       panel.hass = freshHass;
       return;
     }
 
-    // Cas 2 : shadowRoot null (zombie — typique macOS bureaux virtuels)
-    // Ne JAMAIS naviguer (location-changed détruit l'arbre Lit).
-    // Injecter hass directement sur l'élément existant : ha-panel-custom
-    // délègue hass à hse-panel via son mécanisme interne, indépendant du shadowRoot.
+    // Cas 2 : shadowRoot null (zombie Lit — typique macOS bureaux virtuels)
+    // Stratégie : requestUpdate() sur partial-panel-resolver pour forcer Lit
+    // à re-rendre proprement sans navigate. ha-panel-custom sera recréé avec
+    // connectedCallback appelé, puis on re-injecte hass sur la nouvelle instance.
     if (!panel.shadowRoot) {
-      console.warn("[HSE-LOADER] shadowRoot null — re-injection hass directe sans navigate");
+      console.warn("[HSE-LOADER] shadowRoot null — requestUpdate sur partial-panel-resolver");
       _fix_in_progress = true;
 
-      // Tentative 1 : re-inject hass sur ha-panel-custom
-      panel.hass = null;
-      setTimeout(() => {
-        const { pc, freshHass: fh, haRoot: ha } = _get_panel_custom();
-        if (pc && fh) {
-          console.info("[HSE-LOADER] tentative 1 : pc.hass = fresh");
-          pc.hass = fh;
-        }
-
-        // Tentative 2 (fallback) : forcer HA à re-propager depuis la racine
+      if (ppr && typeof ppr.requestUpdate === "function") {
+        // Lit re-rend partial-panel-resolver → recrée ha-panel-custom proprement
+        ppr.requestUpdate();
         setTimeout(() => {
-          const { pc: pc2, freshHass: fh2, haRoot: ha2 } = _get_panel_custom();
-          if (pc2 && !pc2.shadowRoot && ha2 && fh2) {
-            console.warn("[HSE-LOADER] tentative 2 (fallback) : home-assistant.hass = null → fresh");
-            ha2.hass = null;
-            setTimeout(() => {
-              const { freshHass: fh3 } = _get_panel_custom();
-              if (ha2 && fh3) ha2.hass = fh3;
-            }, 100);
+          const { pc: newPc, freshHass: fh } = _get_panel_custom();
+          if (newPc && fh) {
+            console.info("[HSE-LOADER] re-inject hass sur nouveau ha-panel-custom après ppr.requestUpdate");
+            newPc.hass = fh;
+          } else if (haRoot && typeof haRoot.requestUpdate === "function") {
+            // Fallback intermédiaire : remonter à home-assistant
+            console.warn("[HSE-LOADER] fallback : haRoot.requestUpdate");
+            haRoot.requestUpdate();
           }
           setTimeout(() => { _fix_in_progress = false; }, 3000);
         }, 500);
-      }, 50);
+      } else {
+        // Fallback : partial-panel-resolver inaccessible, forcer depuis la racine
+        console.warn("[HSE-LOADER] ppr introuvable — fallback haRoot.requestUpdate");
+        if (haRoot && typeof haRoot.requestUpdate === "function") {
+          haRoot.requestUpdate();
+        }
+        setTimeout(() => {
+          const { pc: newPc, freshHass: fh } = _get_panel_custom();
+          if (newPc && fh) {
+            console.info("[HSE-LOADER] re-inject hass après haRoot.requestUpdate");
+            newPc.hass = fh;
+          }
+          setTimeout(() => { _fix_in_progress = false; }, 3000);
+        }, 800);
+      }
     }
   }
 
