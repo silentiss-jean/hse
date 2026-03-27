@@ -32,30 +32,29 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   // macOS Mission Control (3-finger swipe) triggers NO browser event at all.
   // visibilitychange and window.focus are both unreliable in this context.
   // Polling every 2s is the only reliable detection mechanism.
-  // Navigation must use HA's internal 'location-changed' event — pushState alone
-  // is not enough for HA's Lit router to recreate ha-panel-custom.
-  // After navigation, we force pc.hass = null then pc.hass = fresh to ensure
-  // HsePanel.set hass() is called and propagates hass to all sub-modules
-  // (hse_overview_state.update_hass, etc.) — without this, hass_raw stays null
-  // inside the new HsePanel instance and the overview tick fails immediately.
+  //
+  // IMPORTANT: Never use location-changed navigate to recover the panel.
+  // navigate destroys the Lit tree — new elements are inserted without
+  // connectedCallback ever firing, leaving ha-panel-custom and
+  // partial-panel-resolver as permanent zombies (_$litElement$: undefined,
+  // renderRoot pointing to the element itself instead of its shadowRoot).
+  //
+  // Instead: inject hass directly on the existing element even when
+  // shadowRoot = null. ha-panel-custom delegates hass to hse-panel via its
+  // own internal mechanism, independently of shadowRoot state.
   let _fix_in_progress = false;
-
-  function _ha_navigate(path) {
-    window.history.pushState({}, "", path);
-    window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true }));
-  }
 
   function _get_panel_custom() {
     const haRoot = document.querySelector("home-assistant");
     const haMain = haRoot?.shadowRoot?.querySelector("home-assistant-main")?.shadowRoot;
-    return { pc: haMain?.querySelector("ha-panel-custom"), freshHass: haRoot?.hass };
+    return { pc: haMain?.querySelector("ha-panel-custom"), freshHass: haRoot?.hass, haRoot };
   }
 
   function _check_panel_health() {
     if (!window.location.pathname.startsWith("/hse")) return;
     if (_fix_in_progress) return;
 
-    const { pc: panel, freshHass } = _get_panel_custom();
+    const { pc: panel, freshHass, haRoot } = _get_panel_custom();
 
     if (!panel || !freshHass) return;
 
@@ -67,29 +66,36 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     }
 
     // Cas 2 : shadowRoot null (zombie — typique macOS bureaux virtuels)
+    // Ne JAMAIS naviguer (location-changed détruit l'arbre Lit).
+    // Injecter hass directement sur l'élément existant : ha-panel-custom
+    // délègue hass à hse-panel via son mécanisme interne, indépendant du shadowRoot.
     if (!panel.shadowRoot) {
-      console.warn("[HSE-LOADER] shadowRoot null — forçage navigate via location-changed");
+      console.warn("[HSE-LOADER] shadowRoot null — re-injection hass directe sans navigate");
       _fix_in_progress = true;
-      const path = window.location.pathname;
-      _ha_navigate("/");
+
+      // Tentative 1 : re-inject hass sur ha-panel-custom
+      panel.hass = null;
       setTimeout(() => {
-        _ha_navigate(path);
-        // Après la navigation, forcer hass = null puis hass = fresh sur
-        // ha-panel-custom pour déclencher HsePanel.set hass() et propager
-        // hass à hse_overview_state et aux autres modules.
+        const { pc, freshHass: fh, haRoot: ha } = _get_panel_custom();
+        if (pc && fh) {
+          console.info("[HSE-LOADER] tentative 1 : pc.hass = fresh");
+          pc.hass = fh;
+        }
+
+        // Tentative 2 (fallback) : forcer HA à re-propager depuis la racine
         setTimeout(() => {
-          const { pc, freshHass: fh } = _get_panel_custom();
-          if (pc && fh) {
-            console.info("[HSE-LOADER] re-inject hass sur ha-panel-custom après navigate");
-            pc.hass = null;
+          const { pc: pc2, freshHass: fh2, haRoot: ha2 } = _get_panel_custom();
+          if (pc2 && !pc2.shadowRoot && ha2 && fh2) {
+            console.warn("[HSE-LOADER] tentative 2 (fallback) : home-assistant.hass = null → fresh");
+            ha2.hass = null;
             setTimeout(() => {
-              const { freshHass: fh2 } = _get_panel_custom();
-              if (pc && fh2) pc.hass = fh2;
+              const { freshHass: fh3 } = _get_panel_custom();
+              if (ha2 && fh3) ha2.hass = fh3;
             }, 100);
           }
           setTimeout(() => { _fix_in_progress = false; }, 3000);
-        }, 800);
-      }, 500);
+        }, 500);
+      }, 50);
     }
   }
 
