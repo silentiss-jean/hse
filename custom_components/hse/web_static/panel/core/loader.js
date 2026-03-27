@@ -32,12 +32,17 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   // macOS Mission Control (3-finger swipe) triggers NO browser event at all.
   // visibilitychange and window.focus are both unreliable in this context.
   // Polling every 2s is the only reliable detection mechanism.
+  // Navigation must use HA's internal 'location-changed' event — pushState alone
+  // is not enough for HA's Lit router to recreate ha-panel-custom.
   let _fix_in_progress = false;
 
+  function _ha_navigate(path) {
+    window.history.pushState({}, "", path);
+    window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true }));
+  }
+
   function _check_panel_health() {
-    // Seulement si on est sur /hse
     if (!window.location.pathname.startsWith("/hse")) return;
-    // Ne pas lancer deux corrections en parallèle
     if (_fix_in_progress) return;
 
     const haRoot    = document.querySelector("home-assistant");
@@ -57,21 +62,19 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
 
     // Cas 2 : shadowRoot null (zombie — typique macOS bureaux virtuels)
     if (!panel.shadowRoot) {
-      console.warn("[HSE-LOADER] shadowRoot null — forçage navigate");
+      console.warn("[HSE-LOADER] shadowRoot null — forçage navigate via location-changed");
       _fix_in_progress = true;
       const path = window.location.pathname;
-      window.history.pushState({}, "", "/");
+      _ha_navigate("/");
       setTimeout(() => {
-        window.history.pushState({}, "", path);
-        // Laisser 3s à HA pour remonter le panel avant de re-checker
+        _ha_navigate(path);
         setTimeout(() => { _fix_in_progress = false; }, 3000);
-      }, 150);
+      }, 500);
     }
   }
 
   setInterval(_check_panel_health, 2000);
 
-  // Garder les event listeners en bonus pour les cas onglets Chrome
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") _check_panel_health();
   });
