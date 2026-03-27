@@ -4,6 +4,8 @@ HSE scans existing Home Assistant entities, persists a catalogue in backend stor
 
 This document defines the current schema expectations for the persistent catalogue and the enrichment flow.
 
+Related modules: `repairs.py` (health → Repairs issues), `time_utils.py` (UTC timestamps).
+
 ---
 
 ## Canonical units
@@ -45,6 +47,7 @@ Each item keeps:
 - `derived.helpers.energy.*`: explicit mapping to helper entities used by backend calculations
 - `health.*`: offline tracking and escalation state
 - `triage.*`: user triage (mute / removed)
+- `workflow.*`: transient enrichment workflow state slots
 
 ### enrichment
 
@@ -76,7 +79,7 @@ Expected keys:
 - `year`: yearly utility meter helper entity_id
 - `status`: `unknown|partial|ready`
 - `resolution_mode`: currently `explicit` once persisted in catalogue
-- `last_resolved_at`: ISO timestamp of last helper resolution attempt
+- `last_resolved_at`: ISO timestamp of last helper resolution attempt (from `utc_now_iso()`)
 - `issues`: list of missing/inconsistent helper diagnostics
 
 Rules:
@@ -99,11 +102,38 @@ This is intentionally separate from `pricing.cost_entity_ids`:
 - the reference sensor is **not** automatically added to the measured cost sensors list
 - the reference still gets helpers because overview needs an independent main-meter energy timeline
 
+### workflow.reference_enrichment
+
+Transient workflow slot populated by `catalogue_reference_total.py` during helper creation for the reference sensor.
+
+Key fields:
+
+- `job_id`: UUID identifying the current enrichment job.
+- `status`: `idle` | `running` | `ready` | `failed` | `pending_background`
+- `progress_phase`: internal phase label (e.g. `ensure_total`, `ready`, `failed`).
+- `progress_label`: human-readable French status string.
+- `attempt` / `attempts_total`: synchronous retry counter (max 3).
+- `will_retry` / `retry_scheduled`: flags for retry state.
+- `last_error`: last error code if failed.
+- `mapping`: snapshot of the resolved `derived.helpers.energy` at last attempt.
+- `started_at`, `updated_at`, `finished_at`: UTC ISO timestamps (from `utc_now_iso()`).
+- `done`: `true` when status is `ready` or `failed`.
+
+Background retry constants:
+
+- Max background passes: **8** (`_REFERENCE_BG_MAX_PASSES`)
+- Delay between passes: **5 seconds** (`_REFERENCE_BG_DELAY_S`)
+- Status URL: `POST /api/hse/unified/catalogue/reference_total/status`
+
 ### health
 
-- `first_unavailable_at`: first time we observed `unknown/unavailable` (or `not_provided`)
-- `last_ok_at`: last time we observed a non-unavailable state
+- `first_unavailable_at`: first time we observed `unknown/unavailable` (or `not_provided`) — ISO UTC timestamp
+- `last_ok_at`: last time we observed a non-unavailable state — ISO UTC timestamp
 - `escalation`: `none|error_24h|action_48h`
+
+Escalation is computed by comparing `seconds_since(first_unavailable_at)` against `CATALOGUE_OFFLINE_GRACE_S` (900s) and fixed thresholds (86400s / 172800s).
+
+HA Repairs issues are created/deleted by `repairs.py` based on this escalation value.
 
 ### triage
 

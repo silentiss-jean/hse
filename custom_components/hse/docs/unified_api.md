@@ -47,6 +47,8 @@ Behavior:
   - `EnrichCleanupView()`
   - `MigrationExportView()`
   - `DashboardOverviewView()`
+  - `CostsCompareView()`
+  - `DiagnosticCheckView()`
 
 Each view is registered using:
 
@@ -102,6 +104,64 @@ Current behavior:
 - sends catalogue items to the shared cost engine so calculations can use explicit helper mappings first
 - only falls back to name-derived helper resolution for migration compatibility
 
+### `POST /costs/compare`
+
+Purpose:
+
+- compare energy consumption and cost between two time periods using recorder statistics
+
+Current behavior:
+
+- reads `pricing.cost_entity_ids` and the current reference sensor from the catalogue
+- resolves energy data from `recorder.statistics_during_period` on the `*_kwh_total` helper of each sensor
+- supports 4 presets: `today_vs_yesterday`, `this_week_vs_last_week`, `this_weekend_vs_last_weekend`, `custom_periods`
+- degrades gracefully per sensor if recorder statistics are missing (warnings instead of hard failure)
+- week start is configurable via `week_mode` (`classic` = Monday, `custom` + `custom_week_start` JS weekday index)
+
+Request body:
+
+```json
+{
+  "preset": "today_vs_yesterday",
+  "tax_mode": "ttc",
+  "week_mode": "classic",
+  "custom_week_start": 5,
+  "reference_range": { "start": "<ISO>", "end": "<ISO>" },
+  "compare_range": { "start": "<ISO>", "end": "<ISO>" }
+}
+```
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "supported": true,
+  "meta": { "preset_used": "...", "resolved_reference_range": {...}, "resolved_compare_range": {...}, ... },
+  "reference_period": { "reference": {...}, "internal": {...}, "delta": {...} },
+  "compare_period": { "reference": {...}, "internal": {...}, "delta": {...} },
+  "summary": { "reference": {...}, "internal": {...}, "delta": {...} },
+  "per_sensor": [ { "entity_id": "...", "name": "...", "reference_period": {...}, "compare_period": {...}, "delta": {...} } ],
+  "pricing": {...},
+  "warnings": [...]
+}
+```
+
+- `reference_period` / `compare_period` each contain:
+  - `reference`: main meter (reference sensor) row
+  - `internal`: sum of measured cost sensors
+  - `delta`: difference (reference − internal)
+- `per_sensor`: sorted by `delta.total_{tax_mode}` descending
+- `supported: false` if ranges could not be resolved
+
+### `POST /diagnostic/check`
+
+Purpose:
+
+- detect catalogue inconsistencies and config entry health issues
+
+See `docs/api/diagnostic_check.md` for full documentation.
+
 ---
 
 ## Contract: adding a view
@@ -138,6 +198,12 @@ If `POST /enrich/apply` does not enrich the reference sensor:
 1) Check whether the caller sent explicit `entity_ids`.
 2) Remember that automatic reference append only happens when `entity_ids` are omitted.
 3) Use `catalogue/reference_total` save flow for the immediate reference-helper creation path.
+
+If `POST /costs/compare` returns `supported: false`:
+
+1) Check `warnings` array for `pricing_not_configured` or `pricing_has_no_cost_entity_ids`.
+2) Verify the preset name is one of the 4 supported values.
+3) For `custom_periods`, ensure both `reference_range` and `compare_range` contain valid ISO timestamps.
 
 If an endpoint returns 401:
 
