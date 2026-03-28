@@ -1,5 +1,5 @@
 """
-HSE_DOC: custom_components/hse/docs/persistent_catalogue.md
+HSE_DOC: custom_components/hse/docs/time_utils.md
 HSE_MAINTENANCE: If you change triage/health schema or refresh rules, update the doc above.
 """
 

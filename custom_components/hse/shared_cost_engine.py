@@ -1,4 +1,7 @@
-"""Shared backend helpers to derive energy and cost snapshots from pricing + helpers.
+"""HSE_DOC: custom_components/hse/docs/shared_cost_engine.md
+HSE_MAINTENANCE: If you change snapshot shape or cost computation logic, update the doc above.
+
+Shared backend helpers to derive energy and cost snapshots from pricing + helpers.
 
 This module is intentionally UI-agnostic. It reads the existing pricing contract,
 prefer explicit helper mappings stored in the catalogue, and exposes

@@ -1,4 +1,4 @@
-"""HSE_DOC: custom_components/hse/docs/persistent_catalogue.md
+"""HSE_DOC: custom_components/hse/docs/catalogue_reference_total.md
 HSE_MAINTENANCE: If you change reference_total semantics, update the doc above.
 """
 

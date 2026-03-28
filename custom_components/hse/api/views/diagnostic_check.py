@@ -1,3 +1,7 @@
+"""HSE_DOC: custom_components/hse/docs/diagnostic_check.md
+HSE_MAINTENANCE: If reason codes, checks list or response shape change, update the doc above.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

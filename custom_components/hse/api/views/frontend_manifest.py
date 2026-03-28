@@ -1,3 +1,7 @@
+"""HSE_DOC: custom_components/hse/docs/frontend_manifest.md
+HSE_MAINTENANCE: If panel constants or feature flags change, update the doc above.
+"""
+
 from __future__ import annotations
 
 from homeassistant.components.http import HomeAssistantView

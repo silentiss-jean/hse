@@ -1,4 +1,4 @@
-"""HSE_DOC: custom_components/hse/docs/persistent_catalogue.md
+"""HSE_DOC: custom_components/hse/docs/repairs.md
 HSE_MAINTENANCE: If you change repair issue IDs or severity mapping, update the doc above.
 """
 
