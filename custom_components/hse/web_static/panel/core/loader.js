@@ -39,11 +39,12 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   // partial-panel-resolver as permanent zombies (_$litElement$: undefined,
   // renderRoot pointing to the element itself instead of its shadowRoot).
   //
-  // When shadowRoot = null, injecting hass on ha-panel-custom is a no-op:
-  // hse-panel no longer exists inside it. The correct fix is to call
-  // requestUpdate() on partial-panel-resolver so Lit re-renders it cleanly,
-  // recreating ha-panel-custom with connectedCallback properly fired.
-  // After re-render, re-inject hass on the fresh ha-panel-custom instance.
+  // Cas 2 strategy:
+  //   1. ppr.requestUpdate() — Lit re-renders partial-panel-resolver cleanly,
+  //      recreating ha-panel-custom with connectedCallback properly fired.
+  //   2. Poll conn.connected every 200ms (max 10s) — inject hass only once
+  //      the WS connection is confirmed ready. A fixed timer is unreliable
+  //      because HA reconnection can take anywhere from 200ms to 3-4s.
   let _fix_in_progress = false;
 
   function _get_panel_custom() {
@@ -51,11 +52,33 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     const haMain = haRoot?.shadowRoot?.querySelector("home-assistant-main")?.shadowRoot;
     const ppr    = haMain?.querySelector("partial-panel-resolver");
     return {
-      pc:         haMain?.querySelector("ha-panel-custom"),
+      pc:        haMain?.querySelector("ha-panel-custom"),
       ppr,
-      freshHass:  haRoot?.hass,
+      freshHass: haRoot?.hass,
       haRoot,
     };
+  }
+
+  // Poll conn.connected toutes les 200ms, injecte hass dès que la WS est prête.
+  // Max 50 tentatives = 10s. Après échec, libère _fix_in_progress.
+  function _wait_connected_then_inject(attemptsLeft) {
+    const { pc, freshHass: fh } = _get_panel_custom();
+    const conn = fh?.connection;
+
+    if (pc && fh && conn && conn.connected === true) {
+      console.info("[HSE-LOADER] conn.connected=true — inject hass sur ha-panel-custom");
+      pc.hass = fh;
+      setTimeout(() => { _fix_in_progress = false; }, 1000);
+      return;
+    }
+
+    if (attemptsLeft <= 0) {
+      console.warn("[HSE-LOADER] timeout conn.connected (10s) — abandon fix");
+      _fix_in_progress = false;
+      return;
+    }
+
+    setTimeout(() => _wait_connected_then_inject(attemptsLeft - 1), 200);
   }
 
   function _check_panel_health() {
@@ -74,42 +97,24 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     }
 
     // Cas 2 : shadowRoot null (zombie Lit — typique macOS bureaux virtuels)
-    // Stratégie : requestUpdate() sur partial-panel-resolver pour forcer Lit
-    // à re-rendre proprement sans navigate. ha-panel-custom sera recréé avec
-    // connectedCallback appelé, puis on re-injecte hass sur la nouvelle instance.
+    // 1. requestUpdate() sur partial-panel-resolver pour recréer ha-panel-custom
+    //    proprement (connectedCallback appelé).
+    // 2. Poll conn.connected jusqu'à ce que la WS HA soit prête, puis inject hass.
     if (!panel.shadowRoot) {
       console.warn("[HSE-LOADER] shadowRoot null — requestUpdate sur partial-panel-resolver");
       _fix_in_progress = true;
 
       if (ppr && typeof ppr.requestUpdate === "function") {
-        // Lit re-rend partial-panel-resolver → recrée ha-panel-custom proprement
         ppr.requestUpdate();
-        setTimeout(() => {
-          const { pc: newPc, freshHass: fh } = _get_panel_custom();
-          if (newPc && fh) {
-            console.info("[HSE-LOADER] re-inject hass sur nouveau ha-panel-custom après ppr.requestUpdate");
-            newPc.hass = fh;
-          } else if (haRoot && typeof haRoot.requestUpdate === "function") {
-            // Fallback intermédiaire : remonter à home-assistant
-            console.warn("[HSE-LOADER] fallback : haRoot.requestUpdate");
-            haRoot.requestUpdate();
-          }
-          setTimeout(() => { _fix_in_progress = false; }, 3000);
-        }, 500);
+        // Laisser Lit finir son render (~1 frame) puis démarrer le poll
+        setTimeout(() => _wait_connected_then_inject(50), 100);
       } else {
-        // Fallback : partial-panel-resolver inaccessible, forcer depuis la racine
+        // Fallback : partial-panel-resolver inaccessible
         console.warn("[HSE-LOADER] ppr introuvable — fallback haRoot.requestUpdate");
         if (haRoot && typeof haRoot.requestUpdate === "function") {
           haRoot.requestUpdate();
         }
-        setTimeout(() => {
-          const { pc: newPc, freshHass: fh } = _get_panel_custom();
-          if (newPc && fh) {
-            console.info("[HSE-LOADER] re-inject hass après haRoot.requestUpdate");
-            newPc.hass = fh;
-          }
-          setTimeout(() => { _fix_in_progress = false; }, 3000);
-        }, 800);
+        setTimeout(() => _wait_connected_then_inject(50), 300);
       }
     }
   }
