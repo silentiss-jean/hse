@@ -1,10 +1,10 @@
-/* entrypoint - hse_panel.js — phase 11 (LitElement) */
-const build_signature = "2026-03-27_fix_hass_reinject";
+/* entrypoint - hse_panel.js — Phase 1C (routeur mount-once) */
+const build_signature = "2026-04-03_mount_once_router";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
   const SHARED_BASE = "/api/hse/static/shared";
-  const ASSET_V     = "0.1.51";
+  const ASSET_V     = "0.1.52";
 
   async function _load_lit(url) {
     if (window.LitElement) return;
@@ -40,9 +40,6 @@ const build_signature = "2026-03-27_fix_hass_reinject";
     await _load_lit(`${SHARED_BASE}/lib/lit-core.min.js?v=${ASSET_V}`);
     const { LitElement, html, css, nothing } = window.Lit;
 
-    // ── Onglets stables (DOM préservé entre set hass) ─────────────────────
-    const TABS_STABLE = new Set(['cards','custom','config','costs','diagnostic','scan','migration']);
-
     const NAV_ITEMS_FALLBACK = [
       { id: 'overview',   label: 'Accueil' },
       { id: 'diagnostic', label: 'Diagnostic' },
@@ -53,6 +50,18 @@ const build_signature = "2026-03-27_fix_hass_reinject";
       { id: 'migration',  label: 'Migration capteurs' },
       { id: 'costs',      label: 'Analyse de coûts' },
     ];
+
+    // Mapping tab_id → nom du custom element
+    const TAB_ELEMENTS = {
+      overview:   'hse-tab-overview',
+      costs:      'hse-tab-costs',
+      diagnostic: 'hse-tab-diagnostic',
+      scan:       'hse-tab-scan',
+      migration:  'hse-tab-migration',
+      config:     'hse-tab-config',
+      custom:     'hse-tab-custom',
+      cards:      'hse-tab-cards',
+    };
 
     class HsePanel extends LitElement {
 
@@ -77,10 +86,8 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         this._hass_raw    = null;
         this._actions     = null;
 
-        this._overview_timer      = null;
-        this._overview_refreshing = false;
-        this._overview_data       = null;
-        this._overview_built      = false;
+        // Mount-once : map des composants montés { tab_id → element }
+        this._mounted_tabs = {};
 
         this._scan_result = { integrations: [], candidates: [] };
         this._scan_state  = {
@@ -90,13 +97,6 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         this._migration_state = { loading: false, error: null, last: null, active_yaml: '' };
 
         this._custom_state = { theme: 'ha', dynamic_bg: true, glass: false };
-
-        this._reference_status_timer            = null;
-        this._reference_status_polling          = false;
-        this._reference_status_target_entity_id = undefined;
-
-        this._user_interacting       = false;
-        this._user_interacting_timer = null;
 
         this._org_state = {
           get loading()     { return !!window.hse_store?.get('org.loading'); },
@@ -134,30 +134,19 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         };
 
         // ── FIX bureau virtuel : visibilitychange ─────────────────────────
-        // Watchdog actif : poll home-assistant.hass jusqu'à obtenir un hass
-        // frais, puis appelle set hass() pour propager à tous les sous-modules
-        // (overview_state.update_hass, etc.).
-        // Sans passer par le setter, hse_overview_state reste sans hass
-        // et fn(this._hass_raw) échoue avec 'Subscription not found'.
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
-
-          this._overview_built = false;
-          this._overview_refreshing = false;
-          this._clear_overview_autorefresh();
-
           let _attempts = 0;
           const _poll = () => {
             const ha = document.querySelector('home-assistant');
             const fresh = ha?.hass;
             if (fresh) {
-              // Passer par le setter pour propager hass à tous les modules
               this.hass = fresh;
               this.requestUpdate();
               return;
             }
-            if (++_attempts < 20) setTimeout(_poll, 500); // max 10s
-            else this.requestUpdate(); // rend quand même avec ce qu'on a
+            if (++_attempts < 20) setTimeout(_poll, 500);
+            else this.requestUpdate();
           };
           _poll();
         };
@@ -166,11 +155,14 @@ const build_signature = "2026-03-27_fix_hass_reinject";
       // ── set hass — injecté par HA à chaque état ───────────────────────
       set hass(hass) {
         this._hass_raw = hass;
+
+        // Propager hass au service live
+        window.hse_live_service?.update_hass?.(hass);
+        // Propager aussi à l'ancien state si présent
         window.hse_overview_state?.update_hass?.(hass);
 
         const shadow = this.shadowRoot;
         if (shadow && !shadow.querySelector('.hse_page') && this._boot_done) {
-          this._overview_built = false;
           this.requestUpdate();
           return;
         }
@@ -181,18 +173,10 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           return;
         }
 
-        if (TABS_STABLE.has(this._active_tab)) {
-          this.requestUpdate();
-          return;
-        }
-
-        if (this._active_tab === 'overview') {
-          const body = shadow?.querySelector('[data-hse-overview-body]');
-          if (this._overview_built && body?.isConnected) {
-            this.requestUpdate();
-            return;
-          }
-          this._overview_built = false;
+        // Propager hass uniquement à l'onglet actif monté
+        const active_el = this._mounted_tabs[this._active_tab];
+        if (active_el) {
+          try { active_el.hass = hass; } catch (_) {}
         }
 
         this.requestUpdate();
@@ -233,8 +217,6 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         document.addEventListener('visibilitychange', this._on_visibility_change);
 
         if (this._boot_done) {
-          this._overview_built = false;
-          window.hse_overview_state?.register_container?.(null, null);
           this.requestUpdate();
           return;
         }
@@ -244,13 +226,10 @@ const build_signature = "2026-03-27_fix_hass_reinject";
 
       disconnectedCallback() {
         super.disconnectedCallback();
-        this._clear_overview_autorefresh();
-        this._clear_reference_status_polling();
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
         document.removeEventListener('mousedown',        this._doc_mousedown,         true);
         document.removeEventListener('focusin',          this._doc_focusin,           true);
         document.removeEventListener('visibilitychange', this._on_visibility_change);
-        window.hse_overview_state?.register_container?.(null, null);
       }
 
       static get styles() { return css``; }
@@ -281,7 +260,6 @@ const build_signature = "2026-03-27_fix_hass_reinject";
               ${this._render_header()}
               ${this._render_tabs()}
               <div id="hse-content" data-tab="${this._active_tab}">
-                ${this._render_tab_content()}
               </div>
             </div>
           </div>`;
@@ -307,38 +285,86 @@ const build_signature = "2026-03-27_fix_hass_reinject";
               <button
                 class="hse_tab"
                 data-active="${it.id === this._active_tab ? 'true' : 'false'}"
-                @click=${() => this._set_active_tab(it.id)}>
+                @click=${() => this._switch_tab(it.id)}>
                 ${it.label}
               </button>`)}
           </div>`;
       }
 
-      _render_tab_content() {
-        return nothing;
+      updated(changed) {
+        if (!this._boot_done || !this._hass_raw) return;
+        const content = this.shadowRoot?.querySelector('#hse-content');
+        if (!content) return;
+        // Monter / afficher l'onglet actif via le routeur mount-once
+        this._ensure_tab_mounted(content, this._active_tab);
       }
 
-      updated(changed) {
-        if (this._active_tab !== 'overview' && this._active_tab !== 'costs') {
-          this._clear_overview_autorefresh();
-        }
-        if (this._active_tab !== 'config') {
-          this._clear_reference_status_polling();
-        }
+      // ── Routeur mount-once ────────────────────────────────────────────
 
+      /**
+       * _switch_tab(tab_id)
+       * Masque l'onglet actuel, affiche (ou monte si première fois) le nouvel onglet.
+       */
+      _switch_tab(tab_id) {
+        if (tab_id === this._active_tab) return;
+        this._active_tab = tab_id;
+        this._storage_set('hse_active_tab', tab_id);
+        // Propager hass au service live
+        if (this._hass_raw) window.hse_live_service?.update_hass?.(this._hass_raw);
         const content = this.shadowRoot?.querySelector('#hse-content');
-        if (!content || !this._boot_done || !this._hass_raw) return;
+        if (content) this._ensure_tab_mounted(content, tab_id);
+        this.requestUpdate();
+      }
 
-        this._dispatch_tab(content).catch(err => {
-          console.error('[HSE] _dispatch_tab unhandled error', err);
-          this._render_error(content, 'dispatch_tab_unhandled', err);
+      /**
+       * _ensure_tab_mounted(content, tab_id)
+       * Monte le composant si premier accès, sinon juste display:block.
+       * Cache tous les autres onglets (display:none).
+       */
+      _ensure_tab_mounted(content, tab_id) {
+        // Cacher tous les onglets montés sauf le cible
+        for (const [id, el] of Object.entries(this._mounted_tabs)) {
+          el.style.display = id === tab_id ? 'block' : 'none';
+        }
+
+        if (this._mounted_tabs[tab_id]) {
+          // Déjà monté — juste propager hass
+          try { this._mounted_tabs[tab_id].hass = this._hass_raw; } catch (_) {}
+          return;
+        }
+
+        // Première fois — tenter de créer le custom element
+        const tag_name = TAB_ELEMENTS[tab_id];
+        if (tag_name && customElements.get(tag_name)) {
+          const tab_el = document.createElement(tag_name);
+          tab_el.style.display = 'block';
+          try { tab_el.hass = this._hass_raw; } catch (_) {}
+          if (this.panel) try { tab_el.panel = this.panel; } catch (_) {}
+          content.appendChild(tab_el);
+          this._mounted_tabs[tab_id] = tab_el;
+          return;
+        }
+
+        // Fallback — rendu legacy via _dispatch_tab
+        if (!this._mounted_tabs[tab_id + '__legacy']) {
+          const wrapper = document.createElement('div');
+          wrapper.dataset.hseTabLegacy = tab_id;
+          wrapper.style.display = 'block';
+          content.appendChild(wrapper);
+          this._mounted_tabs[tab_id] = wrapper;
+          this._mounted_tabs[tab_id + '__legacy'] = true;
+        }
+        this._dispatch_tab_legacy(this._mounted_tabs[tab_id]).catch(err => {
+          console.error('[HSE] _dispatch_tab_legacy unhandled error', err);
         });
       }
 
-      async _dispatch_tab(content) {
+      // ── Dispatch legacy (onglets non encore migrés en custom element) ──
+      async _dispatch_tab_legacy(content) {
+        const tab = this._active_tab;
         try {
-          switch (this._active_tab) {
+          switch (tab) {
             case 'overview':   this._tab_overview(content);         break;
-            case 'costs':      this._tab_costs(content);            break;
             case 'diagnostic': await this._tab_diagnostic(content); break;
             case 'scan':       this._tab_scan(content);             break;
             case 'migration':  await this._tab_migration(content);  break;
@@ -348,17 +374,14 @@ const build_signature = "2026-03-27_fix_hass_reinject";
             default:           this._tab_placeholder(content, 'Page', 'À venir.');
           }
         } catch (err) {
-          this._render_error(content, 'dispatch_tab', err);
+          this._render_error(content, 'dispatch_tab_legacy', err);
         }
       }
 
-      // ── Onglet Overview ───────────────────────────────────────────────
+      // ── Onglet Overview (legacy) ───────────────────────────────────────
       _tab_overview(content) {
-        this._ensure_overview_autorefresh();
-
         let body = content.querySelector('[data-hse-overview-body]');
         if (!body) {
-          this._overview_built = false;
           const { el } = window.hse_dom;
           content.innerHTML = '';
           const card    = el('div', 'hse_card');
@@ -372,12 +395,8 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           content.appendChild(card);
           content.appendChild(body);
         }
-
         window.hse_overview_state?.register_container?.(body, this._hass_raw);
-
-        if (this._overview_built) return;
-
-        const data = window.hse_overview_state?.get('data') ?? this._overview_data;
+        const data = window.hse_overview_state?.get('data') ?? window.hse_live_store?.get('overview', 'data');
         if (!data) {
           body.innerHTML = '';
           body.appendChild(window.hse_dom.el('div', 'hse_subtitle', 'Chargement…'));
@@ -391,85 +410,31 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           body.appendChild(c);
           return;
         }
-
         body.innerHTML = '';
         window.hse_overview_view.render_overview(body, data, this._hass_raw);
-        this._overview_built = true;
         window.hse_overview_state?.mark_built?.();
       }
 
       async _overview_force_refresh(content) {
-        this._overview_built = false;
-        this._overview_data  = null;
         window.hse_overview_state?.begin_fetch?.();
         this.requestUpdate();
         try {
           const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
           if (!fn) throw new Error('overview_api_not_loaded');
           const data = await fn(this._hass_raw);
-          this._overview_data = data;
           const body = content.querySelector('[data-hse-overview-body]');
           window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
+          window.hse_live_store?.set('overview', 'data', data);
         } catch (err) {
           const d = { error: this._actions?._err_msg(err) || String(err) };
-          this._overview_data = d;
           const body = content.querySelector('[data-hse-overview-body]');
           window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
+          window.hse_live_store?.set('overview', 'data', d);
         }
         this.requestUpdate();
       }
 
-      // ── Onglet Costs ──────────────────────────────────────────────────
-      _tab_costs(content) {
-        this._ensure_overview_autorefresh();
-        const { el } = window.hse_dom;
-
-        let body = content.querySelector('[data-hse-costs-body]');
-        if (!body) {
-          content.innerHTML = '';
-          const card    = el('div', 'hse_card');
-          const toolbar = el('div', 'hse_toolbar');
-          const btn     = el('button', 'hse_button hse_button_primary', 'Rafraîchir');
-          btn.addEventListener('click', async () => {
-            this._overview_data = null;
-            window.hse_overview_state?.begin_fetch?.();
-            this.requestUpdate();
-            try {
-              const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
-              const data = await fn(this._hass_raw);
-              this._overview_data = data;
-              window.hse_overview_state?.end_fetch?.(data, this._hass_raw, null);
-            } catch (err) {
-              const d = { error: String(err) };
-              this._overview_data = d;
-              window.hse_overview_state?.end_fetch?.(d, this._hass_raw, null);
-            }
-            this.requestUpdate();
-          });
-          toolbar.appendChild(btn);
-          card.appendChild(toolbar);
-          body = el('div');
-          body.dataset.hseCostsBody = '1';
-          content.appendChild(card);
-          content.appendChild(body);
-        }
-
-        const data = window.hse_overview_state?.get('data') ?? this._overview_data;
-        body.innerHTML = '';
-        if (!data) { body.appendChild(el('div', 'hse_subtitle', 'Chargement…')); return; }
-        if (data.error) {
-          const c = el('div', 'hse_card');
-          c.appendChild(el('div', null, 'Erreur'));
-          c.appendChild(el('pre', 'hse_code', String(data.error)));
-          body.appendChild(c); return;
-        }
-        if (!window.hse_costs_view?.render_costs) {
-          this._tab_placeholder(body, 'Analyse de coûts', 'costs.view.js non chargé.'); return;
-        }
-        window.hse_costs_view.render_costs(body, data, this._hass_raw);
-      }
-
-      // ── Onglet Scan ───────────────────────────────────────────────────
+      // ── Onglet Scan (legacy) ──────────────────────────────────────────
       _tab_scan(content) {
         if (!window.hse_scan_view) {
           this._tab_placeholder(content, 'Détection', 'scan.view.js non chargé.'); return;
@@ -495,7 +460,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         });
       }
 
-      // ── Onglet Migration ──────────────────────────────────────────────
+      // ── Onglet Migration (legacy) ─────────────────────────────────────
       async _tab_migration(content) {
         if (!window.hse_migration_view || !window.hse_migration_api) {
           this._tab_placeholder(content, 'Migration', 'migration.view.js non chargé.'); return;
@@ -520,7 +485,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         });
       }
 
-      // ── Onglet Cards ──────────────────────────────────────────────────
+      // ── Onglet Cards (legacy) ─────────────────────────────────────────
       _tab_cards(content) {
         if (!window.hse_cards_controller?.render_cards) {
           this._tab_placeholder(content, 'Génération cartes', 'cards.controller.js non chargé.'); return;
@@ -529,7 +494,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         window.hse_cards_controller.render_cards(content, this._hass_raw);
       }
 
-      // ── Onglet Custom ─────────────────────────────────────────────────
+      // ── Onglet Custom (legacy) ────────────────────────────────────────
       _tab_custom(content) {
         if (!window.hse_custom_view?.render_customisation) {
           this._tab_placeholder(content, 'Customisation', 'custom.view.js non chargé.'); return;
@@ -612,7 +577,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         _do_render();
       }
 
-      // ── Onglet Config ─────────────────────────────────────────────────
+      // ── Onglet Config (legacy) ────────────────────────────────────────
       async _tab_config(content) {
         if (!window.hse_config_view || !window.hse_config_api || !window.hse_scan_api) {
           this._tab_placeholder(content, 'Configuration', 'config.view.js non chargé.'); return;
@@ -620,7 +585,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         await this._tab_config_impl(content);
       }
 
-      // ── Onglet Diagnostic ─────────────────────────────────────────────
+      // ── Onglet Diagnostic (legacy) ────────────────────────────────────
       async _tab_diagnostic(content) {
         if (!window.hse_diag_view || !window.hse_diag_api) {
           this._tab_placeholder(content, 'Diagnostic', 'diagnostic.view.js non chargé.'); return;
@@ -650,78 +615,6 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         content.appendChild(card);
       }
 
-      // ── Overview autorefresh ──────────────────────────────────────────
-      _ensure_overview_autorefresh() {
-        if (this._overview_timer) return;
-        const tick = async () => {
-          if (document.hidden) {
-            setTimeout(tick, 2000);
-            return;
-          }
-
-          if (this._overview_refreshing) return;
-
-          // FIX: si _hass_raw est null, attendre — ne pas appeler fn(null)
-          if (!this._hass_raw) {
-            setTimeout(tick, 3000);
-            return;
-          }
-
-          // FIX: conn absent (hass pas encore connecté) OU conn.connected === false
-          // L'ancienne condition "conn && conn.connected === false" laissait passer
-          // le cas conn=undefined (hass fraîchement injecté sans connection établie)
-          // et appelait fn(hass) trop tôt → 'Subscription not found'.
-          const conn = this._hass_raw?.connection;
-          if (!conn || conn.connected === false) {
-            console.info('[HSE] overview tick: WS not connected, retry in 2s');
-            setTimeout(tick, 2000);
-            return;
-          }
-
-          this._overview_refreshing = true;
-          try {
-            const fn = window.hse_overview_api?.fetch_overview || window.hse_overview_api?.fetch_manifest_and_ping;
-            if (!fn) throw new Error('overview_api_not_loaded');
-            window.hse_overview_state?.begin_fetch?.();
-            const data = await fn(this._hass_raw);
-            this._overview_data = data;
-            const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
-            window.hse_overview_state?.end_fetch?.(data, this._hass_raw, body ?? null);
-          } catch (err) {
-            const d = { error: String(err?.message || err?.code || err || '') };
-            this._overview_data = d;
-            const body = this.shadowRoot?.querySelector('[data-hse-overview-body]');
-            window.hse_overview_state?.end_fetch?.(d, this._hass_raw, body ?? null);
-          } finally {
-            this._overview_refreshing = false;
-            if (!this._overview_built) this.requestUpdate();
-          }
-        };
-        this._overview_timer = window.setInterval(tick, 30000);
-        if (!window.hse_overview_state?.get('data')) tick();
-      }
-
-      _clear_overview_autorefresh() {
-        if (this._overview_timer) try { window.clearInterval(this._overview_timer); } catch (_) {}
-        this._overview_timer = null;
-        this._overview_refreshing = false;
-      }
-
-      _clear_reference_status_polling() {
-        if (this._reference_status_timer) try { window.clearInterval(this._reference_status_timer); } catch (_) {}
-        this._reference_status_timer = null;
-        this._reference_status_polling = false;
-        this._reference_status_target_entity_id = undefined;
-      }
-
-      _ensure_reference_status_polling() {
-        if (this._reference_status_timer) return;
-        if (!this._hass_raw || !window.hse_config_api?.get_reference_total_status) return;
-        const tick = async () => { await this._actions?.fetch_reference_status(); };
-        this._reference_status_timer = window.setInterval(tick, 4000);
-        tick();
-      }
-
       // ── Navigation ────────────────────────────────────────────────────
       _get_nav_items() {
         const from_shell = window.hse_shell?.get_nav_items?.();
@@ -729,10 +622,9 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         return items.filter(x => x && x.id !== 'enrich');
       }
 
+      // Conservé pour compatibilité externe éventuelle
       _set_active_tab(tab_id) {
-        this._overview_built = false;
-        this._active_tab = tab_id;
-        this._storage_set('hse_active_tab', tab_id);
+        this._switch_tab(tab_id);
       }
 
       // ── Theme ─────────────────────────────────────────────────────────
@@ -793,6 +685,11 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/core/panel.actions.js?v=${ASSET_V}`);
+          // ── Phase 1 : live store & service ──
+          await window.hse_loader.load_script_once(`${PANEL_BASE}/core/live.store.js?v=${ASSET_V}`);
+          await window.hse_loader.load_script_once(`${PANEL_BASE}/core/live.service.js?v=${ASSET_V}`);
+          await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.tab.js?v=${ASSET_V}`);
+          // ── Features ──
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
@@ -835,6 +732,13 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           ]);
           this._css_text = css_parts.join('\n\n');
 
+          // ── Démarrer le polling overview via live.service ──
+          window.hse_live_service.start(
+            'overview',
+            (hass) => window.hse_overview_api.fetch_overview(hass),
+            30000
+          );
+
           this._boot_done  = true;
           this._boot_error = null;
           this.requestUpdate();
@@ -847,7 +751,7 @@ const build_signature = "2026-03-27_fix_hass_reinject";
         }
       }
 
-      // ── Implémentations config & diagnostic ──────────────────────────
+      // ── Implémentations config & diagnostic (legacy inchangées) ──────
       async _tab_config_impl(content) {
         const _cg = (k) => this._actions._cg(k);
         const _cs = (k, v) => this._actions._cs(k, v);
@@ -946,7 +850,14 @@ const build_signature = "2026-03-27_fix_hass_reinject";
           return;
         }
 
-        p._ensure_reference_status_polling();
+        // Polling référence via legacy (config tab)
+        if (!this._reference_status_timer) {
+          if (this._hass_raw && window.hse_config_api?.get_reference_total_status) {
+            const tick = async () => { await this._actions?.fetch_reference_status(); };
+            this._reference_status_timer = window.setInterval(tick, 4000);
+            tick();
+          }
+        }
 
         content.innerHTML = '';
         window.hse_config_view.render_config(content, p._config_state, async (action, value) => {
