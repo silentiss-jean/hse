@@ -30,16 +30,9 @@
   class HseTabOverview extends HTMLElement {
     constructor() {
       super();
-      this._root = this.attachShadow({ mode: 'open' });
-
-      const style = document.createElement('style');
-      style.textContent = STYLE_CSS;
-
       this._container = document.createElement('div');
       this._container.className = 'hse_page';
-
-      this._root.appendChild(style);
-      this._root.appendChild(this._container);
+      this.appendChild(this._container);
 
       this._data = null;
       this._hass = null;
@@ -69,10 +62,8 @@
               if (window.hse_overview_view?.patch_live) {
                 window.hse_overview_view.patch_live(this._container, data, this._hass);
               }
-            } else {
-              if (window.hse_overview_view?.render_overview) {
-                window.hse_overview_view.render_overview(this._container, data, this._hass);
-              }
+            } else if (window.hse_overview_view?.render_overview) {
+              window.hse_overview_view.render_overview(this._container, data, this._hass);
             }
           }
         );
