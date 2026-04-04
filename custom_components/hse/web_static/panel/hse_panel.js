@@ -273,36 +273,55 @@ const build_signature = "2026-04-04_shell_mount_once_final";
        * Cache tous les autres onglets (display:none).
        * Si le custom element n'est pas encore défini, affiche un placeholder minimal.
        */
-      _ensure_tab_mounted(content, tab_id) {
-        // Cacher tous les onglets montés sauf la cible
-        for (const [id, el] of Object.entries(this._mounted_tabs)) {
-          el.style.display = id === tab_id ? 'block' : 'none';
-        }
+        _ensure_tab_mounted(content, tab_id) {
+          if (!content) return;
 
-        if (this._mounted_tabs[tab_id]) {
-          // Déjà monté — juste propager hass
-          try { this._mounted_tabs[tab_id].hass = this._hass_raw; } catch (_) {}
-          return;
-        }
+          // Cacher tous les onglets montés sauf la cible
+          for (const [id, el] of Object.entries(this._mounted_tabs)) {
+            if (!el || el === content) continue;
+            el.style.display = id === tab_id ? 'block' : 'none';
+          }
 
-        // Première fois — tenter de créer le custom element
-        const tag_name = TAB_ELEMENTS[tab_id];
-        if (tag_name && customElements.get(tag_name)) {
-          const tab_el = document.createElement(tag_name);
-          tab_el.style.display = 'block';
-          try { tab_el.hass = this._hass_raw; } catch (_) {}
-          if (this.panel) try { tab_el.panel = this.panel; } catch (_) {}
-          content.appendChild(tab_el);
-          this._mounted_tabs[tab_id] = tab_el;
-          return;
-        }
+          // Onglet déjà monté → juste mettre à jour hass
+          const existing = this._mounted_tabs[tab_id];
+          if (existing && existing !== content) {
+            existing.style.display = 'block';
+            try { existing.hass = this._hass_raw; } catch (_) {}
+            try { existing.panel = this.panel; } catch (_) {}
+            return;
+          }
 
-        // Custom element non encore disponible — placeholder minimal (mount-once)
-        const wrapper = this._tab_placeholder_element(tab_id);
-        wrapper.style.display = 'block';
-        content.appendChild(wrapper);
-        this._mounted_tabs[tab_id] = wrapper;
-      }
+          const tag_name = TAB_ELEMENTS[tab_id];
+
+          // Cas tab custom (overview, costs, etc.)
+          if (tag_name && customElements.get(tag_name)) {
+            const tab_el = document.createElement(tag_name);
+            tab_el.style.display = 'block';
+            try { tab_el.hass = this._hass_raw; } catch (_) {}
+            try { tab_el.panel = this.panel; } catch (_) {}
+            content.appendChild(tab_el);
+            this._mounted_tabs[tab_id] = tab_el;
+            return;
+          }
+
+          // Fallback legacy overview si aucun custom element
+          if (tab_id === 'overview' && window.hse_overview_view?.render_overview) {
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'block';
+            wrapper.className = 'hse_page';
+            content.appendChild(wrapper);
+            this._mounted_tabs[tab_id] = wrapper;
+            window.hse_overview_view.render_overview(wrapper, this._hass_raw_overview_data || null, this._hass_raw);
+            return;
+          }
+
+          // Placeholder générique
+          const placeholder = document.createElement('div');
+          placeholder.style.display = 'block';
+          placeholder.textContent = `Onglet "${tab_id}" non implémenté`;
+          content.appendChild(placeholder);
+          this._mounted_tabs[tab_id] = placeholder;
+        }
 
       // ── Placeholder minimal (aucun fallback legacy) ───────────────────
 
