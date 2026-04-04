@@ -1,10 +1,44 @@
 (function () {
+  const STYLE_CSS = `
+    :host {
+      display: block;
+      color: var(--hse-color-fg, var(--primary-text-color));
+      font-size: var(--hse-font-size-base, 14px);
+    }
+
+    .hse_page {
+      padding: var(--hse-space-4, 16px);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      font-family: var(--hse-font-family-mono, var(--code-font-family, monospace));
+      color: var(--hse-color-fg-soft, var(--secondary-text-color));
+    }
+
+    .hse_page h2,
+    .hse_page h3 {
+      font-family: var(--hse-font-family-sans, var(--primary-font-family, sans-serif));
+      font-weight: 500;
+      margin: 0 0 0.5rem;
+      color: var(--hse-color-fg, var(--primary-text-color));
+    }
+
+    .hse_page section {
+      margin-bottom: var(--hse-space-4, 16px);
+    }
+  `;
+
   class HseTabOverview extends HTMLElement {
     constructor() {
       super();
       this._root = this.attachShadow({ mode: 'open' });
+
+      const style = document.createElement('style');
+      style.textContent = STYLE_CSS;
+
       this._container = document.createElement('div');
       this._container.className = 'hse_page';
+
+      this._root.appendChild(style);
       this._root.appendChild(this._container);
 
       this._data = null;
@@ -14,7 +48,6 @@
 
     set hass(hass) {
       this._hass = hass;
-      // Si on a déjà des données overview + DOM construit → patch live
       if (this._data && window.hse_overview_view?.patch_live) {
         window.hse_overview_view.patch_live(this._container, this._data, this._hass);
       }
@@ -25,7 +58,6 @@
     }
 
     connectedCallback() {
-      // S'abonner au store overview
       if (window.hse_live_store) {
         this._unsub = window.hse_live_store.subscribe(
           'overview',
@@ -46,7 +78,6 @@
         );
       }
 
-      // Premier rendu si des données existent déjà
       if (!this._data && window.hse_live_store) {
         const existing = window.hse_live_store.get('overview', 'data');
         if (existing && window.hse_overview_view?.render_overview) {
