@@ -1,0 +1,36 @@
+:host {
+  display: block;
+  color: var(--hse-fg-default, var(--primary-text-color));
+  font-family: var(--hse-font-sans, var(--primary-font-family, system-ui, sans-serif));
+  font-size: var(--hse-font-size-md, 14px);
+}
+
+.hse_page {
+  padding: var(--hse-space-4, 16px);
+  background: var(--hse-surface-default, var(--card-background-color));
+  border-radius: var(--hse-radius-lg, 12px);
+  box-shadow: var(--hse-shadow-sm, 0 2px 6px rgba(0,0,0,0.35));
+  line-height: 1.4;
+}
+
+.hse_page h2,
+.hse_page h3 {
+  margin: 0 0 var(--hse-space-2, 8px);
+  font-weight: 500;
+  color: var(--hse-fg-strong, var(--primary-text-color));
+}
+
+.hse_page section {
+  margin-bottom: var(--hse-space-3, 12px);
+}
+
+.hse_page p {
+  margin: 0 0 var(--hse-space-1, 4px);
+}
+
+.hse_page code,
+.hse_page pre {
+  font-family: var(--hse-font-mono, var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace));
+  font-size: var(--hse-font-size-sm, 12px);
+  white-space: pre-wrap;
+}
