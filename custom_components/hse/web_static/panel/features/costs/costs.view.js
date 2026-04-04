@@ -277,23 +277,9 @@
     return wrap;
   }
 
-  function _render_header(container, mode, onModeChange, subtab, onSubtabChange) {
-    const card = el("div", "hse_card");
-    card.appendChild(el("div", "hse_kpi_title", "📊 Analyse de coûts"));
-    const top = el("div", "hse_card_header");
-    const left = el("div", "hse_card_actions");
-    left.appendChild(_mk_toggle_button("Période",     subtab === "period",  () => onSubtabChange("period")));
-    left.appendChild(_mk_toggle_button("Comparaison", subtab === "compare", () => onSubtabChange("compare")));
-    top.appendChild(left);
-    const right = el("div", "hse_card_actions");
-    right.appendChild(_mk_toggle_button("Vue HT",  mode === "ht",  () => onModeChange("ht")));
-    right.appendChild(_mk_toggle_button("Vue TTC", mode === "ttc", () => onModeChange("ttc")));
-    top.appendChild(right);
-    card.appendChild(top);
-    container.appendChild(card);
-  }
-
-  function _render_period(container, dash, mode, rerender) {
+  // ── render_period (exposé séparément pour costs.tab.js) ───────────
+  function render_period(container, dash, mode, rerender) {
+    clear(container);
     const preset    = _period_preset();
     const periodKey = _preset_to_period_key(preset);
     const ctrl = el("div", "hse_card");
@@ -326,14 +312,11 @@
       const refCost = _num(_row_total(refRow, mode));
       const refCard = el("div", "hse_card");
       refCard.appendChild(el("div", "hse_kpi_title", "🏠 " + (dash.reference.name || dash.reference.entity_id)));
-      const { wrap } = _mk_two_line_row({ name: null, refKwh, refCost, cmpKwh: null, cmpCost: null, maxCost: null, labelRef: null, labelCmp: null, showBar: false, isTitle: true });
-      clear(wrap);
       const valRow = el("div", null); valRow.style.cssText = "display:flex;gap:6px;align-items:baseline;padding:4px 4px 2px;";
       const bigKwh = el("span", null, _fmt_kwh(refKwh)); bigKwh.style.cssText = "font-size:1.3em;font-weight:700;";
       const costSpan = el("span", null, `· ${_fmt_eur(refCost)}`); costSpan.style.cssText = "font-size:1.05em;opacity:0.8;";
       valRow.appendChild(bigKwh); valRow.appendChild(costSpan);
-      wrap.appendChild(valRow);
-      refCard.appendChild(wrap);
+      refCard.appendChild(valRow);
       container.appendChild(refCard);
     }
 
@@ -382,7 +365,9 @@
     }
   }
 
-  async function _render_compare(container, dash, mode, rerender, hass) {
+  // ── render_compare_form (formulaire seul — jamais vidé pendant recalcul) ──
+  function render_compare_form(container, dash, mode, rerender, hass) {
+    clear(container);
     const preset          = _compare_preset();
     const weekMode        = _week_mode();
     const customWeekStart = _custom_week_start();
@@ -441,6 +426,15 @@
     const lbl2 = el("div", "hse_subtitle"); lbl2.style.cssText = "font-size:0.82em;opacity:0.7;";
     lbl2.textContent = `${labels.cmp} : ${_fmt_range(cmp[0], cmp[1])}`; ctrl.appendChild(lbl2);
     container.appendChild(ctrl);
+  }
+
+  // ── render_compare_result (résultats seuls — replaceable sans toucher au formulaire) ──
+  async function render_compare_result(container, dash, mode, rerender, hass) {
+    clear(container);
+    const preset          = _compare_preset();
+    const weekMode        = _week_mode();
+    const customWeekStart = _custom_week_start();
+    const labels          = _compare_labels(preset);
 
     const loadingCard = el("div", "hse_card hse_card_compact");
     loadingCard.appendChild(el("div", "hse_subtitle", "Calcul en cours…"));
@@ -448,7 +442,6 @@
 
     let resp = null;
     try {
-      // ── Remplacé : hass.callApi → window.hse_fetch (HTTP pur) ──
       resp = await window.hse_fetch(hass, 'POST', 'hse/unified/costs/compare', {
         preset: preset === "custom" ? "custom_periods" : preset,
         tax_mode: mode,
@@ -575,6 +568,7 @@
     return "day";
   }
 
+  // ── render_costs : API legacy conservée pour compatibilité ────────
   function render_costs(container, data, hass) {
     clear(container);
     const dash = data?.dashboard || null;
@@ -594,13 +588,19 @@
       _raf_pending = true;
       window.requestAnimationFrame(() => { _raf_pending = false; render_costs(container, data, hass); });
     };
-    _render_header(container, mode, (m) => { _set_display_mode(m); rerender(); }, subtab, (s) => { _set_subtab(s); rerender(); });
     if (subtab === "compare") {
-      _render_compare(container, dash, mode, rerender, hass);
+      _render_compare_legacy(container, dash, mode, rerender, hass);
     } else {
-      _render_period(container, dash, mode, rerender);
+      render_period(container, dash, mode, rerender);
     }
   }
 
-  window.hse_costs_view = { render_costs };
+  // ── _render_compare_legacy : conserve l'ancienne logique compare
+  //    (utilisée uniquement via render_costs fallback) ───────────────
+  async function _render_compare_legacy(container, dash, mode, rerender, hass) {
+    await render_compare_form(container, dash, mode, rerender, hass);
+    await render_compare_result(container, dash, mode, rerender, hass);
+  }
+
+  window.hse_costs_view = { render_costs, render_period, render_compare_form, render_compare_result };
 })();
