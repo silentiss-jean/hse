@@ -423,6 +423,7 @@ const build_signature = "2026-04-04_shell_mount_once_final";
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
+          await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.tab.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/scan/scan.api.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/scan/scan.view.js?v=${ASSET_V}`);
