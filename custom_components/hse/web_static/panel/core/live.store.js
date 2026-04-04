@@ -1,52 +1,87 @@
-/* live.store.js — Store UI léger par domaine avec abonnements fins
-   Phase 1A — HSE Frontend Refonte
-   global: window.hse_live_store
+/* live.store.js — Phase 1A | global: window.hse_live_store
+   Store UI léger par domaine avec abonnements fins.
+   Domaines : overview, costs, config, diag, scan, theme
+   Règle : notifier abonnés UNIQUEMENT si valeur change (===)
 */
-/* live.store.js — Phase 1A | global: window.hse_live_store */
 (function () {
+  "use strict";
   if (window.hse_live_store) return;
-  const _data = {}, _subs = {};
-  function _ensure(d) { if (!_data[d]) { _data[d] = {}; _subs[d] = {}; } }
 
+  const DOMAINS = ["overview", "costs", "config", "diag", "scan", "theme"];
+
+  // _data[domain][key] = valeur courante
+  const _data = {};
+  // _subs[domain][key] = Set<callback>
+  const _subs = {};
+
+  function _ensure(domain) {
+    if (!_data[domain]) { _data[domain] = {}; _subs[domain] = {}; }
+  }
+
+  /**
+   * set(domain, key, value)
+   * Stocke la valeur et notifie les abonnés si elle a changé.
+   */
   function set(domain, key, value) {
     _ensure(domain);
     const prev = _data[domain][key];
-    if (prev === value) return; // notifier seulement si changement
+    if (prev === value) return;
     _data[domain][key] = value;
     const cbs = _subs[domain][key];
-    if (cbs) for (const cb of [...cbs]) try { cb(value, prev); } catch (e) { console.error('[hse_live_store] error', e); }
+    if (cbs) for (const cb of [...cbs]) {
+      try { cb(value); } catch (e) { console.error("[hse_live_store] set error", e); }
+    }
   }
 
-  function get(domain, key) { return _data[domain]?.[key]; }
+  /**
+   * get(domain, key) -> valeur ou undefined
+   */
+  function get(domain, key) {
+    return _data[domain]?.[key];
+  }
 
+  /**
+   * subscribe(domain, key, cb) -> unsub_fn
+   * S'abonne aux changements. Appel immédiat si valeur déjà présente.
+   */
   function subscribe(domain, key, cb) {
     _ensure(domain);
     if (!_subs[domain][key]) _subs[domain][key] = new Set();
     _subs[domain][key].add(cb);
-    return () => _subs[domain]?.[key]?.delete(cb);
+    // Appel immédiat si valeur déjà disponible
+    const current = _data[domain][key];
+    if (current !== undefined) {
+      try { cb(current); } catch (e) { console.error("[hse_live_store] subscribe initial error", e); }
+    }
+    return function unsub() { _subs[domain]?.[key]?.delete(cb); };
   }
 
-  // Invalide = forcer notification avec valeur courante (sans l'effacer)
+  /**
+   * invalidate(domain)
+   * Efface les valeurs d'un domaine et notifie les abonnés avec undefined.
+   * Utile pour forcer un rechargement.
+   */
   function invalidate(domain) {
     if (!_data[domain]) return;
     for (const key of Object.keys(_data[domain])) {
-      const val = _data[domain][key];
+      _data[domain][key] = undefined;
       const cbs = _subs[domain]?.[key];
-      if (cbs) for (const cb of [...cbs]) try { cb(val, val); } catch (e) { console.error('[hse_live_store] invalidate error', e); }
+      if (cbs) for (const cb of [...cbs]) {
+        try { cb(undefined); } catch (e) { console.error("[hse_live_store] invalidate error", e); }
+      }
     }
   }
 
-  // Clear = efface + notifie abonnés avec undefined
+  /**
+   * clear(domain)
+   * Supprime toutes les données ET les abonnements d'un domaine.
+   * Plus radical qu'invalidate.
+   */
   function clear(domain) {
-    if (!_data[domain]) return;
-    for (const key of Object.keys(_data[domain])) {
-      const prev = _data[domain][key];
-      delete _data[domain][key];
-      const cbs = _subs[domain]?.[key];
-      if (cbs) for (const cb of [...cbs]) try { cb(undefined, prev); } catch (e) { console.error('[hse_live_store] clear error', e); }
-    }
+    _data[domain] = {};
+    _subs[domain] = {};
   }
 
   window.hse_live_store = { set, get, subscribe, invalidate, clear };
-  console.info('[HSE] hse_live_store ready');
+  console.info("[HSE] hse_live_store ready — domaines :", DOMAINS.join(", "));
 })();
