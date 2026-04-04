@@ -1,32 +1,4 @@
 (function () {
-  const STYLE_CSS = `
-    :host {
-      display: block;
-      color: var(--hse-color-fg, var(--primary-text-color));
-      font-size: var(--hse-font-size-base, 14px);
-    }
-
-    .hse_page {
-      padding: var(--hse-space-4, 16px);
-      line-height: 1.4;
-      white-space: pre-wrap;
-      font-family: var(--hse-font-family-mono, var(--code-font-family, monospace));
-      color: var(--hse-color-fg-soft, var(--secondary-text-color));
-    }
-
-    .hse_page h2,
-    .hse_page h3 {
-      font-family: var(--hse-font-family-sans, var(--primary-font-family, sans-serif));
-      font-weight: 500;
-      margin: 0 0 0.5rem;
-      color: var(--hse-color-fg, var(--primary-text-color));
-    }
-
-    .hse_page section {
-      margin-bottom: var(--hse-space-4, 16px);
-    }
-  `;
-
   class HseTabOverview extends HTMLElement {
     constructor() {
       super();
