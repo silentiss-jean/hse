@@ -59,8 +59,6 @@
           params:  { period: 'month', mode: 'period' },
         },
       };
-      // Clé de détection de changement de paramètres du formulaire compare.
-      // Format : "<preset>|<mode>" — si cette valeur change, le formulaire doit être reconstruit.
       this._compare_form_key = null;
     }
 
@@ -70,8 +68,18 @@
     get panel()  { return this._panel; }
 
     connectedCallback() {
-      this._build_skeleton();
-      this._subscribe();
+      // Différer les mutations DOM pour éviter le appendChild imbriqué :
+      // customElements.define() upgrade l'élément pendant son insertion dans le DOM
+      // (appendChild dans _ensure_tab_mounted). Si _build_skeleton() appelle
+      // this.appendChild(root) de manière synchrone ici, le browser lève :
+      //   NotSupportedError: The result must not have children
+      // Promise.resolve() garantit que l'insertion parente est terminée avant
+      // que nous mutations l'arbre DOM depuis cet élément.
+      Promise.resolve().then(() => {
+        if (!this.isConnected) return; // guard : élément retiré entre-temps
+        this._build_skeleton();
+        this._subscribe();
+      });
     }
 
     disconnectedCallback() { this._unsubscribe(); }
@@ -237,14 +245,10 @@
       if (!compare_form || !compare_result) return;
 
       if (window.hse_costs_view?.render_compare_form && window.hse_costs_view?.render_compare_result) {
-        // Clé de détection de changement : preset + mode HT/TTC.
-        // Si la clé change, le formulaire doit être reconstruit (ex. preset "custom" → "today_vs_yesterday").
-        // Si la clé est identique ET que loading=true (recalcul en cours), on NE TOUCHE PAS au formulaire.
         const form_key = `${_compare_preset()}|${mode}`;
         const needs_form_rebuild = (form_key !== this._compare_form_key);
 
         if (needs_form_rebuild && !loading) {
-          // Reconstruction ciblée : preset ou mode a changé, et on n'est pas en train de recalculer
           window.hse_costs_view.render_compare_form(
             compare_form, dash, mode,
             () => this._schedule_render(),
@@ -253,9 +257,7 @@
           this._compare_form_key = form_key;
         }
 
-        // Résultats : zone indépendante — remplaçable sans toucher au formulaire
         if (loading) {
-          // Recalcul en cours : spinner inline dans compare_result SEULEMENT
           compare_result.innerHTML = '';
           compare_result.appendChild(_loading_card('Calcul en cours…'));
         } else {
@@ -266,8 +268,6 @@
           );
         }
       } else if (window.hse_costs_view?.render_costs) {
-        // Fallback dégradé : render complet dans compare_host
-        // Conservation du scroll via querySelector robuste (check-4)
         const host = this.querySelector('[data-hse-costs-compare-host]');
         const scroll_y = host?.scrollTop || 0;
         window.hse_costs_view.render_costs(host, data, this._hass);
