@@ -59,7 +59,7 @@ Seuls les tokens de layout non-thématiques restent ici.
   font-size: 13px;
 }
 
-.hse_tab[data_active="true"] {
+.hse_tab[data-active="true"] {
   border-color: var(--hse_accent);
 }
 
