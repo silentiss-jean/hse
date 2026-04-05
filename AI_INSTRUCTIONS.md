@@ -27,13 +27,18 @@ Sans lire `CONTEXT.md`, tu risques de travailler sur un mauvais fichier ou de ca
 
 **Étape 2** : Consulte le tableau dans `CONTEXT.md` pour trouver le(s) `.md` associé(s).
 
-**Étape 3** : Applique une des trois actions suivantes :
+**Étape 3** : Applique une des quatre actions suivantes :
 
-| Situation | Action requise |
-|---|---|
-| L'API publique ou le comportement a changé | Mettre à jour le `.md` associé **dans le même commit** |
-| Bug fix / refacto interne sans impact API | Pas de mise à jour doc, mais mentionner `[doc: N/A]` dans le message de commit |
-| Nouveau fichier `.py` sans doc existante | Créer le `.md` correspondant dans `custom_components/hse/docs/` **dans le même commit** |
+| Situation | Action requise | Tag commit |
+|---|---|---|
+| L'API publique ou le comportement a changé | Mettre à jour le `.md` associé **dans le même commit** | `[doc: updated nom_du_fichier.md]` |
+| Bug fix / refacto interne sans impact API | Pas de mise à jour doc | `[doc: N/A]` |
+| Nouveau fichier `.py` sans doc existante | Créer le `.md` correspondant dans `docs/` **dans le même commit** | `[doc: created nom_du_fichier.md]` |
+| Nouveau fichier `.py` dont la doc sera créée dans un commit séparé | Ne pas créer la doc maintenant, ouvrir une issue pour le suivi | `[doc: TODO - créer nom_du_fichier.md]` |
+
+> **⚠️ Privilégier `created` sur `TODO`** : le tag `TODO` est toléré uniquement si la création
+> de doc nécessite une session dédiée (module complexe, API encore instable).
+> Dans tous les autres cas, crée la doc dans le même commit.
 
 **Étape 4** : Formule le message de commit avec le tag `[doc: ...]` :
 
@@ -44,8 +49,11 @@ feat(catalogue): ajout méthode bulk_reset [doc: updated persistent_catalogue.md
 # Bug fix sans impact doc
 fix(scan_engine): correction timeout sur scan vide [doc: N/A]
 
-# Nouveau module, doc créée
+# Nouveau module, doc créée dans le même commit
 feat(export): ajout migration_export [doc: created migration_export.md]
+
+# Nouveau module complexe, doc à créer dans un commit dédié
+feat(cost): ajout shared_cost_engine [doc: TODO - créer shared_cost_engine.md]
 ```
 
 ---
@@ -107,7 +115,7 @@ Ne jamais inventer une signature de fonction ou un comportement.
 ```
 ☐ J'ai lu CONTEXT.md
 ☐ J'ai identifié les .py modifiés
-☐ J'ai mis à jour ou créé les .md correspondants (ou justifié [doc: N/A])
+☐ J'ai mis à jour ou créé les .md correspondants (ou justifié [doc: N/A] ou [doc: TODO])
 ☐ J'ai mis à jour CONTEXT.md si l'architecture a changé
 ☐ Mon message de commit contient [doc: ...]
 ```
