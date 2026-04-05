@@ -1,5 +1,5 @@
 /* entrypoint - hse_panel.js — Phase 1C (routeur mount-once) */
-const build_signature = "2026-04-04_shell_mount_once_final";
+const build_signature = "2026-04-05_fix_costs_view_load_order";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -437,13 +437,14 @@ const build_signature = "2026-04-04_shell_mount_once_final";
           // ── Phase 1 : live store & service ──
           await window.hse_loader.load_script_once(`${PANEL_BASE}/core/live.store.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/core/live.service.js?v=${ASSET_V}`);
+          // ── Costs : tab (custom element) + view (dépendance) chargés ensemble ──
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.tab.js?v=${ASSET_V}`);
+          await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.view.js?v=${ASSET_V}`);
           // ── Features ──
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/overview/overview.tab.js?v=${ASSET_V}`);
-          await window.hse_loader.load_script_once(`${PANEL_BASE}/features/costs/costs.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/scan/scan.api.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/scan/scan.view.js?v=${ASSET_V}`);
           await window.hse_loader.load_script_once(`${PANEL_BASE}/features/custom/custom.view.js?v=${ASSET_V}`);
