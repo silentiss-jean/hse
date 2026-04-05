@@ -36,6 +36,8 @@
               }
             } else if (window.hse_overview_view?.render_overview) {
               window.hse_overview_view.render_overview(this._container, data, this._hass);
+              this._container.dataset.hseOverviewBuilt = '1';
+              window.hse_overview_state?.mark_built?.();
             }
           }
         );
