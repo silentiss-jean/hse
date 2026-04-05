@@ -1,7 +1,7 @@
 # HSE — Contexte IA
 
 > **Point d'entrée obligatoire pour toute session IA sur ce projet.**
-> Dernière mise à jour : 2026-03-27
+> Dernière mise à jour : 2026-04-05
 
 ---
 
@@ -13,7 +13,7 @@
 - **Version courante** : `2.0.1` (voir `custom_components/hse/manifest.json`)
 - **Classe IoT** : `local_polling`
 - **Dépôt principal** : https://github.com/silentiss-jean/hse
-- **Issue tracker** : https://github.com/silentiss-jean/hseV2/issues
+- **Issue tracker** : https://github.com/silentiss-jean/hse/issues
 
 ---
 
@@ -54,26 +54,26 @@
 | Fichier | Rôle | Doc associée |
 |---|---|---|
 | `custom_components/hse/api/unified_api.py` | Routeur principal des endpoints | `docs/unified_api.md` / `docs/overview_api.md` |
-| `api/views/ping.py` | Health check | ❌ pas de doc |
-| `api/views/catalogue_get.py` | GET catalogue | `docs/overview_api.md` |
-| `api/views/catalogue_refresh.py` | Force refresh du catalogue | `docs/overview_api.md` |
-| `api/views/catalogue_item_triage.py` | Triage d'un item du catalogue | `docs/overview_api.md` |
-| `api/views/catalogue_triage_bulk.py` | Triage en masse | `docs/overview_api.md` |
-| `api/views/catalogue_reference_total.py` | Calcul de la référence totale | ❌ pas de doc |
-| `api/views/costs_compare.py` | Comparaison des coûts | ❌ pas de doc |
-| `api/views/dashboard_overview.py` | Données du dashboard | `docs/overview_view.md` |
-| `api/views/diagnostic_check.py` | Diagnostic de l'intégration | ❌ pas de doc |
-| `api/views/enrich_apply.py` | Application de l'enrichissement | ❌ pas de doc |
-| `api/views/enrich_cleanup.py` | Nettoyage des enrichissements | ❌ pas de doc |
-| `api/views/enrich_diagnose.py` | Diagnostic de l'enrichissement | ❌ pas de doc |
-| `api/views/enrich_preview.py` | Prévisualisation de l'enrichissement | ❌ pas de doc |
-| `api/views/entities_scan.py` | Scan des entités HA via API | `docs/entities_scan.md` / `docs/scan_api.md` |
-| `api/views/frontend_manifest.py` | Manifest du frontend | ❌ pas de doc |
-| `api/views/meta.py` | CRUD métadonnées via API | `docs/unified_api.md` |
-| `api/views/meta_sync_apply.py` | Application d'une sync de méta | `docs/unified_api.md` |
-| `api/views/meta_sync_preview.py` | Prévisualisation sync méta | `docs/unified_api.md` |
-| `api/views/migration_export.py` | Export pour migration | ❌ pas de doc |
-| `api/views/settings_pricing.py` | CRUD des paramètres de tarification | `docs/pricing_settings.md` |
+| `custom_components/hse/api/views/ping.py` | Health check | ❌ pas de doc |
+| `custom_components/hse/api/views/catalogue_get.py` | GET catalogue | `docs/overview_api.md` |
+| `custom_components/hse/api/views/catalogue_refresh.py` | Force refresh du catalogue | `docs/overview_api.md` |
+| `custom_components/hse/api/views/catalogue_item_triage.py` | Triage d'un item du catalogue | `docs/overview_api.md` |
+| `custom_components/hse/api/views/catalogue_triage_bulk.py` | Triage en masse | `docs/overview_api.md` |
+| `custom_components/hse/api/views/catalogue_reference_total.py` | Calcul de la référence totale | ❌ pas de doc |
+| `custom_components/hse/api/views/costs_compare.py` | Comparaison des coûts | ❌ pas de doc |
+| `custom_components/hse/api/views/dashboard_overview.py` | Données du dashboard | `docs/overview_view.md` |
+| `custom_components/hse/api/views/diagnostic_check.py` | Diagnostic de l'intégration | ❌ pas de doc |
+| `custom_components/hse/api/views/enrich_apply.py` | Application de l'enrichissement | ❌ pas de doc |
+| `custom_components/hse/api/views/enrich_cleanup.py` | Nettoyage des enrichissements | ❌ pas de doc |
+| `custom_components/hse/api/views/enrich_diagnose.py` | Diagnostic de l'enrichissement | ❌ pas de doc |
+| `custom_components/hse/api/views/enrich_preview.py` | Prévisualisation de l'enrichissement | ❌ pas de doc |
+| `custom_components/hse/api/views/entities_scan.py` | Scan des entités HA via API | `docs/entities_scan.md` / `docs/scan_api.md` |
+| `custom_components/hse/api/views/frontend_manifest.py` | Manifest du frontend | ❌ pas de doc |
+| `custom_components/hse/api/views/meta.py` | CRUD métadonnées via API | `docs/unified_api.md` |
+| `custom_components/hse/api/views/meta_sync_apply.py` | Application d'une sync de méta | `docs/unified_api.md` |
+| `custom_components/hse/api/views/meta_sync_preview.py` | Prévisualisation sync méta | `docs/unified_api.md` |
+| `custom_components/hse/api/views/migration_export.py` | Export pour migration | ❌ pas de doc |
+| `custom_components/hse/api/views/settings_pricing.py` | CRUD des paramètres de tarification | `docs/pricing_settings.md` |
 
 ### Frontend (Panel web)
 | Fichier/Dossier | Rôle | Doc associée |
@@ -123,11 +123,12 @@
 - `docs/shared_cost_engine.md`
 - `docs/repairs.md`
 - `docs/time_utils.md`
+- `docs/ping.md`
 - `docs/costs_compare.md`
+- `docs/catalogue_reference_total.md`
 - `docs/diagnostic_check.md`
 - `docs/enrich.md` (apply / cleanup / diagnose / preview)
 - `docs/migration_export.md`
-- `docs/catalogue_reference_total.md`
 - `docs/frontend_manifest.md`
 - `docs/translations.md`
 
@@ -142,6 +143,10 @@ feat(catalogue): ajout méthode bulk_update [doc: updated persistent_catalogue.m
 fix(scan_engine): correction timeout [doc: N/A - pas de changement d'API]
 refactor(cost): extraction shared_cost_engine [doc: TODO - créer shared_cost_engine.md]
 ```
+
+> **Note IA** : le tag `[doc: TODO - créer ...]` n'est pas défini dans `AI_INSTRUCTIONS.md`.
+> Il est toléré ici comme marqueur humain mais l'IA doit utiliser `[doc: N/A]` pour les
+> modules sans doc existante, et ouvrir une issue séparée pour le suivi création.
 
 ---
 
