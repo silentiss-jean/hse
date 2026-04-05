@@ -53,7 +53,7 @@
 ### API REST (endpoints)
 | Fichier | Rôle | Doc associée |
 |---|---|---|
-| `custom_components/hse/api/unified_api.py` | Routeur principal des endpoints | `docs/unified_api.md` / `docs/overview_api.md` |
+| `custom_components/hse/api/unified_api.py` | Routeur principal des endpoints | `docs/unified_api.md` |
 | `custom_components/hse/api/views/ping.py` | Health check | ❌ pas de doc |
 | `custom_components/hse/api/views/catalogue_get.py` | GET catalogue | `docs/overview_api.md` |
 | `custom_components/hse/api/views/catalogue_refresh.py` | Force refresh du catalogue | `docs/overview_api.md` |
@@ -67,7 +67,7 @@
 | `custom_components/hse/api/views/enrich_cleanup.py` | Nettoyage des enrichissements | ❌ pas de doc |
 | `custom_components/hse/api/views/enrich_diagnose.py` | Diagnostic de l'enrichissement | ❌ pas de doc |
 | `custom_components/hse/api/views/enrich_preview.py` | Prévisualisation de l'enrichissement | ❌ pas de doc |
-| `custom_components/hse/api/views/entities_scan.py` | Scan des entités HA via API | `docs/entities_scan.md` / `docs/scan_api.md` |
+| `custom_components/hse/api/views/entities_scan.py` | Scan des entités HA via API | `docs/scan_api.md` |
 | `custom_components/hse/api/views/frontend_manifest.py` | Manifest du frontend | ❌ pas de doc |
 | `custom_components/hse/api/views/meta.py` | CRUD métadonnées via API | `docs/unified_api.md` |
 | `custom_components/hse/api/views/meta_sync_apply.py` | Application d'une sync de méta | `docs/unified_api.md` |
@@ -101,7 +101,7 @@
 | `hse_tokens_shadow_css.md` | Tokens CSS shadow |
 | `init_py.md` | Module `__init__.py` |
 | `manifest.md` | Manifest HA |
-| `overview_api.md` | Vue d'ensemble API |
+| `overview_api.md` | Wrapper API frontend overview (`overview.api.js`) |
 | `overview_view.md` | Vue d'ensemble des vues |
 | `panel_loader.md` | Chargement du panel |
 | `panel_shell.md` | Shell du panel |
@@ -109,12 +109,12 @@
 | `persistent_catalogue.md` | Catalogue persistant |
 | `placeholder_view.md` | Vue placeholder |
 | `pricing_settings.md` | Paramètres de tarification |
-| `scan_api.md` | API de scan |
+| `scan_api.md` | API de scan (`entities_scan.py`) |
 | `scan_ui.md` | UI de scan |
 | `table_js.md` | Tableaux JS |
 | `tokens_css.md` | Tokens CSS |
 | `unification_matrix.md` | Matrice d'unification |
-| `unified_api.md` | API unifiée |
+| `unified_api.md` | API unifiée (routeur Python + meta/sync) |
 
 ---
 
@@ -136,17 +136,15 @@
 
 ## Convention de commit
 
-Tout commit modifiant un fichier `.py` **doit** mentionner l'état de la doc :
+Tout commit modifiant un fichier `.py` **doit** mentionner l'état de la doc.
+Voir `AI_INSTRUCTIONS.md` Règle #2 pour les 4 tags disponibles :
+`[doc: updated]`, `[doc: N/A]`, `[doc: created]`, `[doc: TODO - créer ...]`
 
 ```
 feat(catalogue): ajout méthode bulk_update [doc: updated persistent_catalogue.md]
-fix(scan_engine): correction timeout [doc: N/A - pas de changement d'API]
+fix(scan_engine): correction timeout [doc: N/A]
 refactor(cost): extraction shared_cost_engine [doc: TODO - créer shared_cost_engine.md]
 ```
-
-> **Note IA** : le tag `[doc: TODO - créer ...]` n'est pas défini dans `AI_INSTRUCTIONS.md`.
-> Il est toléré ici comme marqueur humain mais l'IA doit utiliser `[doc: N/A]` pour les
-> modules sans doc existante, et ouvrir une issue séparée pour le suivi création.
 
 ---
 
