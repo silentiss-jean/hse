@@ -14,4 +14,6 @@ HSE_MAINTENANCE: If you add/remove alias variables or change their meaning, upda
 
   /* si tu as besoin */
   --hse_radius: var(--hse-radius-lg);
+  --hse_fg: var(--hse-text);
+  --hse_code_bg: var(--hse-surface-muted, #f1f5f9);
 }
