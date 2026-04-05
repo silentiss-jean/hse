@@ -4,11 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Home Suivi Elec</title>
+
+    <!--
+      Bootstrap order (déterministe) :
+      1. loader.js   — expose window.hse_loader + fix macOS virtual desktop
+                       defer : non-bloquant, exécuté après parse HTML, avant DOMContentLoaded
+      2. hse_panel.js — type=module : différé par spec, exécuté après loader.js
+                        définit customElements 'hse-panel' + lance le boot
+      3. <hse-panel>  — inséré dans le body APRÈS les deux scripts :
+                        l'upgrade custom element est immédiat et synchrone
+    -->
+    <script src="./core/loader.js?v=0.1.53" defer></script>
+    <script type="module" src="./hse_panel.js?v=0.1.53"></script>
   </head>
   <body>
     <hse-panel></hse-panel>
-    <!-- loader.js DOIT être chargé en 1er : contient le fix macOS virtual desktop -->
-    <script src="./core/loader.js?v=0.1.53"></script>
-    <script type="module" src="./hse_panel.js?v=0.1.53"></script>
   </body>
 </html>
