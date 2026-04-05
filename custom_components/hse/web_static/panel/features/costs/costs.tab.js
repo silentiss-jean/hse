@@ -1,10 +1,12 @@
 /* costs.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
    S'enregistre dans window.hse_tabs_registry.costs
-   Dépend de : hse_live_store, hse_live_service, hse_costs_view
+   Dépend de : hse_live_store (via ctx), hse_live_service (via ctx), hse_costs_view
    Règle : formulaire compare jamais vidé lors d'un recalcul standard. Scroll conservé.
+
+   Contrat ctx : { hass, panel, actions, live_store, live_service }
 */
 (function () {
-  if (!window.hse_tabs_registry) window.hse_tabs_registry = {};
+  window.hse_tabs_registry = window.hse_tabs_registry || {};
   if (window.hse_tabs_registry.costs) return;
 
   const DOMAIN = 'costs';
@@ -40,12 +42,12 @@
     return b;
   }
 
-  // ── État interne du module ─────────────────────────────────────────────
-  let _state = null;
-  let _container    = null;
-  let _hass         = null;
-  let _unsubs       = [];
-  let _raf          = false;
+  let _state            = null;
+  let _container        = null;
+  let _hass             = null;
+  let _live_service_ref = null;
+  let _unsubs           = [];
+  let _raf              = false;
   let _compare_form_key = null;
 
   function _init_state() {
@@ -85,7 +87,7 @@
     const refresh_row = _el('div', 'hse_toolbar');
     const btn_refresh = _el('button', 'hse_button hse_button_primary', 'Rafra\u00eechir');
     btn_refresh.dataset.hseCostsRefreshBtn = '1';
-    btn_refresh.addEventListener('click', () => window.hse_live_service?.refresh(DOMAIN));
+    btn_refresh.addEventListener('click', () => (_live_service_ref ?? window.hse_live_service)?.refresh?.(DOMAIN));
     refresh_row.appendChild(btn_refresh);
     toolbar_card.appendChild(refresh_row);
     root.appendChild(toolbar_card);
@@ -213,14 +215,15 @@
   }
 
   window.hse_tabs_registry.costs = {
-    mount(container, hass) {
-      _container = container;
-      _hass      = hass;
+    mount(container, ctx) {
+      _container        = container;
+      _hass             = ctx.hass;
+      _live_service_ref = ctx.live_service ?? null;
       _compare_form_key = null;
       _init_state();
       _build_skeleton(container);
       _unsubscribe();
-      const s = window.hse_live_store;
+      const s = ctx.live_store ?? window.hse_live_store;
       if (s) {
         _unsubs.push(
           s.subscribe(DOMAIN, 'data',    (v) => { _state.data    = v;   _schedule_render(); }),
@@ -234,9 +237,10 @@
 
     unmount() {
       _unsubscribe();
-      _container = null;
-      _hass      = null;
-      _state     = null;
+      _container        = null;
+      _hass             = null;
+      _live_service_ref = null;
+      _state            = null;
     },
   };
 

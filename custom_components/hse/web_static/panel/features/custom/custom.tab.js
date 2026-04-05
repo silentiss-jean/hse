@@ -1,20 +1,22 @@
 /* custom.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
    S'enregistre dans window.hse_tabs_registry.custom
-   D\u00e9pend de : hse_custom_view
+   Dépend de : hse_custom_view
+
+   Contrat ctx : { hass, panel, actions, live_store, live_service }
 */
 (function () {
-  if (!window.hse_tabs_registry) window.hse_tabs_registry = {};
+  window.hse_tabs_registry = window.hse_tabs_registry || {};
   if (window.hse_tabs_registry.custom) return;
 
   let _container = null;
   let _hass      = null;
 
   window.hse_tabs_registry.custom = {
-    mount(container, hass) {
+    mount(container, ctx) {
       _container = container;
-      _hass      = hass;
+      _hass      = ctx.hass;
       if (window.hse_custom_view?.render_custom) {
-        window.hse_custom_view.render_custom(container, hass);
+        window.hse_custom_view.render_custom(container, _hass);
       } else {
         container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module customisation en cours de chargement\u2026</div></div>';
       }

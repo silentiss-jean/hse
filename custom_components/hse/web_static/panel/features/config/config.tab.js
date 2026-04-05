@@ -1,9 +1,11 @@
 /* config.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
    S'enregistre dans window.hse_tabs_registry.config
-   D\u00e9pend de : hse_config_view, hse_config_state
+   Dépend de : hse_config_view, hse_config_state
+
+   Contrat ctx : { hass, panel, actions, live_store, live_service }
 */
 (function () {
-  if (!window.hse_tabs_registry) window.hse_tabs_registry = {};
+  window.hse_tabs_registry = window.hse_tabs_registry || {};
   if (window.hse_tabs_registry.config) return;
 
   let _container = null;
@@ -16,15 +18,14 @@
   }
 
   window.hse_tabs_registry.config = {
-    mount(container, hass) {
+    mount(container, ctx) {
       _container = container;
-      _hass      = hass;
+      _hass      = ctx.hass;
       if (window.hse_config_view?.render_config) {
-        window.hse_config_view.render_config(container, hass);
+        window.hse_config_view.render_config(container, _hass);
       } else {
         container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module configuration en cours de chargement\u2026</div></div>';
       }
-      // Abonnement optionnel aux changements de state de config
       if (window.hse_config_state?.subscribe) {
         _unsub = window.hse_config_state.subscribe(() => {
           window.hse_config_view?.update?.(_container, _hass);
