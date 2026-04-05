@@ -1,66 +1,64 @@
+/* overview.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
+   S'enregistre dans window.hse_tabs_registry.overview
+   Dépend de : hse_live_store, hse_overview_view, hse_overview_state
+*/
 (function () {
-  class HseTabOverview extends HTMLElement {
-    constructor() {
-      super();
-      this._container = document.createElement('div');
-      this._container.className = 'hse_page';
-      this.appendChild(this._container);
+  if (!window.hse_tabs_registry) window.hse_tabs_registry = {};
+  if (window.hse_tabs_registry.overview) return;
 
-      this._data = null;
-      this._hass = null;
-      this._unsub = null;
+  let _container = null;
+  let _hass      = null;
+  let _unsub     = null;
+  let _data      = null;
+  let _built     = false;
+
+  function _render(container, data, hass) {
+    if (!data || !container) return;
+    if (_built) {
+      window.hse_overview_view?.patch_live?.(container, data, hass);
+    } else {
+      window.hse_overview_view?.render_overview?.(container, data, hass);
+      _built = true;
+      window.hse_overview_state?.mark_built?.();
     }
+  }
 
-    set hass(hass) {
-      this._hass = hass;
-      if (this._data && window.hse_overview_view?.patch_live) {
-        window.hse_overview_view.patch_live(this._container, this._data, this._hass);
-      }
-    }
+  window.hse_tabs_registry.overview = {
+    mount(container, hass) {
+      _container = container;
+      _hass      = hass;
+      _built     = false;
+      _data      = null;
 
-    set panel(panel) {
-      this._panel = panel;
-    }
-
-    connectedCallback() {
-      if (window.hse_live_store) {
-        this._unsub = window.hse_live_store.subscribe(
-          'overview',
-          'data',
-          (data) => {
-            this._data = data;
-            if (!data) return;
-            if (this._container.dataset.hseOverviewBuilt === '1') {
-              if (window.hse_overview_view?.patch_live) {
-                window.hse_overview_view.patch_live(this._container, data, this._hass);
-              }
-            } else if (window.hse_overview_view?.render_overview) {
-              window.hse_overview_view.render_overview(this._container, data, this._hass);
-              this._container.dataset.hseOverviewBuilt = '1';
-              window.hse_overview_state?.mark_built?.();
-            }
-          }
-        );
-      }
-
-      if (!this._data && window.hse_live_store) {
-        const existing = window.hse_live_store.get('overview', 'data');
-        if (existing && window.hse_overview_view?.render_overview) {
-          this._data = existing;
-          window.hse_overview_view.render_overview(this._container, existing, this._hass);
+      const live = window.hse_live_store;
+      if (live) {
+        _unsub = live.subscribe('overview', 'data', (data) => {
+          _data = data;
+          _render(_container, _data, _hass);
+        });
+        // Données déjà disponibles
+        const existing = live.get('overview', 'data');
+        if (existing) {
+          _data = existing;
+          _render(_container, _data, _hass);
         }
       }
-    }
+    },
 
-    disconnectedCallback() {
-      if (typeof this._unsub === 'function') {
-        try { this._unsub(); } catch (_) {}
-      }
-      this._unsub = null;
-    }
-  }
+    update_hass(hass) {
+      _hass = hass;
+      if (_data) window.hse_overview_view?.patch_live?.(_container, _data, hass);
+    },
 
-  if (!customElements.get('hse-tab-overview')) {
-    customElements.define('hse-tab-overview', HseTabOverview);
-  }
+    unmount() {
+      if (typeof _unsub === 'function') { try { _unsub(); } catch (_) {} }
+      _unsub     = null;
+      _container = null;
+      _data      = null;
+      _hass      = null;
+      _built     = false;
+    },
+  };
+
+  console.info('[HSE] tab module: overview registered');
 })();
