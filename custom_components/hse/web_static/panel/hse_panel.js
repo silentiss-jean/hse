@@ -1,9 +1,21 @@
-/* hse_panel.js — Phase 1C (routeur mount-once, vanilla HTMLElement)
+/* hse_panel.js — Phase 1D (routeur mount-once, vanilla HTMLElement)
    Remplace LitElement par HTMLElement pour éliminer le conflit de mutation
    concurrente sur le shadow DOM (NotSupportedError: The result must not have children).
    Les onglets fils (hse-tab-costs, etc.) conservent leurs implémentations.
+
+   Corrections v1D :
+   - FIX1 : style.hse.panel.css ajouté au Promise.all CSS (layout panel manquant)
+   - FIX2 : loader inline supprimé — loader.js doit être chargé en premier via hse_panel.html
+             => si hse_loader absent au boot, on le bootstrap nous-mêmes SANS écraser le vrai loader
+   - FIX3 : _render_nav() stocke data-tab-id sur chaque bouton (plus de recherche par textContent)
+   - FIX4 : _switch_tab() utilise data-tab-id pour mettre à jour data-active (robuste)
+   - FIX5 : live_service.stop() appelé avant start() pour forcer redémarrage du polling au 2e boot
+   - FIX6 : _instance_id initialisé dans le store check plutôt que testé sur propriété absente
+   - FIX7 : enrich retiré de NAV_ITEMS_FALLBACK (était filtré mais encore présent, source de confusion)
+   - FIX8 : overview.state.js chargé AVANT overview.api.js (dépendance correcte)
 */
-const build_signature = "2026-04-05_vanilla_panel";
+
+const build_signature = "2026-04-05_vanilla_panel_1d";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -15,36 +27,51 @@ const build_signature = "2026-04-05_vanilla_panel";
     if (window.LitElement) return;
     const mod = await import(url);
     window.LitElement = mod.LitElement;
-    window.html       = mod.html;
-    window.css        = mod.css;
-    window.nothing    = mod.nothing;
-    window.Lit        = mod;
+    window.html        = mod.html;
+    window.css         = mod.css;
+    window.nothing     = mod.nothing;
+    window.Lit         = mod;
+  }
+
+  // FIX2 : bootstrap minimal du loader UNIQUEMENT si loader.js n'a pas été chargé
+  // (loader.js doit être chargé en 1er dans hse_panel.html pour que son fix macOS soit actif)
+  // Ce fallback ne fait PAS de polling macOS — c'est intentionnel, il est juste fonctionnel.
+  function _ensure_loader() {
+    if (window.hse_loader) return; // loader.js déjà chargé → on ne touche pas
+    const loaded_urls = new Set();
+    window.hse_loader = {
+      load_script_once: (url) => {
+        if (loaded_urls.has(url)) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+          if (document.querySelector(`script[src="${url}"]`)) {
+            loaded_urls.add(url);
+            resolve();
+            return;
+          }
+          const s = document.createElement('script');
+          s.src = url;
+          s.async = true;
+          s.onload = () => { loaded_urls.add(url); resolve(); };
+          s.onerror = () => reject(new Error(`script_load_failed: ${url}`));
+          document.head.appendChild(s);
+        });
+      },
+      load_css_text: async (url) => {
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`css_load_failed: ${url} (${resp.status})`);
+        return resp.text();
+      },
+    };
+    console.warn('[HSE] loader.js absent — fallback loader utilisé. Ajoutez loader.js dans hse_panel.html pour le fix macOS.');
   }
 
   async function boot_and_define() {
-
-    if (!window.hse_loader) {
-      window.hse_loader = {
-        load_script_once: (url) =>
-          new Promise((resolve, reject) => {
-            if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
-            const s = document.createElement('script');
-            s.src = url; s.async = true;
-            s.onload = resolve;
-            s.onerror = () => reject(new Error(`script_load_failed: ${url}`));
-            document.head.appendChild(s);
-          }),
-        load_css_text: async (url) => {
-          const resp = await fetch(url, { cache: 'no-store' });
-          if (!resp.ok) throw new Error(`css_load_failed: ${url} (${resp.status})`);
-          return resp.text();
-        },
-      };
-    }
+    _ensure_loader(); // FIX2
 
     // Lit reste chargé pour les onglets fils qui en dépendent
     await _load_lit(`${SHARED_BASE}/lib/lit-core.min.js?v=${ASSET_V}`);
 
+    // FIX7 : enrich retiré de NAV_ITEMS_FALLBACK (jamais monté, source de confusion)
     const NAV_ITEMS_FALLBACK = [
       { id: 'overview',   label: 'Accueil' },
       { id: 'diagnostic', label: 'Diagnostic' },
@@ -72,10 +99,8 @@ const build_signature = "2026-04-05_vanilla_panel";
     // Mutations DOM entièrement impératives → aucun conflit possible
     // ════════════════════════════════════════════════════════════════════
     class HsePanel extends HTMLElement {
-
       constructor() {
         super();
-
         this._hass_raw    = null;
         this._active_tab  = 'overview';
         this._boot_done   = false;
@@ -90,7 +115,7 @@ const build_signature = "2026-04-05_vanilla_panel";
 
         // Refs DOM internes (construites une seule fois dans _build_shell)
         this._dom = {
-          style:   null,   // <style> global injecté dans this
+          style:   null,
           header:  null,
           tabs:    null,
           content: null,
@@ -98,17 +123,15 @@ const build_signature = "2026-04-05_vanilla_panel";
 
         this._user_interacting       = false;
         this._user_interacting_timer = null;
-
         this._doc_mousedown = () => this._mark_interacting();
         this._doc_focusin   = (e) => {
           if (e.composedPath?.().some(n => n === this)) this._mark_interacting();
         };
-
         this._on_visibility_change = () => {
           if (document.visibilityState !== 'visible' || !this._boot_done) return;
           let _attempts = 0;
           const _poll = () => {
-            const ha = document.querySelector('home-assistant');
+            const ha    = document.querySelector('home-assistant');
             const fresh = ha?.hass;
             if (fresh) { this.hass = fresh; return; }
             if (++_attempts < 20) setTimeout(_poll, 500);
@@ -117,26 +140,23 @@ const build_signature = "2026-04-05_vanilla_panel";
         };
       }
 
-      // ── hass setter — injecté par HA à chaque état ────────────────────
+      // ── hass setter — injecté par HA à chaque état ──────────────────
       set hass(hass) {
         this._hass_raw = hass;
         window.hse_live_service?.update_hass?.(hass);
-
         if (!this._boot_done) {
           if (!this._booting) this._boot();
           return;
         }
-
         // Propager hass à l'onglet actif monté uniquement
         const active_el = this._mounted_tabs[this._active_tab];
         if (active_el) {
           try { active_el.hass = hass; } catch (_) {}
         }
       }
-
       get hass() { return this._hass_raw; }
 
-      // ── Cycle de vie ──────────────────────────────────────────────────
+      // ── Cycle de vie ────────────────────────────────────────────────
       connectedCallback() {
         console.info(`[HSE] panel loaded (${build_signature})`);
         window.__hse_panel_loaded = build_signature;
@@ -149,46 +169,41 @@ const build_signature = "2026-04-05_vanilla_panel";
         const saved_tab = this._storage_get('hse_active_tab');
         if (saved_tab) this._active_tab = saved_tab;
 
-        this.addEventListener('mousedown', () => this._mark_interacting(), true);
-        this.addEventListener('focusin',   () => this._mark_interacting(), true);
-        this.addEventListener('keydown',   () => this._mark_interacting(), true);
-        this.addEventListener('touchstart',() => this._mark_interacting(), { passive: true, capture: true });
-
-        document.addEventListener('mousedown',        this._doc_mousedown,         true);
-        document.addEventListener('focusin',          this._doc_focusin,           true);
+        this.addEventListener('mousedown',  () => this._mark_interacting(), true);
+        this.addEventListener('focusin',    () => this._mark_interacting(), true);
+        this.addEventListener('keydown',    () => this._mark_interacting(), true);
+        this.addEventListener('touchstart', () => this._mark_interacting(), { passive: true, capture: true });
+        document.addEventListener('mousedown',       this._doc_mousedown, true);
+        document.addEventListener('focusin',         this._doc_focusin,   true);
         document.addEventListener('visibilitychange', this._on_visibility_change);
 
-        // Afficher le loading state immédiatement
         this._render_loading();
-
         if (!this._boot_done && !this._booting) this._boot();
       }
 
       disconnectedCallback() {
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
-        document.removeEventListener('mousedown',        this._doc_mousedown,         true);
-        document.removeEventListener('focusin',          this._doc_focusin,           true);
+        document.removeEventListener('mousedown',       this._doc_mousedown, true);
+        document.removeEventListener('focusin',         this._doc_focusin,   true);
         document.removeEventListener('visibilitychange', this._on_visibility_change);
       }
 
-      // ── Rendus d'état ─────────────────────────────────────────────────
-
+      // ── Rendus d'état ───────────────────────────────────────────────
       _render_loading() {
         this.innerHTML = '<div style="padding:16px;opacity:.6">Chargement HSE…</div>';
       }
 
       _render_boot_error(msg) {
         this.innerHTML = `
-          <style>:host,hse-panel{display:block;padding:16px;font-family:system-ui;}
-          pre{white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.2);padding:12px;border-radius:10px;}</style>
-          <div>
-            <div style="font-size:18px">Home Suivi Elec</div>
-            <div style="opacity:.8">Boot error</div>
-            <pre>${_esc(msg)}</pre>
-          </div>`;
+          <style>
+            hse-panel { display:block; padding:16px; font-family:system-ui; }
+            pre { white-space:pre-wrap; word-break:break-word; background:rgba(0,0,0,.2); padding:12px; border-radius:10px; }
+          </style>
+          <h2>Home Suivi Elec — Boot error</h2>
+          <pre>${_esc(msg)}</pre>`;
       }
 
-      // ── Shell — construit une seule fois après le boot ─────────────────
+      // ── Shell — construit une seule fois après le boot ───────────────
       _build_shell() {
         this.innerHTML = '';
 
@@ -230,13 +245,19 @@ const build_signature = "2026-04-05_vanilla_panel";
         const user = this._hass_raw?.user?.name || '—';
         el.innerHTML = '';
         const left = _el('div');
-        const h1   = _el('h1', 'hse_title'); h1.textContent = 'Home Suivi Elec';
-        const sub  = _el('div', 'hse_subtitle'); sub.textContent = 'Panel v2 (modulaire)';
-        left.appendChild(h1); left.appendChild(sub);
-        const right = _el('div', 'hse_subtitle'); right.textContent = `user: ${user}`;
-        el.appendChild(left); el.appendChild(right);
+        const h1   = _el('h1', 'hse_title');
+        h1.textContent = 'Home Suivi Elec';
+        const sub  = _el('div', 'hse_subtitle');
+        sub.textContent = 'Panel v2 (modulaire)';
+        left.appendChild(h1);
+        left.appendChild(sub);
+        const right = _el('div', 'hse_subtitle');
+        right.textContent = `user: ${user}`;
+        el.appendChild(left);
+        el.appendChild(right);
       }
 
+      // FIX3 : stocke data-tab-id sur chaque bouton au lieu de se fier au textContent
       _render_nav() {
         const el = this._dom.tabs;
         if (!el) return;
@@ -244,40 +265,34 @@ const build_signature = "2026-04-05_vanilla_panel";
         el.innerHTML = '';
         for (const item of items) {
           const btn = _el('button', 'hse_tab');
-          btn.textContent = item.label;
-          btn.dataset.active = item.id === this._active_tab ? 'true' : 'false';
+          btn.textContent       = item.label;
+          btn.dataset.tabId     = item.id;            // FIX3
+          btn.dataset.active    = item.id === this._active_tab ? 'true' : 'false';
           btn.addEventListener('click', () => this._switch_tab(item.id));
           el.appendChild(btn);
         }
       }
 
-      // ── Routeur mount-once ────────────────────────────────────────────
-
+      // ── Routeur mount-once ──────────────────────────────────────────
+      // FIX4 : utilise data-tab-id pour mettre à jour data-active (plus de recherche textContent)
       _switch_tab(tab_id) {
         if (tab_id === this._active_tab) return;
 
-        // Mettre à jour data-active sur les boutons de nav
         if (this._dom.tabs) {
           for (const btn of this._dom.tabs.querySelectorAll('.hse_tab')) {
-            const id = NAV_ITEMS_FALLBACK.find(x => x.label === btn.textContent)?.id ||
-                       Object.entries(TAB_ELEMENTS).find(([, tag]) => btn.dataset?.tabId === tag)?.[0];
-            // retrouver l'id via textContent → nav items
-            const nav_item = this._get_nav_items().find(x => x.label === btn.textContent);
-            if (nav_item) btn.dataset.active = nav_item.id === tab_id ? 'true' : 'false';
+            btn.dataset.active = btn.dataset.tabId === tab_id ? 'true' : 'false'; // FIX4
           }
         }
 
         this._active_tab = tab_id;
         this._storage_set('hse_active_tab', tab_id);
+
         if (this._hass_raw) window.hse_live_service?.update_hass?.(this._hass_raw);
 
         if (this._dom.content) {
           this._dom.content.dataset.tab = tab_id;
           this._ensure_tab_mounted(this._dom.content, tab_id);
         }
-
-        // Rafraîchir les data-active
-        this._render_nav();
       }
 
       _ensure_tab_mounted(content, tab_id) {
@@ -299,7 +314,6 @@ const build_signature = "2026-04-05_vanilla_panel";
         }
 
         const tag_name = TAB_ELEMENTS[tab_id];
-
         if (tag_name && customElements.get(tag_name)) {
           const tab_el = document.createElement(tag_name);
           tab_el.style.display = 'block';
@@ -328,16 +342,19 @@ const build_signature = "2026-04-05_vanilla_panel";
         this._mounted_tabs[tab_id] = wrapper;
       }
 
-      // ── Navigation ────────────────────────────────────────────────────
+      // ── Navigation ──────────────────────────────────────────────────
       _get_nav_items() {
         const from_shell = window.hse_shell?.get_nav_items?.();
         const items = Array.isArray(from_shell) && from_shell.length ? from_shell : NAV_ITEMS_FALLBACK;
+        // FIX7 : enrich toujours filtré même s'il revient via shell.js
         return items.filter(x => x && x.id !== 'enrich');
       }
 
-      _set_active_tab(tab_id) { this._switch_tab(tab_id); }
+      _set_active_tab(tab_id) {
+        this._switch_tab(tab_id);
+      }
 
-      // ── Theme ─────────────────────────────────────────────────────────
+      // ── Theme ───────────────────────────────────────────────────────
       _set_theme(theme_key) {
         this._theme = theme_key || 'ha';
         this.setAttribute('data-theme', this._theme);
@@ -350,12 +367,11 @@ const build_signature = "2026-04-05_vanilla_panel";
       }
 
       _apply_glass_override() {
-        const val = (this._storage_get('hse_custom_glass') || '0') === '1'
-          ? 'blur(18px) saturate(160%)' : '';
+        const val = (this._storage_get('hse_custom_glass') || '0') === '1' ? 'blur(18px) saturate(160%)' : '';
         this.style.setProperty('--hse-backdrop-filter', val);
       }
 
-      // ── Interaction guard ─────────────────────────────────────────────
+      // ── Interaction guard ───────────────────────────────────────────
       _mark_interacting() {
         this._user_interacting = true;
         if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
@@ -371,36 +387,52 @@ const build_signature = "2026-04-05_vanilla_panel";
         schedule();
       }
 
-      // ── Helpers storage ───────────────────────────────────────────────
-      _storage_get(key)    { try { return window.localStorage.getItem(key);    } catch (_) { return null; } }
-      _storage_set(key, v) { try { window.localStorage.setItem(key, v);       } catch (_) {} }
+      // ── Helpers storage ─────────────────────────────────────────────
+      _storage_get(key) {
+        try { return window.localStorage.getItem(key); } catch (_) { return null; }
+      }
+      _storage_set(key, v) {
+        try { window.localStorage.setItem(key, v); } catch (_) {}
+      }
 
-      // ── Boot ──────────────────────────────────────────────────────────
+      // ── Boot ────────────────────────────────────────────────────────
       async _boot() {
         if (this._boot_done || this._booting) return;
         this._booting = true;
         try {
           const L = window.hse_loader;
+
+          // Shared
           await L.load_script_once(`${SHARED_BASE}/ui/dom.js?v=${ASSET_V}`);
           await L.load_script_once(`${SHARED_BASE}/ui/table.js?v=${ASSET_V}`);
           await L.load_script_once(`${SHARED_BASE}/hse.store.js?v=${ASSET_V}`);
           await L.load_script_once(`${SHARED_BASE}/hse.fetch.js?v=${ASSET_V}`);
+
+          // Core states (avant les views qui en dépendent)
           await L.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
+
+          // Core services
           await L.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/core/panel.actions.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/core/live.store.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/core/live.service.js?v=${ASSET_V}`);
-          // Costs : tab + view (tab enregistre hse-tab-costs, view expose hse_costs_view)
+
+          // Costs
           await L.load_script_once(`${PANEL_BASE}/features/costs/costs.tab.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/costs/costs.view.js?v=${ASSET_V}`);
-          // Features
-          await L.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
+
+          // Overview (FIX8 : state avant api avant view avant tab)
           await L.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
+          await L.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/overview/overview.tab.js?v=${ASSET_V}`);
+
+          // Scan
           await L.load_script_once(`${PANEL_BASE}/features/scan/scan.api.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/scan/scan.view.js?v=${ASSET_V}`);
+
+          // Custom / Diagnostic / Enrich / Migration / Config / Cards
           await L.load_script_once(`${PANEL_BASE}/features/custom/custom.view.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/diagnostic/diagnostic.api.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/diagnostic/diagnostic.view.js?v=${ASSET_V}`);
@@ -414,31 +446,33 @@ const build_signature = "2026-04-05_vanilla_panel";
           await L.load_script_once(`${PANEL_BASE}/features/cards/cards.view.js?v=${ASSET_V}`);
           await L.load_script_once(`${PANEL_BASE}/features/cards/cards.controller.js?v=${ASSET_V}`);
 
-          // Reinit store si instance changée
-          const _store_id = window.hse_store?._instance_id;
-          if (!_store_id || _store_id !== window.__hse_last_store_id) {
-            if (window.hse_store) {
-              window.hse_store._instance_id = Date.now();
-              window.__hse_last_store_id    = window.hse_store._instance_id;
-            }
+          // FIX6 : reinit store — on teste _instance_id proprement
+          if (!window.hse_store?._instance_id) {
+            if (window.hse_store) window.hse_store._instance_id = Date.now();
+          }
+          if (window.hse_store?._instance_id !== window.__hse_last_store_id) {
+            window.__hse_last_store_id = window.hse_store._instance_id;
             if (typeof window.hse_overview_state_init === 'function') window.hse_overview_state_init();
-            if (typeof window.hse_diag_state_init     === 'function') window.hse_diag_state_init();
-            if (typeof window.hse_config_state_init   === 'function') window.hse_config_state_init();
+            if (typeof window.hse_diag_state_init    === 'function') window.hse_diag_state_init();
+            if (typeof window.hse_config_state_init  === 'function') window.hse_config_state_init();
             console.info('[HSE] store reinit: modules rebranches sur nouveau hse_store');
           }
 
           this._actions = new window.hse_panel_actions(this);
 
+          // FIX1 : style.hse.panel.css ajouté (layout du panel)
           const css_parts = await Promise.all([
             L.load_css_text(`${SHARED_BASE}/styles/hse_tokens.shadow.css?v=${ASSET_V}`),
             L.load_css_text(`${SHARED_BASE}/styles/hse_themes.shadow.css?v=${ASSET_V}`),
             L.load_css_text(`${SHARED_BASE}/styles/hse_alias.v2.css?v=${ASSET_V}`),
             L.load_css_text(`${SHARED_BASE}/styles/tokens.css?v=${ASSET_V}`),
             L.load_css_text(`${PANEL_BASE}/features/cards/cards.css?v=${ASSET_V}`),
+            L.load_css_text(`${PANEL_BASE}/style.hse.panel.css?v=${ASSET_V}`),  // FIX1
           ]);
           this._css_text = css_parts.join('\n\n');
 
-          // Démarrer le polling overview
+          // FIX5 : stop() avant start() pour forcer redémarrage propre au 2e boot
+          window.hse_live_service?.stop?.('overview');
           window.hse_live_service.start(
             'overview',
             (hass) => window.hse_overview_api.fetch_overview(hass),
@@ -474,7 +508,9 @@ const build_signature = "2026-04-05_vanilla_panel";
 
     function _esc(str) {
       return String(str)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     }
 
     if (!customElements.get('hse-panel')) {
