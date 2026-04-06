@@ -15,9 +15,16 @@
    Router mount-once :
      _show_tab(tab_id)        → affiche/masque les wrappers, délègue à _mount_tab_module
      _mount_tab_module(tab_id)→ premier montage via registre, stocke dans _mounted
+
+   Corrections appliquées :
+     fix #2 — store reinit : comparaison par référence objet (window.__hse_last_store_ref)
+              au lieu de _instance_id injecté à la volée. La reinit ne se déclenche
+              que si window.hse_store est un NOUVEL objet (reload HA/bureau virtuel).
+     fix #3 — boot retry : _booting est géré par finally ; le commentaire ci-dessous
+              documente que le catch ne doit pas appeler _boot() en boucle.
 */
 
-const build_signature = "2026-04-05_single_root_2b";
+const build_signature = "2026-04-06_single_root_2c";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -108,6 +115,9 @@ const build_signature = "2026-04-05_single_root_2b";
       this._hass_raw = hass;
       window.hse_live_service?.update_hass?.(hass);
       if (!this._boot_done) {
+        // _booting est remis à false par finally du boot.
+        // Si le boot a échoué (_booting=false, _boot_done=false), un nouveau
+        // set hass() peut relancer le boot (ex. reconnexion réseau).
         if (!this._booting) this._boot();
         return;
       }
@@ -260,7 +270,6 @@ const build_signature = "2026-04-05_single_root_2b";
       }
     }
 
-    // Point 2 — méthode _show_tab : masque les autres wrappers, affiche la cible
     _show_tab(tab_id) {
       // Masquer tous les conteneurs déjà montés sauf la cible
       for (const [id, m] of Object.entries(this._mounted)) {
@@ -269,7 +278,6 @@ const build_signature = "2026-04-05_single_root_2b";
 
       const existing = this._mounted[tab_id];
       if (existing) {
-        // Déjà monté → juste update_hass sur le module actif
         existing.container.style.display = '';
         if (existing.module?.update_hass) {
           try { existing.module.update_hass(this._hass_raw); } catch (_) {}
@@ -277,23 +285,18 @@ const build_signature = "2026-04-05_single_root_2b";
         return;
       }
 
-      // Premier montage → déléguer à _mount_tab_module
       this._mount_tab_module(tab_id);
     }
 
-    // Point 2 — méthode _mount_tab_module : premier montage via window.hse_tabs_registry
     _mount_tab_module(tab_id) {
-      // Créer le conteneur hôte
       const container = _el('div', 'hse_tab_host');
       container.dataset.tabHost = tab_id;
       this._dom.content.appendChild(container);
 
-      // Point 3 — guard registre
       const registry = window.hse_tabs_registry || {};
       const module   = registry[tab_id];
 
       if (!module?.mount) {
-        // Aucun module enregistré → placeholder d'erreur non fatal
         container.innerHTML = `<div style="padding:16px;color:var(--error-color,#c00)">
           Onglet "<strong>${_esc(tab_id)}</strong>" non disponible dans hse_tabs_registry.
         </div>`;
@@ -301,7 +304,6 @@ const build_signature = "2026-04-05_single_root_2b";
         return;
       }
 
-      // Point 1 — contexte riche passé à mount()
       const ctx = this._build_tab_ctx();
 
       try {
@@ -316,7 +318,6 @@ const build_signature = "2026-04-05_single_root_2b";
       }
     }
 
-    // Point 1 — construit le contexte riche { hass, panel, actions, live_store, live_service }
     _build_tab_ctx() {
       return {
         hass:         this._hass_raw,
@@ -334,7 +335,6 @@ const build_signature = "2026-04-05_single_root_2b";
       return items.filter(x => x && x.id !== 'enrich');
     }
 
-    // Exposé pour panel.actions.js
     _set_active_tab(tab_id) { this._switch_tab(tab_id); }
 
     // ── Thème ──────────────────────────────────────────────────────────
@@ -384,7 +384,7 @@ const build_signature = "2026-04-05_single_root_2b";
       if (this._boot_done || this._booting) return;
       this._booting = true;
 
-      // Point 3 — guard registre initialisé avant tout chargement de tab module
+      // Initialiser le registre avant tout chargement de module tab
       window.hse_tabs_registry = window.hse_tabs_registry || {};
 
       try {
@@ -406,7 +406,7 @@ const build_signature = "2026-04-05_single_root_2b";
         await L.load_script_once(`${PANEL_BASE}/core/live.store.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/core/live.service.js?v=${ASSET_V}`);
 
-        // Features : views + tab modules (aucun customElements.define ici)
+        // Features : views + tab modules (aucun customElements.define)
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
@@ -441,17 +441,21 @@ const build_signature = "2026-04-05_single_root_2b";
         await L.load_script_once(`${PANEL_BASE}/features/migration/migration.view.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/migration/migration.tab.js?v=${ASSET_V}`);
 
-        // Reinit store si nécessaire
-        if (!window.hse_store?._instance_id) {
-          if (window.hse_store) window.hse_store._instance_id = Date.now();
-        }
-        if (window.hse_store?._instance_id !== window.__hse_last_store_id) {
-          window.__hse_last_store_id = window.hse_store._instance_id;
+        // ── fix #3 — Store reinit par référence objet ────────────────────────
+        // Comparaison de référence objet (pas d'_instance_id injecté à la volée).
+        // La reinit ne se déclenche que si window.hse_store est un NOUVEL objet,
+        // ce qui n'arrive qu'en cas de rechargement du singleton (bureau virtuel macOS).
+        // Lors d'un boot normal, le store est le même objet → reinit ignorée →
+        // données déjà reçues par live_store sont préservées (pas d'état zombie).
+        const current_store = window.hse_store ?? null;
+        if (current_store && current_store !== window.__hse_last_store_ref) {
+          window.__hse_last_store_ref = current_store;
           if (typeof window.hse_overview_state_init === 'function') window.hse_overview_state_init();
-          if (typeof window.hse_diag_state_init    === 'function') window.hse_diag_state_init();
-          if (typeof window.hse_config_state_init  === 'function') window.hse_config_state_init();
-          console.info('[HSE] store reinit: modules rebranches sur nouveau hse_store');
+          if (typeof window.hse_diag_state_init     === 'function') window.hse_diag_state_init();
+          if (typeof window.hse_config_state_init   === 'function') window.hse_config_state_init();
+          console.info('[HSE] store reinit: nouveau hse_store détecté — modules rebranchés');
         }
+        // ── fin fix #3 ───────────────────────────────────────────────────────
 
         this._actions = new window.hse_panel_actions(this);
 
@@ -466,7 +470,9 @@ const build_signature = "2026-04-05_single_root_2b";
         ]);
         this._css_text = css_parts.join('\n\n');
 
-        // Live service — null-safe avant et après
+        // Live service — stop avant start pour éviter double polling
+        // live.service.start() est idempotent (if _jobs[domain] return),
+        // mais le stop préalable garantit un état propre après un éventuel retry.
         window.hse_live_service?.stop?.('overview');
         window.hse_live_service?.start?.(
           'overview',
@@ -481,6 +487,13 @@ const build_signature = "2026-04-05_single_root_2b";
         this._show_tab(this._active_tab);
 
       } catch (err) {
+        // ── fix #2 — boot retry ──────────────────────────────────────────────
+        // _booting est remis à false par le bloc finally ci-dessous.
+        // _boot_done reste false → le prochain set hass() peut relancer _boot()
+        // (ex. reconnexion réseau après un 404 de script).
+        // Ne PAS rappeler this._boot() ici : le setter hass est le point d'entrée
+        // du retry, ce qui évite une boucle infinie si l'erreur est permanente.
+        // ── fin fix #2 ───────────────────────────────────────────────────────
         this._boot_error = err?.message || String(err);
         console.error('[HSE] boot error', err);
         this._render_boot_error(this._boot_error);
