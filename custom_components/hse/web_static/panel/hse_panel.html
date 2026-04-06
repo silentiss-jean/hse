@@ -4,10 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Home Suivi Elec</title>
+
+    <!--
+      Bootstrap order (déterministe) :
+      1. loader.js    — expose window.hse_loader + fix macOS virtual desktop
+                        defer : non-bloquant, exécuté après parse HTML, avant DOMContentLoaded
+      2. hse_panel.js — defer : même file d'exécution que loader.js, ordre garanti par la spec
+                        (script defer s'exécutent dans l'ordre du document)
+                        définit customElements 'hse-panel' + lance le boot
+      3. <hse-panel>  — inséré dans le body APRÈS les deux scripts :
+                        l'upgrade custom element est immédiat et synchrone
+
+      NOTE: hse_panel.js utilise defer (pas type="module") car :
+        - c'est un IIFE — aucun import/export natif
+        - type="module" n'offre AUCUNE garantie d'ordre par rapport à un script defer classique
+        - defer + defer garantit l'ordre déclaratif par spec HTML §8.1.6
+    -->
+    <script src="./core/loader.js?v=0.1.53" defer></script>
+    <script src="./hse_panel.js?v=0.1.53" defer></script>
   </head>
   <body>
     <hse-panel></hse-panel>
-    <script src="./core/loader.js?v=0.1.52"></script>
-    <script type="module" src="./hse_panel.js?v=0.1.52"></script>
   </body>
 </html>

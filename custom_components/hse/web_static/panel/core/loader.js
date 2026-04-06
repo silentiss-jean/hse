@@ -1,6 +1,11 @@
 /*
 HSE_DOC: custom_components/hse/docs/panel_loader.md
 HSE_MAINTENANCE: If you change loader exported functions or load semantics, update the doc above.
+
+Ce fichier est intentionnellement conservé à l'identique de la phase 1D.
+Il expose window.hse_loader.{ load_script_once, load_css_text }
+et contient le fix macOS virtual desktop (polling toutes les 2s).
+Ne pas le modifier sans mettre à jour la doc ci-dessus.
 */
 
 (function () {
@@ -59,8 +64,6 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
     };
   }
 
-  // Poll conn.connected toutes les 200ms, injecte hass dès que la WS est prête.
-  // Max 50 tentatives = 10s. Après échec, libère _fix_in_progress.
   function _wait_connected_then_inject(attemptsLeft) {
     const { pc, freshHass: fh } = _get_panel_custom();
     const conn = fh?.connection;
@@ -89,27 +92,20 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
 
     if (!panel || !freshHass) return;
 
-    // Cas 1 : hass manquant sur ha-panel-custom (panel vivant mais hass non propagé)
     if (!panel.hass) {
       console.warn("[HSE-LOADER] hass manquant — re-injection directe");
       panel.hass = freshHass;
       return;
     }
 
-    // Cas 2 : shadowRoot null (zombie Lit — typique macOS bureaux virtuels)
-    // 1. requestUpdate() sur partial-panel-resolver pour recréer ha-panel-custom
-    //    proprement (connectedCallback appelé).
-    // 2. Poll conn.connected jusqu'à ce que la WS HA soit prête, puis inject hass.
     if (!panel.shadowRoot) {
       console.warn("[HSE-LOADER] shadowRoot null — requestUpdate sur partial-panel-resolver");
       _fix_in_progress = true;
 
       if (ppr && typeof ppr.requestUpdate === "function") {
         ppr.requestUpdate();
-        // Laisser Lit finir son render (~1 frame) puis démarrer le poll
         setTimeout(() => _wait_connected_then_inject(50), 100);
       } else {
-        // Fallback : partial-panel-resolver inaccessible
         console.warn("[HSE-LOADER] ppr introuvable — fallback haRoot.requestUpdate");
         if (haRoot && typeof haRoot.requestUpdate === "function") {
           haRoot.requestUpdate();
@@ -124,7 +120,6 @@ HSE_MAINTENANCE: If you change loader exported functions or load semantics, upda
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") _check_panel_health();
   });
-  // -----------------------------------------------------------------------
 
   window.hse_loader = { load_script_once, load_css_text };
 })();
