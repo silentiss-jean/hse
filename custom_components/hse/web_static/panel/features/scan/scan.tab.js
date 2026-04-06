@@ -39,7 +39,7 @@
     if (window.hse_scan_view?.render_scan) {
       window.hse_scan_view.render_scan(_container, _scan_result, _state, on_action);
     } else {
-      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module d\u00e9tection en cours de chargement\u2026</div></div>';
+      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module détection en cours de chargement…</div></div>';
     }
   }
 
@@ -75,7 +75,7 @@
       }
 
       case 'close_all': {
-        _state.open_all  = false;
+        _state.open_all    = false;
         _state.groups_open = {};
         _schedule_render();
         break;
@@ -94,10 +94,10 @@
 
   window.hse_tabs_registry.scan = {
     mount(container, ctx) {
-      _container = container;
-      _hass      = ctx.hass;
-      _init_state();
+      _container   = container;
+      _hass        = ctx.hass;
       _scan_result = null;
+      _init_state();
       _render();
     },
 

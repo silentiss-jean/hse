@@ -37,7 +37,7 @@
     if (window.hse_migration_view?.render_migration) {
       window.hse_migration_view.render_migration(_container, _state, on_action);
     } else {
-      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module migration capteurs en cours de chargement\u2026</div></div>';
+      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module migration capteurs en cours de chargement…</div></div>';
     }
   }
 
