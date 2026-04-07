@@ -1,15 +1,17 @@
 /* config.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
    S'enregistre dans window.hse_tabs_registry.config
-   Dépend de : hse_config_view, hse_config_state (optionnel), hse_config_api
+   Dépend de : hse_config_view, hse_config_api
 
    Contrat ctx : { hass, panel, actions, live_store, live_service }
 
    Contrat view : window.hse_config_view.render_config(container, model, on_action)
-     - model     : objet complet passé à config.view.js (pricing, scan_result, catalogue, state, …)
+     - model     : objet complet passé à config.view.js
      - on_action : function(action, payload)
 
-   config.view.js expose render_config(container, model, on_action) — 3 arguments.
-   Le model est un objet mutable enrichi par les actions successives.
+   fix #5 — souscription à hse_config_state.subscribe() supprimée :
+            elle était morte (hse_config_state n'est jamais alimenté).
+   fix #6 — update_hass(hass) appelle _schedule_render() si _model existe,
+            pour répercuter le nouveau hass sur la vue sans bloquer le hass setter.
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -18,7 +20,6 @@
   let _container = null;
   let _hass      = null;
   let _model     = null;
-  let _unsub     = null;
   let _raf       = false;
 
   function _init_model() {
@@ -43,11 +44,6 @@
     };
   }
 
-  function _unsubscribe() {
-    if (typeof _unsub === 'function') { try { _unsub(); } catch (_) {} }
-    _unsub = null;
-  }
-
   function _schedule_render() {
     if (_raf) return;
     _raf = true;
@@ -59,7 +55,7 @@
     if (window.hse_config_view?.render_config) {
       window.hse_config_view.render_config(_container, _model, on_action);
     } else {
-      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module configuration en cours de chargement\u2026</div></div>';
+      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module configuration en cours de chargement…</div></div>';
     }
   }
 
@@ -109,7 +105,7 @@
         _schedule_render();
         try {
           await window.hse_config_api?.save_reference?.(_hass, _model.selected_reference_entity_id);
-          _model.message = 'R\u00e9f\u00e9rence sauvegard\u00e9e.';
+          _model.message = 'Référence sauvegardée.';
           await _do_refresh();
         } catch (err) {
           _model.error = String(err);
@@ -129,7 +125,7 @@
         try {
           await window.hse_config_api?.save_reference?.(_hass, null);
           _model.selected_reference_entity_id = null;
-          _model.message = 'R\u00e9f\u00e9rence supprim\u00e9e.';
+          _model.message = 'Référence supprimée.';
           await _do_refresh();
         } catch (err) {
           _model.error = String(err);
@@ -163,7 +159,7 @@
           const draft = _model.pricing_draft || _model.pricing || {};
           const cost_entity_ids = _model.pricing_draft?.cost_entity_ids ?? (_model.pricing?.cost_entity_ids ?? []);
           await window.hse_config_api?.save_pricing?.(_hass, { ...draft, cost_entity_ids });
-          _model.pricing_message = 'Tarifs sauvegard\u00e9s.';
+          _model.pricing_message = 'Tarifs sauvegardés.';
           _model.pricing_draft   = null;
           await _do_refresh();
         } catch (err) {
@@ -234,22 +230,17 @@
       _hass      = ctx.hass;
       _init_model();
       _render();
-
-      // Abonnement optionnel \u00e0 hse_config_state (pour r\u00e9activit\u00e9 externe)
-      if (window.hse_config_state?.subscribe) {
-        _unsub = window.hse_config_state.subscribe(() => _schedule_render());
-      }
-
-      // Chargement initial
+      // Pas de souscription à hse_config_state — fix #5 (souscription morte supprimée)
       _do_refresh().then(() => _schedule_render());
     },
 
     update_hass(hass) {
       _hass = hass;
+      // fix #6 : re-render si le modèle est en place (propagation du hass frais)
+      if (_model) _schedule_render();
     },
 
     unmount() {
-      _unsubscribe();
       _container = null;
       _hass      = null;
       _model     = null;
