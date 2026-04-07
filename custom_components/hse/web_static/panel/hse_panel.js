@@ -17,14 +17,14 @@
      _mount_tab_module(tab_id)→ premier montage via registre, stocke dans _mounted
 
    Corrections appliquées :
-     fix #1 — shell.js supprimé du boot : NAV_ITEMS est défini ici uniquement.
-              shell.js était dead code (NAV dupliqué, jamais appelé par le panel).
      fix #2 — store reinit : comparaison par référence objet (window.__hse_last_store_ref)
-              au lieu de _instance_id injecté à la volée.
-     fix #3 — boot retry : _booting est géré par finally.
+              au lieu de _instance_id injecté à la volée. La reinit ne se déclenche
+              que si window.hse_store est un NOUVEL objet (reload HA/bureau virtuel).
+     fix #3 — boot retry : _booting est géré par finally ; le commentaire ci-dessous
+              documente que le catch ne doit pas appeler _boot() en boucle.
 */
 
-const build_signature = "2026-04-07_single_root_fix1";
+const build_signature = "2026-04-06_single_root_2c";
 
 (function () {
   const PANEL_BASE  = "/api/hse/static/panel";
@@ -55,10 +55,10 @@ const build_signature = "2026-04-07_single_root_fix1";
         return resp.text();
       },
     };
-    console.warn('[HSE] loader.js absent — fallback loader utilisé.');
+    console.warn('[HSE] loader.js absent — fallback loader utilisé. Ajoutez loader.js dans hse_panel.html.');
   }
 
-  // ── NAV — source unique de vérité (shell.js supprimé — fix #1) ────────
+  // ── NAV ────────────────────────────────────────────────────────────────
   const NAV_ITEMS = [
     { id: 'overview',   label: 'Accueil' },
     { id: 'diagnostic', label: 'Diagnostic' },
@@ -110,14 +110,18 @@ const build_signature = "2026-04-07_single_root_fix1";
       };
     }
 
-    // ── hass setter ───────────────────────────────────────────────
+    // ── hass setter ────────────────────────────────────────────────────
     set hass(hass) {
       this._hass_raw = hass;
       window.hse_live_service?.update_hass?.(hass);
       if (!this._boot_done) {
+        // _booting est remis à false par finally du boot.
+        // Si le boot a échoué (_booting=false, _boot_done=false), un nouveau
+        // set hass() peut relancer le boot (ex. reconnexion réseau).
         if (!this._booting) this._boot();
         return;
       }
+      // Propager seulement à l'onglet actif via update_hass(hass)
       const mounted = this._mounted[this._active_tab];
       if (mounted?.module?.update_hass) {
         try { mounted.module.update_hass(hass); } catch (_) {}
@@ -125,11 +129,10 @@ const build_signature = "2026-04-07_single_root_fix1";
     }
     get hass() { return this._hass_raw; }
 
-    // ── Cycle de vie ───────────────────────────────────────────────
+    // ── Cycle de vie ───────────────────────────────────────────────────
     connectedCallback() {
       console.info(`[HSE] panel loaded (${build_signature})`);
       window.__hse_panel_loaded = build_signature;
-      window.hse_panel_instance = this;
 
       this._theme = this._storage_get('hse_theme') || 'ha';
       this.setAttribute('data-theme', this._theme);
@@ -162,7 +165,6 @@ const build_signature = "2026-04-07_single_root_fix1";
         try { m.module?.unmount?.(); } catch (_) {}
       }
       this._mounted = {};
-      window.hse_panel_instance = null;
     }
 
     // ── États transitoires ─────────────────────────────────────────────
@@ -233,8 +235,9 @@ const build_signature = "2026-04-07_single_root_fix1";
     _render_nav() {
       const el = this._dom.tabs;
       if (!el) return;
+      const items = this._get_nav_items();
       el.innerHTML = '';
-      for (const item of NAV_ITEMS) {
+      for (const item of items) {
         const btn = _el('button', 'hse_tab');
         btn.textContent    = item.label;
         btn.dataset.tabId  = item.id;
@@ -244,11 +247,12 @@ const build_signature = "2026-04-07_single_root_fix1";
       }
     }
 
-    // ── Routeur mount-once ────────────────────────────────────────────
+    // ── Routeur mount-once ─────────────────────────────────────────────
 
     _switch_tab(tab_id) {
       if (tab_id === this._active_tab) return;
 
+      // Mise à jour visuelle de la nav
       if (this._dom.tabs) {
         for (const btn of this._dom.tabs.querySelectorAll('.hse_tab')) {
           btn.dataset.active = btn.dataset.tabId === tab_id ? 'true' : 'false';
@@ -267,6 +271,7 @@ const build_signature = "2026-04-07_single_root_fix1";
     }
 
     _show_tab(tab_id) {
+      // Masquer tous les conteneurs déjà montés sauf la cible
       for (const [id, m] of Object.entries(this._mounted)) {
         if (m.container) m.container.style.display = id === tab_id ? '' : 'none';
       }
@@ -323,10 +328,16 @@ const build_signature = "2026-04-07_single_root_fix1";
       };
     }
 
-    // ── Navigation helpers ─────────────────────────────────────────
+    // ── Navigation helpers ─────────────────────────────────────────────
+    _get_nav_items() {
+      const from_shell = window.hse_shell?.get_nav_items?.();
+      const items = Array.isArray(from_shell) && from_shell.length ? from_shell : NAV_ITEMS;
+      return items.filter(x => x && x.id !== 'enrich');
+    }
+
     _set_active_tab(tab_id) { this._switch_tab(tab_id); }
 
-    // ── Thème ───────────────────────────────────────────────────────
+    // ── Thème ──────────────────────────────────────────────────────────
     _set_theme(theme_key) {
       this._theme = theme_key || 'ha';
       this.setAttribute('data-theme', this._theme);
@@ -344,7 +355,7 @@ const build_signature = "2026-04-07_single_root_fix1";
       this.style.setProperty('--hse-backdrop-filter', val);
     }
 
-    // ── Interaction guard ─────────────────────────────────────────
+    // ── Interaction guard ──────────────────────────────────────────────
     _mark_interacting() {
       this._user_interacting = true;
       if (this._user_interacting_timer) clearTimeout(this._user_interacting_timer);
@@ -360,7 +371,7 @@ const build_signature = "2026-04-07_single_root_fix1";
       schedule();
     }
 
-    // ── Storage helpers ──────────────────────────────────────────
+    // ── Storage helpers ────────────────────────────────────────────────
     _storage_get(key) {
       try { return window.localStorage.getItem(key); } catch (_) { return null; }
     }
@@ -368,11 +379,12 @@ const build_signature = "2026-04-07_single_root_fix1";
       try { window.localStorage.setItem(key, v); } catch (_) {}
     }
 
-    // ── Boot séquentiel ──────────────────────────────────────────
+    // ── Boot séquentiel ────────────────────────────────────────────────
     async _boot() {
       if (this._boot_done || this._booting) return;
       this._booting = true;
 
+      // Initialiser le registre avant tout chargement de module tab
       window.hse_tabs_registry = window.hse_tabs_registry || {};
 
       try {
@@ -388,12 +400,13 @@ const build_signature = "2026-04-07_single_root_fix1";
         await L.load_script_once(`${PANEL_BASE}/features/diagnostic/diag.state.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/config/config.state.js?v=${ASSET_V}`);
 
-        // Core services (shell.js supprimé — fix #1)
+        // Core services
+        await L.load_script_once(`${PANEL_BASE}/core/shell.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/core/panel.actions.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/core/live.store.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/core/live.service.js?v=${ASSET_V}`);
 
-        // Features : views + tab modules
+        // Features : views + tab modules (aucun customElements.define)
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.state.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.api.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/overview/overview.view.js?v=${ASSET_V}`);
@@ -428,7 +441,7 @@ const build_signature = "2026-04-07_single_root_fix1";
         await L.load_script_once(`${PANEL_BASE}/features/migration/migration.view.js?v=${ASSET_V}`);
         await L.load_script_once(`${PANEL_BASE}/features/migration/migration.tab.js?v=${ASSET_V}`);
 
-        // ── fix store reinit par référence objet (fix #2) ──────────────────
+        // ── fix #3 — Store reinit par référence objet ────────────────────────
         const current_store = window.hse_store ?? null;
         if (current_store && current_store !== window.__hse_last_store_ref) {
           window.__hse_last_store_ref = current_store;
@@ -437,6 +450,7 @@ const build_signature = "2026-04-07_single_root_fix1";
           if (typeof window.hse_config_state_init   === 'function') window.hse_config_state_init();
           console.info('[HSE] store reinit: nouveau hse_store détecté — modules rebranchés');
         }
+        // ── fin fix #3 ───────────────────────────────────────────────────────
 
         this._actions = new window.hse_panel_actions(this);
 
@@ -451,7 +465,7 @@ const build_signature = "2026-04-07_single_root_fix1";
         ]);
         this._css_text = css_parts.join('\n\n');
 
-        // Live service
+        // Live service — stop avant start pour éviter double polling
         window.hse_live_service?.stop?.('overview');
         window.hse_live_service?.start?.(
           'overview',
@@ -466,6 +480,11 @@ const build_signature = "2026-04-07_single_root_fix1";
         this._show_tab(this._active_tab);
 
       } catch (err) {
+        // ── fix #2 — boot retry ──────────────────────────────────────────────
+        // _booting est remis à false par le bloc finally ci-dessous.
+        // _boot_done reste false → le prochain set hass() peut relancer _boot().
+        // Ne PAS rappeler this._boot() ici : évite une boucle infinie.
+        // ── fin fix #2 ───────────────────────────────────────────────────────
         this._boot_error = err?.message || String(err);
         console.error('[HSE] boot error', err);
         this._render_boot_error(this._boot_error);
@@ -475,7 +494,7 @@ const build_signature = "2026-04-07_single_root_fix1";
     }
   }
 
-  // ── Utilitaires locaux ───────────────────────────────────────────
+  // ── Utilitaires locaux ─────────────────────────────────────────────────
   function _el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls)        e.className   = cls;
