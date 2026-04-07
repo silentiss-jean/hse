@@ -35,12 +35,28 @@
   }
 
   function _render() {
-    if (!_container) return;
-    if (window.hse_scan_view?.render_scan) {
-      window.hse_scan_view.render_scan(_container, _scan_result, _state, on_action);
-    } else {
-      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module d\u00e9tection en cours de chargement\u2026</div></div>';
+    if (!_container || !_state) return;
+
+    if (!window.hse_scan_view?.render_scan) {
+      _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module détection en cours de chargement…</div></div>';
+      return;
     }
+
+    // Guard : scan_result=null = jamais lancé.
+    // scan.view.js accède immédiatement à scan_result.integrations → TypeError si null.
+    // On affiche un état vide avec bouton jusqu'à ce qu'un scan soit disponible.
+    if (_scan_result === null && !_state.scan_running) {
+      _container.innerHTML = `
+        <div class="hse_card" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:32px;text-align:center">
+          <div class="hse_subtitle">Aucun scan effectué pour le moment.</div>
+          <button class="hse_btn hse_btn_primary" id="hse_scan_start_btn">Lancer la détection</button>
+        </div>`;
+      const btn = _container.querySelector('#hse_scan_start_btn');
+      if (btn) btn.addEventListener('click', () => on_action('scan'));
+      return;
+    }
+
+    window.hse_scan_view.render_scan(_container, _scan_result, _state, on_action);
   }
 
   async function on_action(action, payload) {
@@ -75,7 +91,7 @@
       }
 
       case 'close_all': {
-        _state.open_all  = false;
+        _state.open_all    = false;
         _state.groups_open = {};
         _schedule_render();
         break;
@@ -94,10 +110,10 @@
 
   window.hse_tabs_registry.scan = {
     mount(container, ctx) {
-      _container = container;
-      _hass      = ctx.hass;
-      _init_state();
+      _container   = container;
+      _hass        = ctx.hass;
       _scan_result = null;
+      _init_state();
       _render();
     },
 
