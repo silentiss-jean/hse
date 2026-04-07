@@ -8,10 +8,22 @@
      - model     : objet complet passé à config.view.js
      - on_action : function(action, payload)
 
-   fix #5 — souscription à hse_config_state.subscribe() supprimée :
-            elle était morte (hse_config_state n'est jamais alimenté).
-   fix #6 — update_hass(hass) appelle _schedule_render() si _model existe,
-            pour répercuter le nouveau hass sur la vue sans bloquer le hass setter.
+   fix #5  — souscription à hse_config_state.subscribe() supprimée :
+             elle était morte (hse_config_state n'est jamais alimenté).
+   fix #7  — _do_refresh() pré-remplit pricing_draft depuis pricing || pricing_defaults
+             si et seulement si pricing_draft est encore null au retour du refresh.
+             Cela garantit que les champs numériques sont pré-remplis à l'affichage initial.
+   fix #8  — update_hass() ne déclenche plus de re-render systématique (toutes les ~2s
+             HA envoie un hass frais). Re-render uniquement si le modèle est prêt ET
+             qu'aucun chargement n'est en cours, pour ne pas perturber le patch-DOM de
+             config.view.js (select ouvert, input en cours de saisie…).
+   fix #9  — pricing_save : on sauvegarde les cost_entity_ids depuis pricing_draft EN
+             PREMIER, puis on remet pricing_draft = null, puis on appelle _do_refresh().
+             L'ancien ordre (null avant refresh) faisait perdre les ids si _do_refresh
+             remontait pricing sans cost_entity_ids.
+   fix #10 — pricing_clear remet pricing_draft = null ET force un re-render complet
+             (data-hse-config-built reset) pour que la pricing card se reconstruise
+             avec les valeurs sauvegardées, pas le draft annulé.
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -59,7 +71,13 @@
     }
   }
 
+  // fix #10 — reset le flag de construction initiale pour forcer un rebuild complet
+  function _reset_build_flag() {
+    if (_container) _container.removeAttribute('data-hse-config-built');
+  }
+
   async function _do_refresh() {
+    if (!_model) return;
     _model.loading = true;
     _schedule_render();
     try {
@@ -72,6 +90,15 @@
           _model.catalogue                    = data.catalogue ?? _model.catalogue;
           _model.current_reference_entity_id  = data.current_reference_entity_id ?? _model.current_reference_entity_id;
           _model.reference_status             = data.reference_status ?? _model.reference_status;
+
+          // fix #7 — pré-remplir pricing_draft si encore null après le refresh
+          // (premier chargement ou après pricing_save/pricing_clear)
+          if (_model.pricing_draft === null) {
+            const base = _model.pricing || _model.pricing_defaults;
+            if (base && typeof base === 'object') {
+              _model.pricing_draft = Object.assign({}, base);
+            }
+          }
         }
       }
     } catch (err) {
@@ -99,8 +126,8 @@
       }
 
       case 'save_reference': {
-        _model.saving = true;
-        _model.error  = null;
+        _model.saving  = true;
+        _model.error   = null;
         _model.message = null;
         _schedule_render();
         try {
@@ -118,8 +145,8 @@
       }
 
       case 'clear_reference': {
-        _model.saving = true;
-        _model.error  = null;
+        _model.saving  = true;
+        _model.error   = null;
         _model.message = null;
         _schedule_render();
         try {
@@ -138,7 +165,9 @@
       }
 
       case 'pricing_patch': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
         const parts = String(payload.path || '').split('.').filter(Boolean);
         let cur = _model.pricing_draft;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -151,17 +180,21 @@
       }
 
       case 'pricing_save': {
-        _model.pricing_saving = true;
-        _model.pricing_error  = null;
+        // fix #9 — capturer les ids et le draft AVANT de remettre pricing_draft = null
+        const draft_to_save  = _model.pricing_draft || _model.pricing || {};
+        const cost_entity_ids = Array.isArray(draft_to_save.cost_entity_ids)
+          ? draft_to_save.cost_entity_ids
+          : (_model.pricing?.cost_entity_ids ?? []);
+
+        _model.pricing_saving  = true;
+        _model.pricing_error   = null;
         _model.pricing_message = null;
         _schedule_render();
         try {
-          const draft = _model.pricing_draft || _model.pricing || {};
-          const cost_entity_ids = _model.pricing_draft?.cost_entity_ids ?? (_model.pricing?.cost_entity_ids ?? []);
-          await window.hse_config_api?.save_pricing?.(_hass, { ...draft, cost_entity_ids });
+          await window.hse_config_api?.save_pricing?.(_hass, { ...draft_to_save, cost_entity_ids });
           _model.pricing_message = 'Tarifs sauvegardés.';
-          _model.pricing_draft   = null;
-          await _do_refresh();
+          _model.pricing_draft   = null;   // reset après sauvegarde réussie
+          await _do_refresh();             // re-remplit pricing_draft depuis pricing (fix #7)
         } catch (err) {
           _model.pricing_error = String(err);
           console.error('[HSE] config.tab: pricing_save error', err);
@@ -173,7 +206,17 @@
       }
 
       case 'pricing_clear': {
-        _model.pricing_draft = null;
+        // fix #10 — annuler le draft : remettre à null + reset build flag pour forcer
+        // un rebuild complet de la pricing card avec les valeurs sauvegardées
+        _model.pricing_draft   = null;
+        _model.pricing_message = null;
+        _model.pricing_error   = null;
+        // Pré-remplir immédiatement depuis pricing/pricing_defaults existants
+        const base = _model.pricing || _model.pricing_defaults;
+        if (base && typeof base === 'object') {
+          _model.pricing_draft = Object.assign({}, base);
+        }
+        _reset_build_flag();
         _schedule_render();
         break;
       }
@@ -185,15 +228,20 @@
       }
 
       case 'cost_auto_select': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
         _model.pricing_draft.cost_entity_ids = payload.entity_ids ?? [];
         _schedule_render();
         break;
       }
 
       case 'pricing_list_add': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
         if (!ids.includes(payload.entity_id)) ids.push(payload.entity_id);
         _model.pricing_draft.cost_entity_ids = ids;
         _schedule_render();
@@ -201,16 +249,22 @@
       }
 
       case 'pricing_list_remove': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
         _model.pricing_draft.cost_entity_ids = ids.filter((x) => x !== payload.entity_id);
         _schedule_render();
         break;
       }
 
       case 'pricing_list_replace': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
         const idx = ids.indexOf(payload.from_entity_id);
         if (idx !== -1) ids[idx] = payload.to_entity_id;
         else if (!ids.includes(payload.to_entity_id)) ids.push(payload.to_entity_id);
@@ -230,14 +284,16 @@
       _hass      = ctx.hass;
       _init_model();
       _render();
-      // Pas de souscription à hse_config_state — fix #5 (souscription morte supprimée)
       _do_refresh().then(() => _schedule_render());
     },
 
     update_hass(hass) {
       _hass = hass;
-      // fix #6 : re-render si le modèle est en place (propagation du hass frais)
-      if (_model) _schedule_render();
+      // fix #8 — ne pas re-render si un chargement est en cours (évite de perturber
+      // le patch-DOM de config.view.js pendant fetch_config / save / pricing_save).
+      if (_model && !_model.loading && !_model.saving && !_model.pricing_saving) {
+        _schedule_render();
+      }
     },
 
     unmount() {
