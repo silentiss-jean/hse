@@ -4,13 +4,10 @@
 
    Contrat ctx : { hass, panel, actions, live_store, live_service }
 
-   API réelle exposée par cards.controller.js :
-     window.hse_cards_controller.render_cards(container, hass)
-
-   cards.controller.js gère son propre état interne (_instance CardsController) :
-     - Au premier mount : crée l'instance, injecte le layout HTML, attache les events
-     - Aux mounts suivants (retour d'onglet) : réutilise l'instance, réattache les events
-     - update_hass : met à jour _instance._hass directement
+   fix #4 — update_hass ne déclenche plus render_cards.
+   render_cards n'est appelé qu'au mount initial.
+   hass est stocké dans _hass pour usage interne futur.
+   cards.controller.js gère son propre état interne (_instance CardsController).
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -31,11 +28,9 @@
     },
 
     update_hass(hass) {
+      // fix #4 : stocke uniquement, pas de re-render
+      // cards.controller gère son propre cycle de vie
       _hass = hass;
-      // render_cards gère la mise à jour hass en interne via le guard _instance check
-      if (_container && window.hse_cards_controller?.render_cards) {
-        window.hse_cards_controller.render_cards(_container, hass);
-      }
     },
 
     unmount() {
