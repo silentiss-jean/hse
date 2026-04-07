@@ -16,6 +16,11 @@
      refresh_catalogue(hass)                    → ok
      set_reference_total(hass, entity_id|null)  → ok
      get_reference_total_status(hass, eid|null) → status
+
+   Polling référence :
+     Toutes les 4s, si le statut est ni "ready" ni "failed" (ou absent),
+     on appelle get_reference_total_status() et on re-render.
+     Le polling s'arrête au unmount() ou quand status ∈ {ready, failed}.
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -25,6 +30,7 @@
   let _hass      = null;
   let _model     = null;
   let _raf       = false;
+  let _poll_timer = null;
 
   // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -66,6 +72,49 @@
     }
   }
 
+  // ─── polling statut référence ──────────────────────────────────────────────
+  // Appelé toutes les 4s tant que le statut n'est pas terminal.
+  // S'arrête si _container est null (unmount) ou status ∈ {ready, failed}.
+
+  function _poll_ref_status_stop() {
+    if (_poll_timer) { clearInterval(_poll_timer); _poll_timer = null; }
+  }
+
+  function _poll_ref_status_start() {
+    _poll_ref_status_stop();
+    _poll_timer = setInterval(async () => {
+      if (!_container || !_model) { _poll_ref_status_stop(); return; }
+
+      const eid = _model.current_reference_entity_id || _model.selected_reference_entity_id;
+      if (!eid) return;
+
+      // Arrêt si statut terminal déjà connu
+      const cur_status = String(_model.reference_status?.status || '').toLowerCase();
+      if (cur_status === 'ready' || cur_status === 'failed') {
+        _poll_ref_status_stop();
+        return;
+      }
+
+      try {
+        const status = await window.hse_config_api?.get_reference_total_status?.(_hass, eid);
+        if (!_model) return;
+        if (status) {
+          _model.reference_status       = status;
+          _model.reference_status_error = null;
+          _schedule_render();
+          // Arrêt du polling si statut terminal atteint
+          const s = String(status.status || '').toLowerCase();
+          if (s === 'ready' || s === 'failed') _poll_ref_status_stop();
+        }
+      } catch (e) {
+        if (_model) {
+          _model.reference_status_error = String(e);
+          _schedule_render();
+        }
+      }
+    }, 4000);
+  }
+
   // ─── _do_refresh : charge pricing + catalogue en parallèle ────────────────
 
   async function _do_refresh() {
@@ -83,9 +132,9 @@
 
       // ── pricing ──
       if (pricingResp && typeof pricingResp === 'object') {
-        if (pricingResp.pricing      != null) _model.pricing          = pricingResp.pricing;
+        if (pricingResp.pricing          != null) _model.pricing          = pricingResp.pricing;
         if (pricingResp.pricing_defaults != null) _model.pricing_defaults = pricingResp.pricing_defaults;
-        // L'API retourne parfois le pricing directement (selon le backend)
+        // Certains backends retournent le pricing directement (sans enveloppe)
         if (pricingResp.contract_type != null && _model.pricing == null) {
           _model.pricing = pricingResp;
         }
@@ -98,29 +147,45 @@
         // Extraire les candidats depuis le catalogue si présents
         if (Array.isArray(catalogueResp.candidates)) {
           _model.scan_result = {
-            integrations:              catalogueResp.integrations   || [],
-            candidates:                catalogueResp.candidates     || [],
+            integrations:              catalogueResp.integrations              || [],
+            candidates:                catalogueResp.candidates                || [],
             suggested_cost_entity_ids: catalogueResp.suggested_cost_entity_ids || [],
-            suggested_summary:         catalogueResp.suggested_summary || null,
+            suggested_summary:         catalogueResp.suggested_summary          || null,
           };
         } else if (catalogueResp.scan_result && typeof catalogueResp.scan_result === 'object') {
           _model.scan_result = catalogueResp.scan_result;
         }
 
-        // Référence courante depuis le catalogue
+        // Référence courante depuis le catalogue (via helper exposé par config.view.js)
         const refEid = window.hse_config_view?._current_reference_entity_id?.(catalogueResp) ?? null;
         if (refEid != null) _model.current_reference_entity_id = refEid;
       }
 
-      // ── statut de la référence courante ──
+      // ── statut initial de la référence courante ──
       const eid = _model.current_reference_entity_id || _model.selected_reference_entity_id;
       if (eid) {
+        // D'abord chercher dans le catalogue (snapshot disponible immédiatement)
+        const snap = window.hse_config_view?._reference_status_from_catalogue?.(_model.catalogue, eid) ?? null;
+        if (snap) _model.reference_status = snap;
+
+        // Puis interroger le endpoint de statut
         try {
           const status = await window.hse_config_api?.get_reference_total_status?.(_hass, eid);
-          if (_model && status) _model.reference_status = status;
+          if (_model && status) {
+            _model.reference_status       = status;
+            _model.reference_status_error = null;
+          }
         } catch (e) {
           if (_model) _model.reference_status_error = String(e);
         }
+      }
+
+      // ── Démarrer le polling si le statut n'est pas encore terminal ──
+      const s = String(_model.reference_status?.status || '').toLowerCase();
+      if (eid && s !== 'ready' && s !== 'failed') {
+        _poll_ref_status_start();
+      } else {
+        _poll_ref_status_stop();
       }
 
     } catch (err) {
@@ -156,6 +221,7 @@
         _model.saving  = true;
         _model.error   = null;
         _model.message = null;
+        _poll_ref_status_stop(); // on arrête le poll existant avant le save
         _schedule_render();
         try {
           await window.hse_config_api.set_reference_total(
@@ -163,7 +229,7 @@
             _model.selected_reference_entity_id ?? null
           );
           _model.message = 'Référence sauvegardée.';
-          await _do_refresh();
+          await _do_refresh(); // recharge + redémarre le polling si besoin
         } catch (err) {
           _model.error = String(err);
           console.error('[HSE] config.tab: save_reference error', err);
@@ -179,10 +245,12 @@
         _model.saving  = true;
         _model.error   = null;
         _model.message = null;
+        _poll_ref_status_stop();
         _schedule_render();
         try {
           await window.hse_config_api.set_reference_total(_hass, null);
           _model.selected_reference_entity_id = null;
+          _model.reference_status             = null;
           _model.message = 'Référence supprimée.';
           await _do_refresh();
         } catch (err) {
@@ -218,7 +286,7 @@
         _model.pricing_message = null;
         _schedule_render();
         try {
-          const draft = _model.pricing_draft || _model.pricing || {};
+          const draft    = _model.pricing_draft || _model.pricing || {};
           const cost_ids = _model.pricing_draft?.cost_entity_ids ?? (_model.pricing?.cost_entity_ids ?? []);
           await window.hse_config_api.set_pricing(_hass, { ...draft, cost_entity_ids: cost_ids });
           _model.pricing_message = 'Tarifs sauvegardés.';
@@ -242,8 +310,8 @@
         _schedule_render();
         try {
           await window.hse_config_api.clear_pricing(_hass);
-          _model.pricing       = null;
-          _model.pricing_draft = null;
+          _model.pricing         = null;
+          _model.pricing_draft   = null;
           _model.pricing_message = 'Tarifs effacés.';
           await _do_refresh();
         } catch (err) {
@@ -334,6 +402,7 @@
     },
 
     unmount() {
+      _poll_ref_status_stop();
       _container = null;
       _hass      = null;
       _model     = null;
