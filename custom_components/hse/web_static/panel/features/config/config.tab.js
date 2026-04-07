@@ -8,10 +8,14 @@
      - model     : objet complet passé à config.view.js
      - on_action : function(action, payload)
 
-   fix #5 — souscription à hse_config_state.subscribe() supprimée :
-            elle était morte (hse_config_state n'est jamais alimenté).
-   fix #6 — update_hass(hass) appelle _schedule_render() si _model existe,
-            pour répercuter le nouveau hass sur la vue sans bloquer le hass setter.
+   Méthodes hse_config_api réelles :
+     fetch_pricing(hass)                        → { pricing, pricing_defaults }
+     set_pricing(hass, pricing)                 → ok
+     clear_pricing(hass)                        → ok
+     fetch_catalogue(hass)                      → catalogue
+     refresh_catalogue(hass)                    → ok
+     set_reference_total(hass, entity_id|null)  → ok
+     get_reference_total_status(hass, eid|null) → status
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -21,6 +25,8 @@
   let _hass      = null;
   let _model     = null;
   let _raf       = false;
+
+  // ─── helpers ───────────────────────────────────────────────────────────────
 
   function _init_model() {
     _model = {
@@ -34,7 +40,8 @@
       pricing_defaults:              null,
       pricing_message:               null,
       pricing_error:                 null,
-      scan_result:                   null,
+      // scan_result initialisé avec la structure vide attendue par config.view.js
+      scan_result:                   { integrations: [], candidates: [], suggested_cost_entity_ids: [], suggested_summary: null },
       catalogue:                     null,
       current_reference_entity_id:   null,
       selected_reference_entity_id:  null,
@@ -59,52 +66,102 @@
     }
   }
 
+  // ─── _do_refresh : charge pricing + catalogue en parallèle ────────────────
+
   async function _do_refresh() {
+    if (!_model) return;
     _model.loading = true;
+    _model.error   = null;
     _schedule_render();
     try {
-      if (window.hse_config_api?.fetch_config) {
-        const data = await window.hse_config_api.fetch_config(_hass);
-        if (data && _model) {
-          _model.pricing                      = data.pricing ?? _model.pricing;
-          _model.pricing_defaults             = data.pricing_defaults ?? _model.pricing_defaults;
-          _model.scan_result                  = data.scan_result ?? _model.scan_result;
-          _model.catalogue                    = data.catalogue ?? _model.catalogue;
-          _model.current_reference_entity_id  = data.current_reference_entity_id ?? _model.current_reference_entity_id;
-          _model.reference_status             = data.reference_status ?? _model.reference_status;
+      const [pricingResp, catalogueResp] = await Promise.all([
+        window.hse_config_api?.fetch_pricing?.(_hass).catch((e) => { console.error('[HSE] config.tab: fetch_pricing', e); return null; }),
+        window.hse_config_api?.fetch_catalogue?.(_hass).catch((e) => { console.error('[HSE] config.tab: fetch_catalogue', e); return null; }),
+      ]);
+
+      if (!_model) return; // unmounté entre-temps
+
+      // ── pricing ──
+      if (pricingResp && typeof pricingResp === 'object') {
+        if (pricingResp.pricing      != null) _model.pricing          = pricingResp.pricing;
+        if (pricingResp.pricing_defaults != null) _model.pricing_defaults = pricingResp.pricing_defaults;
+        // L'API retourne parfois le pricing directement (selon le backend)
+        if (pricingResp.contract_type != null && _model.pricing == null) {
+          _model.pricing = pricingResp;
         }
       }
+
+      // ── catalogue → scan_result + current_reference_entity_id ──
+      if (catalogueResp && typeof catalogueResp === 'object') {
+        _model.catalogue = catalogueResp;
+
+        // Extraire les candidats depuis le catalogue si présents
+        if (Array.isArray(catalogueResp.candidates)) {
+          _model.scan_result = {
+            integrations:              catalogueResp.integrations   || [],
+            candidates:                catalogueResp.candidates     || [],
+            suggested_cost_entity_ids: catalogueResp.suggested_cost_entity_ids || [],
+            suggested_summary:         catalogueResp.suggested_summary || null,
+          };
+        } else if (catalogueResp.scan_result && typeof catalogueResp.scan_result === 'object') {
+          _model.scan_result = catalogueResp.scan_result;
+        }
+
+        // Référence courante depuis le catalogue
+        const refEid = window.hse_config_view?._current_reference_entity_id?.(catalogueResp) ?? null;
+        if (refEid != null) _model.current_reference_entity_id = refEid;
+      }
+
+      // ── statut de la référence courante ──
+      const eid = _model.current_reference_entity_id || _model.selected_reference_entity_id;
+      if (eid) {
+        try {
+          const status = await window.hse_config_api?.get_reference_total_status?.(_hass, eid);
+          if (_model && status) _model.reference_status = status;
+        } catch (e) {
+          if (_model) _model.reference_status_error = String(e);
+        }
+      }
+
     } catch (err) {
       if (_model) _model.error = String(err);
-      console.error('[HSE] config.tab: fetch_config error', err);
+      console.error('[HSE] config.tab: _do_refresh error', err);
     } finally {
       if (_model) _model.loading = false;
     }
   }
 
+  // ─── on_action ────────────────────────────────────────────────────────────
+
   async function on_action(action, payload) {
     if (!_model) return;
     switch (action) {
 
+      // ── Rafraîchit tout (pricing + catalogue + statut ref) ──
       case 'refresh': {
         await _do_refresh();
         _schedule_render();
         break;
       }
 
+      // ── Sélection locale de la référence dans le <select> ──
       case 'select_reference': {
         _model.selected_reference_entity_id = payload ?? null;
         _schedule_render();
         break;
       }
 
+      // ── Sauvegarde référence → set_reference_total ──
       case 'save_reference': {
-        _model.saving = true;
-        _model.error  = null;
+        _model.saving  = true;
+        _model.error   = null;
         _model.message = null;
         _schedule_render();
         try {
-          await window.hse_config_api?.save_reference?.(_hass, _model.selected_reference_entity_id);
+          await window.hse_config_api.set_reference_total(
+            _hass,
+            _model.selected_reference_entity_id ?? null
+          );
           _model.message = 'Référence sauvegardée.';
           await _do_refresh();
         } catch (err) {
@@ -117,13 +174,14 @@
         break;
       }
 
+      // ── Suppression référence → set_reference_total(null) ──
       case 'clear_reference': {
-        _model.saving = true;
-        _model.error  = null;
+        _model.saving  = true;
+        _model.error   = null;
         _model.message = null;
         _schedule_render();
         try {
-          await window.hse_config_api?.save_reference?.(_hass, null);
+          await window.hse_config_api.set_reference_total(_hass, null);
           _model.selected_reference_entity_id = null;
           _model.message = 'Référence supprimée.';
           await _do_refresh();
@@ -137,8 +195,11 @@
         break;
       }
 
+      // ── Mutation locale du brouillon tarifs ──
       case 'pricing_patch': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
         const parts = String(payload.path || '').split('.').filter(Boolean);
         let cur = _model.pricing_draft;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -150,15 +211,16 @@
         break;
       }
 
+      // ── Sauvegarde tarifs → set_pricing ──
       case 'pricing_save': {
-        _model.pricing_saving = true;
-        _model.pricing_error  = null;
+        _model.pricing_saving  = true;
+        _model.pricing_error   = null;
         _model.pricing_message = null;
         _schedule_render();
         try {
           const draft = _model.pricing_draft || _model.pricing || {};
-          const cost_entity_ids = _model.pricing_draft?.cost_entity_ids ?? (_model.pricing?.cost_entity_ids ?? []);
-          await window.hse_config_api?.save_pricing?.(_hass, { ...draft, cost_entity_ids });
+          const cost_ids = _model.pricing_draft?.cost_entity_ids ?? (_model.pricing?.cost_entity_ids ?? []);
+          await window.hse_config_api.set_pricing(_hass, { ...draft, cost_entity_ids: cost_ids });
           _model.pricing_message = 'Tarifs sauvegardés.';
           _model.pricing_draft   = null;
           await _do_refresh();
@@ -172,49 +234,81 @@
         break;
       }
 
+      // ── Effacer tarifs → clear_pricing ──
       case 'pricing_clear': {
-        _model.pricing_draft = null;
+        _model.pricing_saving  = true;
+        _model.pricing_error   = null;
+        _model.pricing_message = null;
         _schedule_render();
+        try {
+          await window.hse_config_api.clear_pricing(_hass);
+          _model.pricing       = null;
+          _model.pricing_draft = null;
+          _model.pricing_message = 'Tarifs effacés.';
+          await _do_refresh();
+        } catch (err) {
+          _model.pricing_error = String(err);
+          console.error('[HSE] config.tab: pricing_clear error', err);
+        } finally {
+          _model.pricing_saving = false;
+          _schedule_render();
+        }
         break;
       }
 
+      // ── Filtre capteurs coûts ──
       case 'cost_filter': {
         _model.cost_filter_q = payload ?? '';
         _schedule_render();
         break;
       }
 
+      // ── Sélection automatique capteurs coûts ──
       case 'cost_auto_select': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
         _model.pricing_draft.cost_entity_ids = payload.entity_ids ?? [];
         _schedule_render();
         break;
       }
 
+      // ── Ajout capteur coût ──
       case 'pricing_list_add': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
-        if (!ids.includes(payload.entity_id)) ids.push(payload.entity_id);
-        _model.pricing_draft.cost_entity_ids = ids;
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids_add = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        if (!ids_add.includes(payload.entity_id)) ids_add.push(payload.entity_id);
+        _model.pricing_draft.cost_entity_ids = ids_add;
         _schedule_render();
         break;
       }
 
+      // ── Retrait capteur coût ──
       case 'pricing_list_remove': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
-        _model.pricing_draft.cost_entity_ids = ids.filter((x) => x !== payload.entity_id);
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids_rm = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        _model.pricing_draft.cost_entity_ids = ids_rm.filter((x) => x !== payload.entity_id);
         _schedule_render();
         break;
       }
 
+      // ── Remplacement capteur coût ──
       case 'pricing_list_replace': {
-        if (!_model.pricing_draft) _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
-        const ids = Array.isArray(_model.pricing_draft.cost_entity_ids) ? _model.pricing_draft.cost_entity_ids.slice() : [];
-        const idx = ids.indexOf(payload.from_entity_id);
-        if (idx !== -1) ids[idx] = payload.to_entity_id;
-        else if (!ids.includes(payload.to_entity_id)) ids.push(payload.to_entity_id);
-        _model.pricing_draft.cost_entity_ids = ids;
+        if (!_model.pricing_draft) {
+          _model.pricing_draft = Object.assign({}, _model.pricing || _model.pricing_defaults || {});
+        }
+        const ids_rep = Array.isArray(_model.pricing_draft.cost_entity_ids)
+          ? _model.pricing_draft.cost_entity_ids.slice() : [];
+        const idx = ids_rep.indexOf(payload.from_entity_id);
+        if (idx !== -1) ids_rep[idx] = payload.to_entity_id;
+        else if (!ids_rep.includes(payload.to_entity_id)) ids_rep.push(payload.to_entity_id);
+        _model.pricing_draft.cost_entity_ids = ids_rep;
         _schedule_render();
         break;
       }
@@ -224,20 +318,19 @@
     }
   }
 
+  // ─── registry ─────────────────────────────────────────────────────────────
+
   window.hse_tabs_registry.config = {
     mount(container, ctx) {
       _container = container;
       _hass      = ctx.hass;
       _init_model();
-      _render();
-      // Pas de souscription à hse_config_state — fix #5 (souscription morte supprimée)
-      _do_refresh().then(() => _schedule_render());
+      _render(); // rendu immédiat avec état vide (évite flash "en cours de chargement")
+      _do_refresh().then(() => _schedule_render()); // puis charge les données réelles
     },
 
     update_hass(hass) {
       _hass = hass;
-      // fix #6 : re-render si le modèle est en place (propagation du hass frais)
-      if (_model) _schedule_render();
     },
 
     unmount() {
