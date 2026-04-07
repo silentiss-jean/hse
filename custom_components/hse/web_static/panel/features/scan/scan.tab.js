@@ -35,12 +35,29 @@
   }
 
   function _render() {
-    if (!_container) return;
-    if (window.hse_scan_view?.render_scan) {
-      window.hse_scan_view.render_scan(_container, _scan_result, _state, on_action);
-    } else {
+    if (!_container || !_state) return;
+
+    if (!window.hse_scan_view?.render_scan) {
       _container.innerHTML = '<div class="hse_card"><div class="hse_subtitle">Module détection en cours de chargement…</div></div>';
+      return;
     }
+
+    // Guard : scan_result=null = jamais lancé. La view ne doit pas recevoir null
+    // car elle accède immédiatement à scan_result.integrations (→ TypeError).
+    // On délègue à la view uniquement si un résultat (ou un scan en cours) est disponible ;
+    // sinon on affiche un état vide invitant à lancer le scan.
+    if (_scan_result === null && !_state.scan_running) {
+      _container.innerHTML = `
+        <div class="hse_card" style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:32px;text-align:center">
+          <div class="hse_subtitle">Aucun scan effectué pour le moment.</div>
+          <button class="hse_btn hse_btn_primary" id="hse_scan_start_btn">Lancer la détection</button>
+        </div>`;
+      const btn = _container.querySelector('#hse_scan_start_btn');
+      if (btn) btn.addEventListener('click', () => on_action('scan'));
+      return;
+    }
+
+    window.hse_scan_view.render_scan(_container, _scan_result, _state, on_action);
   }
 
   async function on_action(action, payload) {
