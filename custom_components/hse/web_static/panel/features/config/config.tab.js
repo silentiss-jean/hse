@@ -1,15 +1,17 @@
 /* config.tab.js — module tab uniforme (contrat mount/update_hass/unmount)
    S'enregistre dans window.hse_tabs_registry.config
-   Dépend de : hse_config_view, hse_config_state (optionnel), hse_config_api
+   Dépend de : hse_config_view, hse_config_api
 
    Contrat ctx : { hass, panel, actions, live_store, live_service }
 
    Contrat view : window.hse_config_view.render_config(container, model, on_action)
-     - model     : objet complet passé à config.view.js (pricing, scan_result, catalogue, state, …)
+     - model     : objet complet passé à config.view.js
      - on_action : function(action, payload)
 
-   config.view.js expose render_config(container, model, on_action) — 3 arguments.
-   Le model est un objet mutable enrichi par les actions successives.
+   fix #5 — souscription à hse_config_state.subscribe() supprimée :
+            elle était morte (hse_config_state n'est jamais alimenté).
+   fix #6 — update_hass(hass) appelle _schedule_render() si _model existe,
+            pour répercuter le nouveau hass sur la vue sans bloquer le hass setter.
 */
 (function () {
   window.hse_tabs_registry = window.hse_tabs_registry || {};
@@ -18,7 +20,6 @@
   let _container = null;
   let _hass      = null;
   let _model     = null;
-  let _unsub     = null;
   let _raf       = false;
 
   function _init_model() {
@@ -41,11 +42,6 @@
       reference_status_error:        null,
       cost_filter_q:                 '',
     };
-  }
-
-  function _unsubscribe() {
-    if (typeof _unsub === 'function') { try { _unsub(); } catch (_) {} }
-    _unsub = null;
   }
 
   function _schedule_render() {
@@ -234,22 +230,17 @@
       _hass      = ctx.hass;
       _init_model();
       _render();
-
-      // Abonnement optionnel à hse_config_state (pour réactivité externe)
-      if (window.hse_config_state?.subscribe) {
-        _unsub = window.hse_config_state.subscribe(() => _schedule_render());
-      }
-
-      // Chargement initial
+      // Pas de souscription à hse_config_state — fix #5 (souscription morte supprimée)
       _do_refresh().then(() => _schedule_render());
     },
 
     update_hass(hass) {
       _hass = hass;
+      // fix #6 : re-render si le modèle est en place (propagation du hass frais)
+      if (_model) _schedule_render();
     },
 
     unmount() {
-      _unsubscribe();
       _container = null;
       _hass      = null;
       _model     = null;
